@@ -40,3 +40,6 @@ code, .kn-code { font: 400 12px/20px var(--font-mono); word-break: break-all; }
 /* Columns of the saved-connections table (Main design). */
 .conn-grid { display: grid; grid-template-columns: minmax(0, 2.3fr) minmax(0, 1.7fr) minmax(0, 2fr) 120px 170px 150px; gap: var(--space-4); align-items: center; }
 .kn-input input[type="search"]::-webkit-search-cancel-button { display: none; }
+
+/* A <select> reset with `all: unset` puts its text at the top of the box: centre it on the field's inner height. */
+.kn-select select { line-height: calc(var(--size-control) - 2px); }
