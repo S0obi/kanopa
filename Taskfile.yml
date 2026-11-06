@@ -1,7 +1,9 @@
 version: '3'
 
+# Run tasks with `wails3 task <name>` (or `task <name>` if go-task is installed).
+
 vars:
-  APP_NAME: "tada"
+  APP_NAME: "kanopa"
   BIN_DIR: "bin"
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
@@ -9,14 +11,16 @@ vars:
   # by `wails3 build GOOS=...` (or the GOOS env var) for cross-compilation. The
   # tasks below dispatch to the matching platform Taskfile via this variable.
   GOOS: '{{.GOOS | default OS}}'
+  # On Windows, Docker Engine runs inside WSL (see test/ldap/README.md).
+  DOCKER: '{{if eq OS "windows"}}wsl.exe -- docker{{else}}docker{{end}}'
+  LDAP_IMAGE: kanopa-test-ldap:dev
+  LDAP_CONTAINER: kanopa-ldap
 
 includes:
   common: ./build/Taskfile.yml
   windows: ./build/windows/Taskfile.yml
   darwin: ./build/darwin/Taskfile.yml
   linux: ./build/linux/Taskfile.yml
-  ios: ./build/ios/Taskfile.yml
-  android: ./build/android/Taskfile.yml
 
 tasks:
   build:
@@ -44,27 +48,96 @@ tasks:
     cmds:
       - task: windows:install:msix:tools
 
-  setup:docker:
-    summary: Builds Docker image for cross-compilation (~800MB download)
-    cmds:
-      - task: common:setup:docker
+  # ---------- Test directory ----------
 
-  build:server:
-    summary: Builds the application in server mode (no GUI, HTTP server only)
+  docker:up:
+    summary: Makes sure a Docker daemon answers (on Windows, Docker Engine inside WSL on localhost:2375)
     cmds:
-      - task: common:build:server
+      - cmd: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/docker-wsl.ps1
+        platforms: [windows]
+      - cmd: docker version --format "Docker {{"{{"}}.Server.Version{{"}}"}}"
+        platforms: [darwin, linux]
 
-  run:server:
-    summary: Runs the application in server mode
+  ldap:build:
+    summary: Builds the OpenLDAP test image from test/ldap
+    deps: [docker:up]
+    sources:
+      - test/ldap/Dockerfile
+      - test/ldap/slapd.conf
+      - test/ldap/seed.ldif
     cmds:
-      - task: common:run:server
+      - '{{.DOCKER}} build -q -t {{.LDAP_IMAGE}} test/ldap'
 
-  build:docker:
-    summary: Builds a Docker image for server mode deployment
+  ldap:seed:
+    summary: Regenerates test/ldap/seed.ldif from test/ldap/seedgen
     cmds:
-      - task: common:build:docker
+      - go run ./test/ldap/seedgen > test/ldap/seed.ldif
 
-  run:docker:
-    summary: Builds and runs the Docker image
+  ldap:up:
+    summary: Starts the test directory on localhost:389 (plain, StartTLS) and localhost:636 (LDAPS)
+    deps: [ldap:build]
     cmds:
-      - task: common:run:docker
+      - cmd: '{{.DOCKER}} rm -f {{.LDAP_CONTAINER}}'
+        ignore_error: true
+        silent: true
+      - '{{.DOCKER}} run -d --name {{.LDAP_CONTAINER}} -p 389:389 -p 636:636 {{.LDAP_IMAGE}}'
+      - cmd: echo "Test directory up. Admin cn=admin,dc=example,dc=org / kanopa-admin. See test/ldap/README.md."
+        silent: true
+
+  ldap:down:
+    summary: Stops and removes the test directory
+    cmds:
+      - '{{.DOCKER}} rm -f {{.LDAP_CONTAINER}}'
+
+  ldap:stop:
+    summary: Stops the test directory without removing it (to see how Kanopa reacts)
+    cmds:
+      - '{{.DOCKER}} stop {{.LDAP_CONTAINER}}'
+
+  ldap:start:
+    summary: Starts a stopped test directory again
+    cmds:
+      - '{{.DOCKER}} start {{.LDAP_CONTAINER}}'
+
+  ldap:search:
+    summary: 'Prints one entry as the server holds it. Usage: wails3 task ldap:search DN=uid=ada,ou=people,dc=example,dc=org'
+    requires:
+      vars: [DN]
+    cmds:
+      - '{{.DOCKER}} exec {{.LDAP_CONTAINER}} kanopa-search "{{.DN}}"'
+
+  # ---------- Tests ----------
+
+  test:
+    summary: Runs every automated test layer
+    cmds:
+      - task: test:go
+      - task: test:web
+      - task: test:e2e
+      - task: test:it
+
+  test:go:
+    summary: Go unit tests
+    cmds:
+      - go test ./internal/... ./services/...
+
+  test:it:
+    summary: Go integration tests against the OpenLDAP fixture (needs Docker)
+    deps: [docker:up]
+    cmds:
+      - cmd: go test -tags integration -count=1 ./internal/... ./services/...
+        platforms: [darwin, linux]
+      - cmd: DOCKER_HOST=tcp://localhost:2375 TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock go test -tags integration -count=1 ./internal/... ./services/...
+        platforms: [windows]
+
+  test:web:
+    summary: Frontend component and unit tests (Vitest)
+    dir: frontend
+    cmds:
+      - npm run test
+
+  test:e2e:
+    summary: User flows in a browser against the fake backend (Playwright)
+    dir: frontend
+    cmds:
+      - npm run test:e2e

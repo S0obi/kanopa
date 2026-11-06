@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "./theme/tokens.css";
+@import "./ui/kanopa.css";
+@import "./ui/kanopa-extra.css";
+
+html,
+body,
+#root {
+  height: 100%;
+}

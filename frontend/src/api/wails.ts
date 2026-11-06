@@ -1,0 +1,15 @@
+import { ConnectionService } from "../../bindings/github.com/S0obi/kanopa/services";
+import type { Backend } from "./backend";
+
+type Cancellable<T> = Promise<T> & { cancel(): void };
+
+// Wails calls return cancellable promises; an aborted signal cancels the Go context.
+function withSignal<T>(p: Cancellable<T>, signal?: AbortSignal): Promise<T> {
+  signal?.addEventListener("abort", () => p.cancel(), { once: true });
+  return p;
+}
+
+export const wailsBackend: Backend = {
+  testConnection: (p, signal) => withSignal(ConnectionService.Test(p), signal),
+  fetchBaseDn: (p, signal) => withSignal(ConnectionService.FetchBaseDN(p), signal),
+};

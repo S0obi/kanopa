@@ -8,27 +8,27 @@
         AllowPromptForPassword="false">
     </Settings>
     <Installer
-        Path="tada.exe"
+        Path="kanopa.exe"
         Arguments=""
-        InstallLocation="C:\Program Files\Thibault\Tada">
+        InstallLocation="C:\Program Files\Kanopa">
     </Installer>
     <PackageInformation
-        PackageName="Tada"
-        PackageDisplayName="Tada"
+        PackageName="Kanopa"
+        PackageDisplayName="Kanopa"
         PublisherName="CN=Thibault"
         PublisherDisplayName="Thibault"
         Version="0.1.0.0"
-        PackageDescription="One big button, endless confetti">
+        PackageDescription="A calm, exact LDAP client">
         <Capabilities>
             <Capability Name="runFullTrust" />
             
         </Capabilities>
         <Applications>
             <Application
-                Id="com.thibault.tadapoc"
-                Description="One big button, endless confetti"
-                DisplayName="Tada"
-                ExecutableName="tada.exe"
+                Id="app.kanopa.desktop"
+                Description="A calm, exact LDAP client"
+                DisplayName="Kanopa"
+                ExecutableName="kanopa.exe"
                 EntryPoint="Windows.FullTrustApplication">
                 
             </Application>
@@ -41,13 +41,13 @@
         </Dependencies>
         <Properties>
             <Framework>false</Framework>
-            <DisplayName>Tada</DisplayName>
+            <DisplayName>Kanopa</DisplayName>
             <PublisherDisplayName>Thibault</PublisherDisplayName>
-            <Description>One big button, endless confetti</Description>
+            <Description>A calm, exact LDAP client</Description>
             <Logo>Assets\AppIcon.png</Logo>
         </Properties>
     </PackageInformation>
-    <SaveLocation PackagePath="tada.msix" />
+    <SaveLocation PackagePath="kanopa.msix" />
     <PackageIntegrity>
         <CertificatePath></CertificatePath>
     </PackageIntegrity>

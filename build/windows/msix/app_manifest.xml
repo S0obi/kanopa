@@ -8,15 +8,15 @@
   IgnorableNamespaces="uap3">
   
   <Identity 
-    Name="com.thibault.tadapoc"
+    Name="app.kanopa.desktop"
     Publisher="CN=Thibault"
     Version="0.1.0.0"
     ProcessorArchitecture="x64" />
   
   <Properties>
-    <DisplayName>Tada</DisplayName>
+    <DisplayName>Kanopa</DisplayName>
     <PublisherDisplayName>Thibault</PublisherDisplayName>
-    <Description>One big button, endless confetti</Description>
+    <Description>A calm, exact LDAP client</Description>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
   
@@ -29,10 +29,10 @@
   </Resources>
   
   <Applications>
-    <Application Id="com.thibault.tadapoc" Executable="tada.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="app.kanopa.desktop" Executable="kanopa.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Tada"
-        Description="One big button, endless confetti"
+        DisplayName="Kanopa"
+        Description="A calm, exact LDAP client"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
@@ -41,7 +41,7 @@
       </uap:VisualElements>
       
       <Extensions>
-        <desktop:Extension Category="windows.fullTrustProcess" Executable="tada.exe" />
+        <desktop:Extension Category="windows.fullTrustProcess" Executable="kanopa.exe" />
         
         
       </Extensions>

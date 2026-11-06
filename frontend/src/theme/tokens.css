@@ -1,0 +1,214 @@
+/* Kanopa — generated from tokens.json by scripts/gen-tokens.mjs. Do not edit. */
+
+:root {
+  --surface: #f3f6f0;
+  --surface-raised: #fbfcf9;
+  --surface-sunken: #e7ede2;
+  --surface-hover: #dde6d7;
+  --surface-selected: #cfe2c6;
+  --line: #d5ddcf;
+  --line-strong: #7b8c7f;
+  --ink: #1c2720;
+  --ink-muted: #4f5e53;
+  --ink-faint: #617065;
+  --moss: #a7c99c;
+  --moss-hover: #96bd8a;
+  --moss-soft: #e0edd9;
+  --moss-ink: #2f623c;
+  --on-moss: #15231a;
+  --fern: #4e8a5a;
+  --pine: #2f623c;
+  --focus: #3b7448;
+  --link: #2f623c;
+  --lichen: #dde7bd;
+  --lichen-ink: #55601f;
+  --sky: #c9dee6;
+  --sky-ink: #2b5b6e;
+  --heather: #dcd3ea;
+  --heather-ink: #57467a;
+  --bark: #e3d5c3;
+  --bark-ink: #6a4f33;
+  --success-soft: #d3ebe6;
+  --success-ink: #1b5a57;
+  --warning-soft: #f5e6b8;
+  --warning-ink: #6d500a;
+  --danger-soft: #f5d9d8;
+  --danger-ink: #a8343b;
+  --danger: #e9aeb0;
+  --danger-hover: #df9ca0;
+  --on-danger: #4a1418;
+  --info-soft: #c9dee6;
+  --info-ink: #2b5b6e;
+  --syn-attr: #57467a;
+  --syn-dn: #2f623c;
+  --syn-value: #1c2720;
+  --syn-keyword: #2b5b6e;
+  --syn-encoded: #6a4f33;
+  --syn-operator: #9a4510;
+  --syn-punct: #4f5e53;
+  --syn-comment: #4f5e53;
+  --syn-error: #a8343b;
+  --scrim: #1c27204d;
+  --chrome-mac-close: #ff5f57;
+  --chrome-mac-min: #febc2e;
+  --chrome-mac-zoom: #28c840;
+  --chrome-win-close: #c42b1c;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --size-control-sm: 24px;
+  --size-control: 30px;
+  --size-control-lg: 36px;
+  --size-row: 28px;
+  --size-titlebar: 40px;
+  --size-sidebar: 264px;
+  --focus-ring: 0 0 0 2px #fbfcf9, 0 0 0 4px #3b7448;
+}
+
+@theme static {
+  --color-*: initial;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px #1c27200f, 0 1px 1px #1c27200a;
+  --shadow-md: 0 4px 12px #1c272014, 0 1px 3px #1c27200f;
+  --shadow-lg: 0 16px 40px -8px #1c272033, 0 4px 12px #1c272014;
+  --font-sans: Inter, "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-moss: var(--moss);
+  --color-moss-hover: var(--moss-hover);
+  --color-moss-soft: var(--moss-soft);
+  --color-moss-ink: var(--moss-ink);
+  --color-on-moss: var(--on-moss);
+  --color-fern: var(--fern);
+  --color-pine: var(--pine);
+  --color-focus: var(--focus);
+  --color-link: var(--link);
+  --color-lichen: var(--lichen);
+  --color-lichen-ink: var(--lichen-ink);
+  --color-sky: var(--sky);
+  --color-sky-ink: var(--sky-ink);
+  --color-heather: var(--heather);
+  --color-heather-ink: var(--heather-ink);
+  --color-bark: var(--bark);
+  --color-bark-ink: var(--bark-ink);
+  --color-success-soft: var(--success-soft);
+  --color-success-ink: var(--success-ink);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-on-danger: var(--on-danger);
+  --color-info-soft: var(--info-soft);
+  --color-info-ink: var(--info-ink);
+  --color-syn-attr: var(--syn-attr);
+  --color-syn-dn: var(--syn-dn);
+  --color-syn-value: var(--syn-value);
+  --color-syn-keyword: var(--syn-keyword);
+  --color-syn-encoded: var(--syn-encoded);
+  --color-syn-operator: var(--syn-operator);
+  --color-syn-punct: var(--syn-punct);
+  --color-syn-comment: var(--syn-comment);
+  --color-syn-error: var(--syn-error);
+  --color-scrim: var(--scrim);
+  --color-chrome-mac-close: var(--chrome-mac-close);
+  --color-chrome-mac-min: var(--chrome-mac-min);
+  --color-chrome-mac-zoom: var(--chrome-mac-zoom);
+  --color-chrome-win-close: var(--chrome-win-close);
+}
+
+@utility type-display {
+  font-family: var(--font-sans);
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+@utility type-title {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+@utility type-heading {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+@utility type-body {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+@utility type-body-strong {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+@utility type-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+@utility type-overline {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@utility type-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+@utility type-code-strong {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+@utility type-code-block {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 20px;
+  font-weight: 400;
+}
