@@ -33,6 +33,10 @@
     {
       "files": ["scripts/**"],
       "rules": { "no-console": "off" }
+    },
+    {
+      "files": ["e2e/**"],
+      "rules": { "no-await-in-loop": "off" }
     }
   ],
   "ignorePatterns": ["dist/**", "bindings/**", "node_modules/**", "playwright-report/**", "test-results/**"]

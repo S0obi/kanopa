@@ -4,8 +4,9 @@ import { errorText, useBackend, type ConnectReason, type SavedConnection } from 
 import { credentialStoreName, detectPlatform, isMod, type Platform } from "@/lib/platform";
 import { formatLastUsed, plural } from "@/lib/time";
 import { useApp } from "@/stores/app";
-import { Badge, Banner, Button, Checkbox, ConfirmDialog, Dialog, EmptyState, Icon, Kbd, Logo, MenuButton, Spinner, TextField, cx, useToasts } from "@/ui";
+import { Badge, Banner, Button, ConfirmDialog, EmptyState, Icon, Kbd, Logo, MenuButton, Spinner, TextField, cx, useToasts } from "@/ui";
 import { ConnectionDialog } from "./ConnectionDialog";
+import { PasswordDialog } from "./PasswordDialog";
 import { hostOf, hostPortOf } from "./url";
 
 type RowStatus = { state: "connecting" } | { state: "error"; title: string; message: string; reason: ConnectReason };
@@ -428,35 +429,3 @@ function ConnectionRow({ conn: c, last, active, status, platform, onActivate, on
   );
 }
 
-function PasswordDialog({ conn, store, platform, onCancel, onConnect }: { conn: SavedConnection; store: string; platform: Platform; onCancel: () => void; onConnect: (pw: string, save: boolean) => void }) {
-  const [pw, setPw] = useState("");
-  const [save, setSave] = useState(false);
-  const [tried, setTried] = useState(false);
-  const submit = () => (pw ? onConnect(pw, save) : setTried(true));
-  return (
-    <Dialog
-      title={`Connect to ${conn.name}`}
-      description={
-        <>
-          Enter the password for <code>{conn.bindDn}</code>.
-        </>
-      }
-      platform={platform}
-      onClose={onCancel}
-      primaryAction={{ label: "Connect", onClick: submit }}
-      secondaryAction={{ label: "Cancel", onClick: onCancel }}
-      width={460}
-    >
-      <form
-        className="flex flex-col gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <TextField label="Password" type="password" mono autoComplete="current-password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} error={tried && !pw ? "Enter the password." : undefined} />
-        <Checkbox label={`Save the password in the ${store}`} checked={save} onChange={(e) => setSave(e.target.checked)} />
-      </form>
-    </Dialog>
-  );
-}
