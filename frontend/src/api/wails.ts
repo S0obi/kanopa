@@ -1,4 +1,5 @@
-import { ConnectionService } from "../../bindings/github.com/S0obi/kanopa/services";
+import { Clipboard } from "@wailsio/runtime";
+import { ConnectionService, DirectoryService } from "../../bindings/github.com/S0obi/kanopa/services";
 import type { Backend } from "./backend";
 
 type Cancellable<T> = Promise<T> & { cancel(): void };
@@ -19,4 +20,12 @@ export const wailsBackend: Backend = {
   allowUnencrypted: (id) => ConnectionService.AllowUnencrypted(id),
   connect: (id, password, save, signal) => withSignal(ConnectionService.Connect(id, password, save), signal),
   disconnect: (id) => ConnectionService.Disconnect(id),
+  roots: (id) => DirectoryService.Roots(id),
+  children: (id, dn, more) => DirectoryService.Children(id, dn, more),
+  entry: (id, dn) => DirectoryService.Entry(id, dn),
+  memberOf: (id, dn) => DirectoryService.MemberOf(id, dn),
+  ping: (id) => DirectoryService.Ping(id),
+  copyText: async (text) => {
+    await Clipboard.SetText(text);
+  },
 };

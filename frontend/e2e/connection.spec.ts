@@ -5,6 +5,11 @@ import { expect, test, type Page } from "@playwright/test";
 
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name });
 
+/** The browser screen of a connection: its name in the header, and the tree. */
+function connectedTo(page: Page, name: string) {
+  return page.locator("header").getByRole("heading", { level: 1, name, exact: true }).and(page.locator("h1")).first();
+}
+
 async function fillNew(page: Page, name: string, url: string, bindDn?: string, password?: string) {
   await page.getByLabel("Connection name").fill(name);
   await page.getByLabel("LDAP URL").fill(url);
@@ -37,8 +42,8 @@ test("create a connection, test it, save and connect", async ({ page }) => {
     /Bound as cn=admin,dc=example,dc=org in \d+ ms over LDAPS\. The server offers 1 naming context: dc=example,dc=org\./,
   );
   await page.keyboard.press("Control+Enter");
-  await expect(page.getByRole("heading", { name: "Connected to Test directory" })).toBeVisible();
-  await expect(page.getByText("ldaps://localhost:636").first()).toBeVisible();
+  await expect(connectedTo(page, "Test directory")).toBeVisible();
+  await expect(page.getByRole("tree", { name: "Directory tree" })).toBeVisible();
 
   await page.getByRole("button", { name: "Disconnect" }).click();
   await expect(page.getByText("1 saved connection")).toBeVisible();
@@ -71,17 +76,17 @@ test("a refused password leads to Update password, which fixes it", async ({ pag
   await d.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByText("Saved changes to “Corporate Active Directory”.")).toBeVisible();
   await page.getByRole("button", { name: "Connect to Corporate Active Directory" }).click();
-  await expect(page.getByRole("heading", { name: "Connected to Corporate Active Directory" })).toBeVisible();
+  await expect(connectedTo(page, "Corporate Active Directory")).toBeVisible();
 });
 
 test("an unencrypted connection asks once", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Connect to Local OpenLDAP" }).click();
   await page.getByRole("alertdialog", { name: "Connect without encryption?" }).getByRole("button", { name: "Connect anyway" }).click();
-  await expect(page.getByRole("heading", { name: "Connected to Local OpenLDAP" })).toBeVisible();
+  await expect(connectedTo(page, "Local OpenLDAP")).toBeVisible();
   await page.getByRole("button", { name: "Disconnect" }).click();
   await page.getByRole("button", { name: "Connect to Local OpenLDAP" }).click();
-  await expect(page.getByRole("heading", { name: "Connected to Local OpenLDAP" })).toBeVisible();
+  await expect(connectedTo(page, "Local OpenLDAP")).toBeVisible();
 });
 
 test("edit, duplicate and delete from the row menu", async ({ page }) => {
@@ -106,7 +111,7 @@ test("keyboard only: filter, pick, connect, disconnect", async ({ page }) => {
   await page.keyboard.type("openldap");
   await page.keyboard.press("Enter");
   await page.getByRole("alertdialog").getByRole("button", { name: "Connect anyway" }).press("Enter");
-  await expect(page.getByRole("heading", { name: "Connected to Local OpenLDAP" })).toBeVisible();
+  await expect(connectedTo(page, "Local OpenLDAP")).toBeVisible();
   await page.getByRole("button", { name: "Disconnect" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "Choose a connection" })).toBeVisible();

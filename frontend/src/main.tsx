@@ -13,7 +13,12 @@ import { App } from "./App";
 
 // `vite --mode fake` runs the UI in a plain browser against the fake backend.
 async function loadBackend(): Promise<Backend> {
-  if (import.meta.env.MODE === "fake") return (await import("@/api/fake")).fakeBackend;
+  if (import.meta.env.MODE === "fake") {
+    const fake = await import("@/api/fake");
+    // Playwright switches the fake's behaviour (a lost connection, delays) through this handle.
+    (window as unknown as { kanopaFake: typeof fake.FAKE }).kanopaFake = fake.FAKE;
+    return fake.fakeBackend;
+  }
   return (await import("@/api/wails")).wailsBackend;
 }
 

@@ -2,14 +2,24 @@ import { createContext, useContext } from "react";
 import type {
   ConnectionParams,
   ConnectResult,
+  EntryAttribute,
+  EntryView,
+  Failure,
   ListResult,
+  RelatedEntry,
+  RelatedResult,
   SavedConnection,
   SaveRequest,
   SessionInfo,
   TestResult,
+  TreeNode,
+  TreeResult,
 } from "../../bindings/github.com/S0obi/kanopa/services/models";
 
-export type { ConnectionParams, ConnectResult, ListResult, SavedConnection, SaveRequest, SessionInfo, TestResult };
+export type {
+  ConnectionParams, ConnectResult, EntryAttribute, EntryView, Failure, ListResult, RelatedEntry, RelatedResult, SavedConnection,
+  SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
+};
 
 /** Why a connection attempt stopped (services.Reason*). */
 export type ConnectReason = "" | "needsPassword" | "badPassword" | "needsConsent" | "unreachable" | "other";
@@ -30,6 +40,16 @@ export interface Backend {
   allowUnencrypted(id: string): Promise<void>;
   connect(id: string, password: string, savePassword: boolean, signal?: AbortSignal): Promise<ConnectResult>;
   disconnect(id: string): Promise<void>;
+
+  /** The top of the tree: naming contexts and the schema entry. */
+  roots(id: string): Promise<TreeResult>;
+  /** One page of the children of dn; more is the previous page's token, "" for the first. */
+  children(id: string, dn: string, more: string): Promise<TreeResult>;
+  entry(id: string, dn: string): Promise<EntryView>;
+  memberOf(id: string, dn: string): Promise<RelatedResult>;
+  /** null while the connection answers. */
+  ping(id: string): Promise<Failure | null>;
+  copyText(text: string): Promise<void>;
 }
 
 export const BackendContext = createContext<Backend | null>(null);
