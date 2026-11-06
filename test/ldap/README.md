@@ -24,6 +24,7 @@ wails3 task ldap:down
 - `dc=example,dc=org` with `ou=people` (1,182 entries: Ada Lovelace, Grace Hopper, Alan Turing … plus generated names), `ou=groups` (24 `groupOfNames`), `ou=services` (3 accounts) and `ou=hosts` (70 devices)
 - a `jpegPhoto` on Ada, `{SSHA}` passwords, `manager` DNs
 - `ou=partners`: a referral to `ldap://partners.example.org/…`
+- Alpine 3.24, OpenLDAP 2.6.15
 - TLS from a throwaway CA built into the image. It is never trusted, so keep **Verify the server certificate** off when connecting to it.
 - plain searches stop at 500 entries; paged searches get everything
 
@@ -44,4 +45,14 @@ sudo systemctl daemon-reload && sudo systemctl enable --now docker
 
 `wails3 task docker:up` (run by the other tasks) starts Docker and keeps WSL awake with a hidden `sleep` process, so Windows reaches the API on `tcp://localhost:2375`. That port is bound to localhost only, but anyone on this computer who reaches it has root in WSL.
 
+If `docker pull` in WSL fails with `docker-credential-desktop.exe: executable file not found`, your WSL `~/.docker/config.json` still names Docker Desktop's credential helper. Remove its `"credsStore": "desktop.exe"` line. Until then, a public image can be pulled anonymously:
+
+```bash
+wsl -- bash -c 'mkdir -p /tmp/docker-anon && DOCKER_CONFIG=/tmp/docker-anon docker pull alpine:3.24'
+```
+
 On macOS, any Docker works and no setup is needed.
+
+## Kanopa started from the Claude app
+
+The Claude desktop app is an MSIX package, so Windows redirects `AppData\Roaming` for every program it starts. A Kanopa launched from a Claude session writes its connections and logs under `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Kanopa`, not `%AppData%\Kanopa`. Start Kanopa from Explorer or your own terminal when you check where it keeps its files.

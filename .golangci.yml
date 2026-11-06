@@ -1,0 +1,64 @@
+# golangci-lint v2 — run with `wails3 task lint:go` (the pre-commit hook does).
+version: "2"
+
+run:
+  tests: true
+  build-tags: [integration]
+
+linters:
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused) plus:
+  enable:
+    - gosec        # SAST: TLS settings, weak crypto, file permissions, injection
+    - errorlint    # errors compared or type-asserted without errors.Is / errors.As
+    - bodyclose
+    - copyloopvar
+    - gocritic
+    - misspell
+    - nilerr
+    - noctx
+    - revive
+    - unconvert
+    - wastedassign
+  settings:
+    gosec:
+      excludes:
+        # G104 duplicates errcheck.
+        - G104
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: exported
+          disabled: true   # internal app packages: comments where they help, not on every symbol
+        - name: package-comments
+          disabled: true
+        - name: error-strings
+          disabled: true   # see ST1005 below
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      # Kanopa's errors are shown to people as is: full sentences, capitalized and punctuated.
+      - linters: [staticcheck]
+        text: "ST1005"
+      # The template's generated mobile and server scaffolding is not ours to lint.
+      - path: build/
+        linters: [gosec, revive, gocritic]
+      # Tests read the files they just wrote in a temp dir.
+      - path: _test\.go
+        text: "G304"
+      # Deterministic, reproducible test data: a seeded PRNG and SSHA by design.
+      - path: test/ldap/seedgen/
+        linters: [gosec]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes: [github.com/S0obi/kanopa]
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

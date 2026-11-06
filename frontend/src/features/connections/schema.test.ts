@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advancedSummary, connectionFormSchema, emptyConnectionForm, toParams } from "./schema";
+import { advancedSummary, connectionFormSchema, emptyConnectionForm, saveFormSchema, toParams, toSaveRequest } from "./schema";
 
 const valid = { ...emptyConnectionForm, url: "ldaps://ldap.example.org", bindDn: "cn=admin,dc=example,dc=org", password: "x" };
 
@@ -42,7 +42,25 @@ describe("toParams", () => {
       password: "",
       timeoutSeconds: 10,
       verifyCert: true,
+      connectionId: "",
     });
+  });
+  it("passes the connection ID so an empty password uses the saved one", () => {
+    expect(toParams(valid, "prod").connectionId).toBe("prod");
+  });
+});
+
+describe("saving", () => {
+  it("needs a name", () => {
+    const r = saveFormSchema.safeParse({ ...valid, name: " " });
+    expect(r.success ? [] : r.error.issues.map((i) => i.message)).toEqual(["Enter a name for this connection."]);
+  });
+  it("sends no password when it is not to be saved", () => {
+    expect(toSaveRequest({ ...valid, name: "P", savePassword: false }).password).toBe("");
+    expect(toSaveRequest({ ...valid, name: "P" }, "id1")).toMatchObject({ id: "id1", password: "x", savePassword: true });
+  });
+  it("drops credentials for an anonymous bind", () => {
+    expect(toSaveRequest({ ...valid, name: "P", bind: "anonymous" })).toMatchObject({ bindDn: "", password: "", savePassword: false });
   });
 });
 

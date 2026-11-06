@@ -6,6 +6,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.15
 	github.com/testcontainers/testcontainers-go v0.45.0
 	github.com/wailsapp/wails/v3 v3.1.0
+	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/text v0.43.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
@@ -23,6 +24,7 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
+	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-connections v0.8.2 // indirect
 	github.com/docker/go-units v0.5.0 // indirect

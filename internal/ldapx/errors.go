@@ -112,7 +112,7 @@ func newErr(code int, title, detail string, cause error) *Error {
 	return &Error{Code: code, Name: CodeName(code), Title: title, Detail: detail, cause: cause}
 }
 
-// Classify turns any error from dialling, StartTLS, binding or reading into an *Error.
+// Classify turns any error from dialing, StartTLS, binding or reading into an *Error.
 func Classify(err error, op Op) *Error {
 	if err == nil {
 		return nil

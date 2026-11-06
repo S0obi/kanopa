@@ -9,6 +9,8 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/S0obi/kanopa/internal/applog"
+	"github.com/S0obi/kanopa/internal/connections"
+	"github.com/S0obi/kanopa/internal/secrets"
 	"github.com/S0obi/kanopa/services"
 )
 
@@ -21,6 +23,13 @@ var assets embed.FS
 var version = "0.0.1-dev"
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// run starts Kanopa and returns when the last window closes; deferred cleanup always runs.
+func run() error {
 	logger := slog.Default()
 	if dir, err := applog.Dir(); err == nil {
 		if l, closer, err := applog.New(dir, os.Stderr); err == nil {
@@ -30,11 +39,13 @@ func main() {
 	}
 	logger.Info("kanopa starting", "version", version)
 
+	store := openConnections(logger)
+
 	app := application.New(application.Options{
 		Name:        "Kanopa",
 		Description: "A calm, exact LDAP client",
 		Services: []application.Service{
-			application.NewService(services.NewConnectionService(logger)),
+			application.NewService(services.NewConnectionService(logger, store, secrets.Keyring{})),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -50,12 +61,27 @@ func main() {
 		Height:    800,
 		MinWidth:  960,
 		MinHeight: 640,
-		// The Kanopa surface colour, so the window doesn't flash white on start.
+		// The Kanopa surface color, so the window doesn't flash white on start.
 		BackgroundColour: application.NewRGB(243, 246, 240),
 		URL:              "/",
 	})
 
 	if err := app.Run(); err != nil {
-		log.Fatal(err)
+		logger.Error("kanopa stopped", "err", err)
+		return err
 	}
+	return nil
+}
+
+// openConnections opens the saved connections. When that fails the app still starts, with none, and says why.
+func openConnections(logger *slog.Logger) *connections.Store {
+	path, err := connections.DefaultPath()
+	if err == nil {
+		var store *connections.Store
+		if store, err = connections.Open(path); err == nil {
+			return store
+		}
+	}
+	logger.Error("open connections", "path", path, "err", err)
+	return connections.Unavailable(path, err)
 }
