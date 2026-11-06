@@ -81,6 +81,7 @@ td:first-child{font-weight:500;white-space:nowrap}
 .stage-head h3{flex:1;min-width:200px}
 .stage-head .tagv{font-family:var(--mono);font-size:12px;color:var(--muted)}
 .status{font-size:12px;font-weight:500;padding:2px 10px;border-radius:999px;background:var(--warn);color:var(--warn-ink)}
+.status.done{background:var(--teal);color:var(--teal-ink)}
 .value{padding:16px 24px;background:var(--surface);border-bottom:1px solid var(--line);font-size:14.5px}
 .value strong{color:var(--moss-ink)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
@@ -369,7 +370,7 @@ services/
 <!-- ============================================================ S1 -->
 <section id="s1">
   <div class="card">
-    <div class="stage-head"><span class="badge c1">Stage 1</span><h3>First contact</h3><span class="status">In review</span><span class="tagv">v0.0.1</span></div>
+    <div class="stage-head"><span class="badge c1">Stage 1</span><h3>First contact</h3><span class="status done">Done · 6 Nov 2026</span><span class="tagv">v0.0.1</span></div>
     <div class="value"><strong>You can:</strong> open Kanopa, type a server URL, bind DN and password, and press Test connection. You get "Bound as cn=admin,dc=example,dc=org in 42 ms over LDAPS. The server offers 1 naming context: dc=example,dc=org", or an exact error with its LDAP result code.</div>
     <div class="grid">
       <div class="cell">
@@ -427,7 +428,7 @@ services/
 <!-- ============================================================ S2 -->
 <section id="s2">
   <div class="card">
-    <div class="stage-head"><span class="badge c2">Stage 2</span><h3>Saved connections</h3><span class="status">Not started</span><span class="tagv">v0.0.2</span></div>
+    <div class="stage-head"><span class="badge c2">Stage 2</span><h3>Saved connections</h3><span class="status">In progress</span><span class="tagv">v0.0.2</span></div>
     <div class="value"><strong>You can:</strong> keep all your directories in Kanopa, connect with Enter, and trust that passwords sit in Windows Credential Manager or the macOS Keychain. Once connected you see the server's identity: vendor, version, naming contexts and supported controls.</div>
     <div class="grid">
       <div class="cell">

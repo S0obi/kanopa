@@ -2,8 +2,6 @@ package services
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"testing"
 
 	"github.com/S0obi/kanopa/internal/ldapx"
@@ -26,7 +24,7 @@ func TestSuccessText(t *testing.T) {
 }
 
 func TestTestReportsWordedFailure(t *testing.T) {
-	s := NewConnectionService(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := newTestService(t)
 	s.open = func(context.Context, ldapx.Params) (*ldapx.Session, error) {
 		return nil, ldapx.Classify(ldapErr49(), ldapx.Op{BindDN: "cn=admin,dc=example,dc=org"})
 	}
@@ -37,7 +35,7 @@ func TestTestReportsWordedFailure(t *testing.T) {
 }
 
 func TestInvalidURLIsAFailureNotAPanic(t *testing.T) {
-	s := NewConnectionService(nil)
+	s := newTestService(t)
 	res := s.Test(context.Background(), ConnectionParams{URL: "nope"})
 	if res.OK || res.Message != ldapx.ErrInvalidURL.Error() {
 		t.Fatalf("unexpected result %+v", res)
