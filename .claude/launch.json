@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "vite",
+      "name": "vite-fake",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "frontend"],
+      "runtimeArgs": ["run", "dev", "--prefix", "frontend", "--", "--mode", "fake"],
       "port": 9245
     }
   ]

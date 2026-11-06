@@ -1,13 +1,13 @@
 [Desktop Entry]
 Version=1.0
-Name=Tada
-Comment=One big button, endless confetti
+Name=Kanopa
+Comment=A calm, exact LDAP client
 # The Exec line includes %u to pass the URL to the application
-Exec=/usr/local/bin/tada.exe %u
+Exec=/usr/local/bin/kanopa %u
 Terminal=false
 Type=Application
-Icon=tada.exe
+Icon=kanopa
 Categories=Utility;
-StartupWMClass=tada.exe
+StartupWMClass=kanopa
 
  

@@ -11,10 +11,10 @@ if (-not $keepalive) {
     Start-Process wsl.exe -ArgumentList '-u', 'root', '--', 'bash', '-c', '"systemctl start docker; exec -a kanopa-keepalive sleep infinity"' -WindowStyle Hidden
 }
 
+# curl.exe ships with Windows; Windows PowerShell's web client can stall on proxy detection.
 for ($i = 0; $i -lt 30; $i++) {
-    try {
-        $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 http://localhost:2375/_ping
-        if ($r.Content -eq 'OK') { Write-Output 'Docker is up on tcp://localhost:2375'; exit 0 }
-    } catch { Start-Sleep -Milliseconds 500 }
+    $r = & curl.exe -s -m 2 http://127.0.0.1:2375/_ping
+    if ($r -eq 'OK') { Write-Output 'Docker is up on tcp://localhost:2375'; exit 0 }
+    Start-Sleep -Milliseconds 500
 }
 Write-Error 'Docker did not answer on tcp://localhost:2375 within 15 seconds.'
