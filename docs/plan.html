@@ -81,6 +81,7 @@ td:first-child{font-weight:500;white-space:nowrap}
 .stage-head h3{flex:1;min-width:200px}
 .stage-head .tagv{font-family:var(--mono);font-size:12px;color:var(--muted)}
 .status{font-size:12px;font-weight:500;padding:2px 10px;border-radius:999px;background:var(--warn);color:var(--warn-ink)}
+.status.done{background:var(--teal);color:var(--teal-ink)}
 .value{padding:16px 24px;background:var(--surface);border-bottom:1px solid var(--line);font-size:14.5px}
 .value strong{color:var(--moss-ink)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
@@ -194,6 +195,7 @@ pre.tree{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-
       <tr><td>Settings</td><td>Connections as versioned JSON in the OS config directory</td><td><code>%AppData%\Kanopa</code> on Windows, <code>~/Library/Application Support/Kanopa</code> on macOS</td></tr>
       <tr><td>Test server</td><td>OpenLDAP only, in Docker, seeded like the design's sample directory</td><td>Docker Desktop (or Podman) needed on the dev machine</td></tr>
       <tr><td>Tests</td><td>Go unit + integration (testcontainers-go), Vitest + Testing Library, Playwright against Vite with a fake backend</td><td>No E2E on the packaged binary; the human checklist covers it</td></tr>
+      <tr><td>Lint and SAST</td><td>golangci-lint with gosec; Oxlint (TypeScript, React hooks, jsx-a11y); govulncheck and npm audit; run by Lefthook git hooks</td><td>Pre-commit on staged files, vulnerability scans on dependency changes and every push; added during the S2 checkpoint</td></tr>
       <tr><td>Delivery</td><td>Local <code>wails3 dev</code> / <code>wails3 build</code> at checkpoints; no CI builds</td><td>Unsigned NSIS installer and <code>.dmg</code> only in S6</td></tr>
       <tr><td>Platforms</td><td>Checkpoints verified on Windows; macOS verified once in S6</td><td>Platform differences (⌘ vs Ctrl, dialog button order) are coded from S1 and checked on a Mac in S6</td></tr>
       <tr><td>Identity</td><td>Go module <code>github.com/S0obi/kanopa</code>, bundle id <code>app.kanopa.desktop</code></td><td>The module path follows the GitHub repo, as agreed once a remote existed</td></tr>
@@ -320,6 +322,7 @@ services/
       <tr><td>Go integration</td><td>testcontainers-go + OpenLDAP</td><td>Real binds, TLS, paging, schema, modify, add, delete, modDN, result codes</td><td><code>task test:it</code></td></tr>
       <tr><td>Components</td><td>Vitest + Testing Library</td><td>Ported components, form validation, stores, diff logic</td><td><code>task test:web</code></td></tr>
       <tr><td>Flows</td><td>Playwright on Vite + fake backend</td><td>User journeys per stage, keyboard paths, error states</td><td><code>task test:e2e</code></td></tr>
+      <tr><td>Lint and SAST</td><td>golangci-lint (gosec), Oxlint, govulncheck, npm audit</td><td>Code quality, insecure patterns, known vulnerabilities in what Kanopa calls and ships</td><td><code>task lint</code>, <code>task security</code>, git hooks</td></tr>
       <tr><td>Human</td><td>Checklist in each stage below</td><td>The real window, OS credential store, feel and copy</td><td><code>task ldap:up</code> then <code>wails3 dev</code></td></tr>
     </tbody>
   </table></div>
@@ -357,6 +360,7 @@ services/
       <ul>
         <li>The app builds and starts; every earlier checklist still passes</li>
         <li>New code has tests in the layers listed for the stage</li>
+        <li><code>wails3 task lint</code> and <code>wails3 task security</code> are clean (the git hooks run them); every silenced finding says why</li>
         <li>Copy follows the design system's voice: verbs on buttons, result codes on errors, exact counts</li>
         <li>Everything new is reachable by keyboard with a visible focus ring</li>
         <li>No password in settings, logs or the frontend state after save</li>
@@ -369,7 +373,7 @@ services/
 <!-- ============================================================ S1 -->
 <section id="s1">
   <div class="card">
-    <div class="stage-head"><span class="badge c1">Stage 1</span><h3>First contact</h3><span class="status">In review</span><span class="tagv">v0.0.1</span></div>
+    <div class="stage-head"><span class="badge c1">Stage 1</span><h3>First contact</h3><span class="status done">Done · 6 Nov 2026</span><span class="tagv">v0.0.1</span></div>
     <div class="value"><strong>You can:</strong> open Kanopa, type a server URL, bind DN and password, and press Test connection. You get "Bound as cn=admin,dc=example,dc=org in 42 ms over LDAPS. The server offers 1 naming context: dc=example,dc=org", or an exact error with its LDAP result code.</div>
     <div class="grid">
       <div class="cell">
@@ -427,7 +431,7 @@ services/
 <!-- ============================================================ S2 -->
 <section id="s2">
   <div class="card">
-    <div class="stage-head"><span class="badge c2">Stage 2</span><h3>Saved connections</h3><span class="status">Not started</span><span class="tagv">v0.0.2</span></div>
+    <div class="stage-head"><span class="badge c2">Stage 2</span><h3>Saved connections</h3><span class="status">In review</span><span class="tagv">v0.0.2</span></div>
     <div class="value"><strong>You can:</strong> keep all your directories in Kanopa, connect with Enter, and trust that passwords sit in Windows Credential Manager or the macOS Keychain. Once connected you see the server's identity: vendor, version, naming contexts and supported controls.</div>
     <div class="grid">
       <div class="cell">

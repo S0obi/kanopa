@@ -6,10 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/S0obi/kanopa/internal/connections"
 	"github.com/S0obi/kanopa/internal/ldapx"
+	"github.com/S0obi/kanopa/internal/secrets"
 )
 
 // ConnectionParams is the connection form as the frontend sends it.
@@ -21,6 +25,8 @@ type ConnectionParams struct {
 	Password       string `json:"password"`
 	TimeoutSeconds int    `json:"timeoutSeconds"`
 	VerifyCert     bool   `json:"verifyCert"`
+	// ConnectionID, when editing a saved connection: an empty password then uses the saved one.
+	ConnectionID string `json:"connectionId"`
 }
 
 // TestResult is the outcome of Test connection, worded for the UI.
@@ -35,18 +41,31 @@ type TestResult struct {
 	Vendor         string   `json:"vendor"`
 }
 
-// ConnectionService tests and opens LDAP connections.
+// ConnectionService saves, tests and opens LDAP connections.
 type ConnectionService struct {
-	log  *slog.Logger
-	open func(context.Context, ldapx.Params) (*ldapx.Session, error)
+	log     *slog.Logger
+	open    func(context.Context, ldapx.Params) (*ldapx.Session, error)
+	store   *connections.Store
+	secrets secrets.Store
+
+	mu       sync.Mutex
+	sessions map[string]*ldapx.Session // open connections by connection ID
 }
 
-// NewConnectionService returns a service that logs to log.
-func NewConnectionService(log *slog.Logger) *ConnectionService {
+// NewConnectionService returns a service over the given connections file and credential store.
+func NewConnectionService(log *slog.Logger, store *connections.Store, sec secrets.Store) *ConnectionService {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &ConnectionService{log: log, open: ldapx.Open}
+	return &ConnectionService{log: log, open: ldapx.Open, store: store, secrets: sec, sessions: map[string]*ldapx.Session{}}
+}
+
+// storeName is where passwords live on this OS, as the UI names it.
+func storeName() string {
+	if runtime.GOOS == "darwin" {
+		return "macOS Keychain"
+	}
+	return "Windows Credential Manager"
 }
 
 func (p ConnectionParams) toLDAP() ldapx.Params {
@@ -75,6 +94,11 @@ func (s *ConnectionService) Test(ctx context.Context, p ConnectionParams) TestRe
 }
 
 func (s *ConnectionService) test(ctx context.Context, p ConnectionParams) TestResult {
+	if p.Password == "" && p.ConnectionID != "" && p.Bind != string(ldapx.BindAnonymous) && s.secrets != nil {
+		if pw, err := s.secrets.Get(p.ConnectionID); err == nil {
+			p.Password = pw
+		}
+	}
 	sess, err := s.open(ctx, p.toLDAP())
 	if err != nil {
 		return failure(err)

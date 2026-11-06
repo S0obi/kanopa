@@ -1,4 +1,4 @@
-import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from "react";
 import { cx } from "./cx";
 import { Icon, type IconName } from "./icons";
 import { detectPlatform, type Platform } from "@/lib/platform";
@@ -11,18 +11,25 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: IconName;
   /** Required when the button has an icon and no children. */
   label?: string;
-  /** Shows a spinner in place of the icon. */
+  ref?: Ref<HTMLButtonElement>;
+  /**
+   * Shows a spinner in place of the icon and ignores clicks. A busy button stays focusable
+   * (aria-disabled, not disabled), so keyboard focus is not lost while the work runs.
+   */
   busy?: boolean;
 }
 
-export function Button({ variant = "secondary", size = "md", icon, label, busy, className, children, type, ...rest }: ButtonProps) {
-  const iconOnly = !!icon && children == null;
+export function Button({ variant = "secondary", size = "md", icon, label, busy, className, children, type, disabled, onClick, ...rest }: ButtonProps) {
+  const iconOnly = !!icon && (children === null || children === undefined);
   const iconSize = size === "sm" ? 14 : 16;
   return (
     <button
       type={type ?? "button"}
       {...rest}
-      className={cx("kn-btn", `kn-btn--${variant}`, `kn-btn--${size}`, iconOnly && "kn-btn--icon", className)}
+      disabled={busy ? undefined : disabled}
+      aria-disabled={busy || undefined}
+      onClick={busy ? (e) => e.preventDefault() : onClick}
+      className={cx("kn-btn", `kn-btn--${variant}`, `kn-btn--${size}`, iconOnly && "kn-btn--icon", busy && "is-busy", className)}
       aria-label={iconOnly ? label : rest["aria-label"]}
       title={iconOnly ? label : rest.title}
       aria-busy={busy || undefined}
@@ -115,6 +122,7 @@ export function Field({ id, label, hint, error, className, children }: FieldProp
 }
 
 export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
+  ref?: Ref<HTMLInputElement>;
   label?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
@@ -146,6 +154,7 @@ export function TextField({ label, hint, error, mono, icon, trailing, className,
 }
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+  ref?: Ref<HTMLSelectElement>;
   label?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
@@ -195,6 +204,7 @@ export function Checkbox({ label, className, disabled, ...rest }: CheckProps) {
 export function Switch({ label, className, disabled, ...rest }: CheckProps) {
   return (
     <label className={cx("kn-switch", disabled && "is-disabled", className)}>
+      {/* oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- a native checkbox exposes its checked state */}
       <input type="checkbox" role="switch" disabled={disabled} {...rest} />
       <span className="kn-switch__track" aria-hidden="true">
         <span className="kn-switch__thumb" />

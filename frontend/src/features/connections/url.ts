@@ -47,3 +47,14 @@ export function urlForSecurity(raw: string, sec: Security): string {
   if (scheme === "ldap" && port === 636) port = 389;
   return formatLdapUrl({ scheme, host: u.host, port });
 }
+
+/** The host of an LDAP URL as typed ("ldap.example.org", "[::1]"), or the URL itself when it does not parse. */
+export function hostOf(raw: string): string {
+  return parseLdapUrl(raw)?.host ?? raw;
+}
+
+/** "host:port" with the default port filled in, or the URL itself when it does not parse. */
+export function hostPortOf(raw: string): string {
+  const u = parseLdapUrl(raw);
+  return u ? `${u.host}:${u.port ?? defaultPort(u.scheme)}` : raw;
+}

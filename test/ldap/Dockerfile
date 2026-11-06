@@ -1,6 +1,6 @@
 # Kanopa's test directory: OpenLDAP with the design's sample data,
 # plain + StartTLS on 389 and LDAPS on 636, signed by a throwaway CA.
-FROM alpine:3.21
+FROM alpine:3.24
 
 RUN apk add --no-cache openldap openldap-back-mdb openldap-clients openssl
 
