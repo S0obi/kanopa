@@ -101,6 +101,7 @@ test("edit, duplicate and delete from the row menu", async ({ page }) => {
 
 test("keyboard only: filter, pick, connect, disconnect", async ({ page }) => {
   await page.goto("/");
+  await expect(page.getByText("4 saved connections")).toBeVisible();
   await page.keyboard.press("Control+f");
   await page.keyboard.type("openldap");
   await page.keyboard.press("Enter");
