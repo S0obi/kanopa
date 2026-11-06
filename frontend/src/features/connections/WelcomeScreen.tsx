@@ -28,11 +28,16 @@ export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Plat
   const toast = useToasts((s) => s.show);
   const store = credentialStoreName(platform);
 
-  const list = useQuery({ queryKey: CONNECTIONS_KEY, queryFn: () => backend.listConnections() });
+  // The notice about a damaged file comes once; keep it until dismissed.
   const [notice, setNotice] = useState("");
-  useEffect(() => {
-    if (list.data?.notice) setNotice(list.data.notice);
-  }, [list.data?.notice]);
+  const list = useQuery({
+    queryKey: CONNECTIONS_KEY,
+    queryFn: async () => {
+      const r = await backend.listConnections();
+      if (r.notice) setNotice(r.notice);
+      return r;
+    },
+  });
 
   const conns = useMemo(() => list.data?.connections ?? [], [list.data]);
   const [filter, setFilter] = useState("");
@@ -347,6 +352,7 @@ function ConnectionRow({ conn: c, last, active, status, platform, onActivate, on
   const plain = c.security === "none";
   return (
     <div className={cx(!last && "border-b border-line")}>
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the keyboard picks rows from the table (arrows, Enter) */}
       <div
         role="row"
         data-row="true"

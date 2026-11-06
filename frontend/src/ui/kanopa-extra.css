@@ -46,3 +46,6 @@ code, .kn-code { font: 400 12px/20px var(--font-mono); word-break: break-all; }
 
 /* A busy button keeps focus (aria-disabled) but looks inactive. */
 .kn-btn[aria-disabled="true"] { opacity: .7; cursor: progress; }
+
+/* The menu separator is an <hr>. */
+hr.kn-menu__sep { border: 0; }

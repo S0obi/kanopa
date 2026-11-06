@@ -23,6 +23,13 @@ var assets embed.FS
 var version = "0.0.1-dev"
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// run starts Kanopa and returns when the last window closes; deferred cleanup always runs.
+func run() error {
 	logger := slog.Default()
 	if dir, err := applog.Dir(); err == nil {
 		if l, closer, err := applog.New(dir, os.Stderr); err == nil {
@@ -54,14 +61,16 @@ func main() {
 		Height:    800,
 		MinWidth:  960,
 		MinHeight: 640,
-		// The Kanopa surface colour, so the window doesn't flash white on start.
+		// The Kanopa surface color, so the window doesn't flash white on start.
 		BackgroundColour: application.NewRGB(243, 246, 240),
 		URL:              "/",
 	})
 
 	if err := app.Run(); err != nil {
-		log.Fatal(err)
+		logger.Error("kanopa stopped", "err", err)
+		return err
 	}
+	return nil
 }
 
 // openConnections opens the saved connections. When that fails the app still starts, with none, and says why.
