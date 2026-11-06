@@ -40,11 +40,81 @@ export interface ConnectionParams {
 }
 
 /**
+ * EntryAttribute is one attribute as the entry view shows it.
+ */
+export interface EntryAttribute {
+    "name": string;
+
+    /**
+     * text, or a description such as "JPEG image · 14,236 bytes"
+     */
+    "values": string[] | null;
+
+    /**
+     * text | dn | binary | password
+     */
+    "kind": string;
+    "operational": boolean;
+    "singleValue": boolean;
+    "required": boolean;
+}
+
+/**
+ * EntryView is one entry, ready to show.
+ */
+export interface EntryView {
+    "dn": string;
+    "title": string;
+    "subtitle": string;
+    "type": string;
+    "objectClasses": string[] | null;
+    "attributes": EntryAttribute[] | null;
+    "ldif": string;
+    "referral": boolean;
+    "elapsedMs": number;
+    "failure": Failure | null;
+}
+
+/**
+ * Failure is a read that did not work, worded for the UI. Lost means the connection is gone:
+ * the UI offers Reconnect.
+ */
+export interface Failure {
+    "title": string;
+    "message": string;
+    "code": number;
+    "lost": boolean;
+}
+
+/**
  * ListResult is the saved connections, plus a one-time notice about the file.
  */
 export interface ListResult {
     "connections": SavedConnection[] | null;
     "notice": string;
+}
+
+/**
+ * RelatedEntry is a group (Member of) or a member.
+ */
+export interface RelatedEntry {
+    "dn": string;
+    "name": string;
+    "type": string;
+    "description": string;
+}
+
+/**
+ * RelatedResult lists related entries.
+ */
+export interface RelatedResult {
+    "entries": RelatedEntry[] | null;
+
+    /**
+     * more than were read
+     */
+    "truncated": boolean;
+    "failure": Failure | null;
 }
 
 /**
@@ -120,6 +190,16 @@ export interface SessionInfo {
     "extensions": number;
     "elapsedMs": number;
     "readOnly": boolean;
+
+    /**
+     * the schema entry, shown at the top of the tree
+     */
+    "subschemaDn": string;
+
+    /**
+     * false when the server would not share its schema
+     */
+    "schemaRead": boolean;
 }
 
 /**
@@ -134,4 +214,53 @@ export interface TestResult {
     "namingContexts": string[] | null;
     "baseDn": string;
     "vendor": string;
+}
+
+/**
+ * TreeNode is one entry in the tree.
+ */
+export interface TreeNode {
+    "dn": string;
+    "rdn": string;
+
+    /**
+     * root | ou | person | group | server | entry
+     */
+    "type": string;
+
+    /**
+     * a description or name shown after the RDN
+     */
+    "sub": string;
+    "hasChildren": boolean;
+
+    /**
+     * children, -1 when unknown
+     */
+    "count": number;
+    "referral": boolean;
+}
+
+/**
+ * TreeResult is a list of nodes: the roots, or one page of children.
+ */
+export interface TreeResult {
+    "nodes": TreeNode[] | null;
+
+    /**
+     * token for the next page, empty when done
+     */
+    "more": string;
+
+    /**
+     * children of the parent read, -1 when unknown
+     */
+    "total": number;
+
+    /**
+     * the parent has more than 20,000 children; only those are listed
+     */
+    "truncated": boolean;
+    "elapsedMs": number;
+    "failure": Failure | null;
 }
