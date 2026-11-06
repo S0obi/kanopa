@@ -53,27 +53,6 @@ That runs `test:go` (Go unit), `test:web` (Vitest), `test:e2e` (Playwright, fake
 
 After changing a Go service's methods, regenerate the bindings with `wails3 generate bindings -clean=true -ts -i` (or run `wails3 dev`/`wails3 build`). After editing `tokens.json`, run `npm run tokens` in `frontend/`.
 
-## Lint, SAST and git hooks
-
-Once per clone:
-
-```bash
-wails3 task hooks:install
-```
-
-That installs pinned tools into `bin/tools` (golangci-lint v2.15.0, govulncheck v1.9.0, Lefthook v2.2.2; nothing global) and the git hooks from [lefthook.yml](lefthook.yml):
-
-| Hook | Runs | On |
-|---|---|---|
-| pre-commit | golangci-lint: **gosec** (SAST), staticcheck, errcheck, errorlint, gocritic, revive, gofmt, goimports | staged `.go` files |
-| pre-commit | **Oxlint**: TypeScript, React hooks, jsx-a11y, correctness and suspicious rules; then `tsc` | staged frontend files |
-| pre-commit | govulncheck / `npm audit --omit=dev` | when `go.mod`, `go.sum` or `package*.json` change |
-| pre-push | govulncheck and `npm audit --omit=dev`, always | every push |
-
-By hand: `wails3 task lint` (all linters and SAST) and `wails3 task security` (vulnerability scans). The rules live in [.golangci.yml](.golangci.yml) and [frontend/.oxlintrc.json](frontend/.oxlintrc.json); each rule turned off there says why. A finding is fixed, or silenced on its line with a `//nolint:<linter> // reason` (Go) or `oxlint-disable-next-line <rule> -- reason` (frontend) comment. `LEFTHOOK=0 git commit` skips the hooks; say why in the commit message.
-
-The frontend uses Oxlint rather than ESLint: typescript-eslint supports TypeScript up to 6.0, and Kanopa is on TypeScript 7.
-
 ## Build
 
 ```bash
