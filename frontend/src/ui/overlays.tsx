@@ -191,7 +191,7 @@ export function Menu({ items, onSelect, onClose, platform, autoFocus, label, cla
   const ref = useRef<HTMLDivElement>(null);
   const focusable = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])') ?? []);
   useEffect(() => {
-    if (autoFocus) focusable()[0]?.focus();
+    if (autoFocus) ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus();
   }, [autoFocus]);
   function onKey(e: KeyboardEvent) {
     const list = focusable();
@@ -213,10 +213,10 @@ export function Menu({ items, onSelect, onClose, platform, autoFocus, label, cla
     onSelect?.(it.id);
   };
   return (
-    <div className={cx("kn-menu", className)} role="menu" ref={ref} onKeyDown={onKey} aria-label={label} id={id}>
+    <div className={cx("kn-menu", className)} role="menu" tabIndex={-1} ref={ref} onKeyDown={onKey} aria-label={label} id={id}>
       {items.map((it, i) =>
         "separator" in it ? (
-          <div key={`s${i}`} className="kn-menu__sep" role="separator" />
+          <hr key={`s${i}`} className="kn-menu__sep" />
         ) : (
           <div
             key={it.id}

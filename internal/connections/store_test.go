@@ -2,6 +2,7 @@ package connections
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,10 +64,10 @@ func TestUpdateAndDelete(t *testing.T) {
 	if err := s.Delete("a"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Get("a"); err != ErrNotFound {
+	if _, err := s.Get("a"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("err = %v", err)
 	}
-	if _, err := s.Update("a", func(*Connection) {}); err != ErrNotFound {
+	if _, err := s.Update("a", func(*Connection) {}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("err = %v", err)
 	}
 	re, _ := Open(path)
@@ -93,7 +94,9 @@ func TestFileNeverHoldsAPassword(t *testing.T) {
 
 func TestDamagedFileIsMovedAside(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "connections.json")
-	os.WriteFile(path, []byte("{not json"), 0o600)
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	s, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +119,9 @@ func TestDamagedFileIsMovedAside(t *testing.T) {
 
 func TestOldFileIsMigrated(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "connections.json")
-	os.WriteFile(path, []byte(`{"connections":[{"id":"a","name":"Old","url":"ldap://h","referrals":"follow"}]}`), 0o600)
+	if err := os.WriteFile(path, []byte(`{"connections":[{"id":"a","name":"Old","url":"ldap://h","referrals":"follow"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	s, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +135,9 @@ func TestOldFileIsMigrated(t *testing.T) {
 func TestNewerFileIsNeverOverwritten(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "connections.json")
 	original := `{"version":99,"connections":[{"id":"a","name":"Future"}]}`
-	os.WriteFile(path, []byte(original), 0o600)
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	s, _ := Open(path)
 	if !strings.Contains(s.Notice(), "newer Kanopa") {
 		t.Fatal("expected a notice")

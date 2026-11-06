@@ -1,0 +1,40 @@
+# Git hooks. Install once: `wails3 task hooks:install` (it also installs the pinned tools in bin/tools).
+# Run by hand: `bin/tools/lefthook run pre-commit --all-files`.
+# Skip in an emergency: `LEFTHOOK=0 git commit …` (and say why in the commit message).
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: "go: golangci-lint + gosec (SAST) + gofmt/goimports"
+      glob: "*.go"
+      run: bin/tools/golangci-lint run ./internal/... ./services/... ./test/... .
+
+    - name: "go: govulncheck (dependencies changed)"
+      glob: "{go.mod,go.sum}"
+      run: bin/tools/govulncheck ./...
+
+    - name: "frontend: oxlint (typescript, react-hooks, jsx-a11y)"
+      root: "frontend/"
+      glob: "*.{ts,tsx,js,mjs}"
+      run: npx oxlint --deny-warnings {staged_files}
+
+    - name: "frontend: tsc"
+      root: "frontend/"
+      glob: "*.{ts,tsx}"
+      run: npx tsc
+
+    - name: "frontend: npm audit (dependencies changed)"
+      root: "frontend/"
+      glob: "frontend/package*.json"
+      run: npm audit --omit=dev --audit-level=moderate
+
+# New advisories appear without any file changing: check everything before it leaves this computer.
+pre-push:
+  parallel: true
+  jobs:
+    - name: "go: govulncheck"
+      run: bin/tools/govulncheck ./...
+
+    - name: "frontend: npm audit"
+      root: "frontend/"
+      run: npm audit --omit=dev --audit-level=moderate

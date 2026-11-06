@@ -69,7 +69,7 @@ func TestSaveKeepsThePasswordOutOfTheFile(t *testing.T) {
 	// Unticking "Save the password" removes it.
 	r.SavePassword = false
 	got, _ := s.Save(r)
-	if _, err := mem.Get(c.ID); err != secrets.ErrNotFound || got.HasPassword {
+	if _, err := mem.Get(c.ID); !errors.Is(err, secrets.ErrNotFound) || got.HasPassword {
 		t.Fatal("the saved password should be gone")
 	}
 }
@@ -105,7 +105,7 @@ func TestDuplicateAndDelete(t *testing.T) {
 	if err := s.Delete(a.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := mem.Get(a.ID); err != secrets.ErrNotFound {
+	if _, err := mem.Get(a.ID); !errors.Is(err, secrets.ErrNotFound) {
 		t.Fatal("delete should remove the saved password")
 	}
 	if _, err := mem.Get(d.ID); err != nil {
@@ -172,7 +172,10 @@ func TestTestUsesTheSavedPassword(t *testing.T) {
 	s := newTestService(t)
 	c, _ := s.Save(req("Production"))
 	var got string
-	s.open = func(_ context.Context, p ldapx.Params) (*ldapx.Session, error) { got = p.Password; return nil, ldapErr49() }
+	s.open = func(_ context.Context, p ldapx.Params) (*ldapx.Session, error) {
+		got = p.Password
+		return nil, ldapErr49()
+	}
 	s.Test(context.Background(), ConnectionParams{URL: c.URL, Security: "ldaps", Bind: "simple", BindDN: c.BindDN, ConnectionID: c.ID})
 	if got != "s3cret" {
 		t.Fatalf("password used = %q", got)
@@ -206,7 +209,9 @@ func openStore(t *testing.T, content string) *connections.Store {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "connections.json")
 	if content != "" {
-		os.WriteFile(path, []byte(content), 0o600)
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	st, err := connections.Open(path)
 	if err != nil {
@@ -262,7 +267,7 @@ func TestFailedFileWriteLeavesTheCredentialStoreAlone(t *testing.T) {
 	if _, err := s.Save(req("New")); err == nil {
 		t.Fatal("saving a new connection should fail")
 	}
-	if spy.Memory.Len() != 1 {
+	if spy.Len() != 1 {
 		t.Fatal("a failed save must not leave a password behind")
 	}
 }
@@ -278,4 +283,3 @@ func TestPasswordThatCannotBeStoredIsReported(t *testing.T) {
 		t.Fatalf("the connection should not claim a saved password: %+v", c)
 	}
 }
-

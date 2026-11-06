@@ -210,7 +210,7 @@ func (s *ConnectionService) Save(r SaveRequest) (SavedConnection, error) {
 
 func (s *ConnectionService) secretErr(err error) error {
 	s.log.Error("credential store", "err", err)
-	return fmt.Errorf("Kanopa could not reach the %s: %v", storeName(), err)
+	return fmt.Errorf("Kanopa could not reach the %s: %w", storeName(), err)
 }
 
 // Duplicate copies a connection, its saved password included, right after the original.
@@ -300,10 +300,10 @@ func (s *ConnectionService) Connect(ctx context.Context, id, password string, sa
 		var le *ldapx.Error
 		if errors.As(err, &le) {
 			res.Title, res.Message, res.Code = le.Title, le.Text(), le.Code
-			switch {
-			case le.Code == 49:
+			switch le.Code {
+			case 49:
 				res.Reason = ReasonBadPassword
-			case le.Code == ldapx.CodeServerDown || le.Code == ldapx.CodeTimeout:
+			case ldapx.CodeServerDown, ldapx.CodeTimeout:
 				res.Reason = ReasonUnreachable
 			}
 		} else {

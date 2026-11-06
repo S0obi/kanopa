@@ -20,7 +20,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({ variant = "secondary", size = "md", icon, label, busy, className, children, type, disabled, onClick, ...rest }: ButtonProps) {
-  const iconOnly = !!icon && children == null;
+  const iconOnly = !!icon && (children === null || children === undefined);
   const iconSize = size === "sm" ? 14 : 16;
   return (
     <button
@@ -204,6 +204,7 @@ export function Checkbox({ label, className, disabled, ...rest }: CheckProps) {
 export function Switch({ label, className, disabled, ...rest }: CheckProps) {
   return (
     <label className={cx("kn-switch", disabled && "is-disabled", className)}>
+      {/* oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- a native checkbox exposes its checked state */}
       <input type="checkbox" role="switch" disabled={disabled} {...rest} />
       <span className="kn-switch__track" aria-hidden="true">
         <span className="kn-switch__thumb" />

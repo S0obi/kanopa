@@ -68,7 +68,7 @@ func DefaultPath() (string, error) {
 // valid JSON is moved aside, so the app still starts, and Notice says where it went.
 func Open(path string) (*Store, error) {
 	s := &Store{path: path}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: Kanopa's own settings file, from os.UserConfigDir()
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
 	}

@@ -1,13 +1,14 @@
 package secrets
 
 import (
+	"errors"
 	"os"
 	"testing"
 )
 
 func exercise(t *testing.T, s Store, id string) {
 	t.Helper()
-	if _, err := s.Get(id); err != ErrNotFound {
+	if _, err := s.Get(id); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Get before Set: %v", err)
 	}
 	if err := s.Set(id, "s3cret"); err != nil {
@@ -22,7 +23,7 @@ func exercise(t *testing.T, s Store, id string) {
 	if err := s.Delete(id); err != nil {
 		t.Fatalf("deleting twice should be fine: %v", err)
 	}
-	if _, err := s.Get(id); err != ErrNotFound {
+	if _, err := s.Get(id); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Get after Delete: %v", err)
 	}
 }
