@@ -1,43 +1,57 @@
 # Kanopa
 
-A calm, exact LDAP client for Windows and macOS.
+A calm, exact LDAP client for Windows and macOS. The road to v0.1.0 is in [docs/plan.html](docs/plan.html).
 
 ## Stack
 
-| Layer          | Choice                                                    |
-| -------------- | --------------------------------------------------------- |
-| Shell          | Wails 3 (Go)                                              |
-| Framework      | Vue 3 + TypeScript + Vite                                 |
-| Components     | shadcn-vue (Reka UI) in `frontend/src/components/ui`      |
-| Style          | Tailwind CSS 4                                            |
-| Icons          | `@lucide/vue` (successor of the deprecated `lucide-vue-next`) |
-| Animations     | Motion for Vue (`motion-v`), Web Animations API, `canvas-confetti` |
-| Global state   | Pinia (`frontend/src/stores`)                             |
-| Routing        | Vue Router (hash history)                                 |
-| Backend calls  | TanStack Query (`@tanstack/vue-query`) → generated Wails bindings |
-| Forms          | VeeValidate + Zod 4 (adapter in `frontend/src/lib/zod-schema.ts`) |
-| Utilities      | VueUse (dark mode, keyboard shortcuts, storage)           |
+| Layer | Choice |
+|---|---|
+| Shell | Wails 3 (Go) |
+| LDAP | `github.com/go-ldap/ldap/v3`, wrapped in `internal/ldapx` |
+| Frontend | React 19 + TypeScript 7 + Vite 8 |
+| Components | The Kanopa design system ported to TSX in `frontend/src/ui` |
+| Style | Tailwind CSS 4, themed from `frontend/src/theme/tokens.json` |
+| Forms | React Hook Form + Zod |
+| Tests | Go (unit + testcontainers), Vitest + Testing Library, Playwright |
 
 ## Layout
 
 ```
-main.go            app and window setup
-partyservice.go    Go service exposed to the frontend
-build/             per-platform packaging (icons, Info.plist, NSIS, MSIX…) and config.yml
-frontend/          the Vue app; frontend/bindings is generated from the Go services
-bin/               build output
+main.go                 app, window, services
+services/               Go services exposed to the frontend (bindings in frontend/bindings)
+internal/ldapx/         dial, TLS, bind, root DSE, errors worded with result codes
+internal/applog/        rotating log file, secrets dropped
+internal/testldap/      starts the OpenLDAP fixture for integration tests
+test/ldap/              the OpenLDAP fixture (see its README for accounts)
+frontend/src/ui/        Kanopa components
+frontend/src/features/  screens
+frontend/src/api/       backend interface: Wails bindings, or a fake for tests
+build/                  packaging; app name, id and version in build/config.yml
 ```
 
 ## Develop
 
 ```bash
+wails3 task ldap:up
+```
+
+```bash
 wails3 dev
 ```
 
-This starts Vite on port 9245 and opens the app window with hot reload; Go changes rebuild automatically.
-Opening http://127.0.0.1:9245 in a plain browser works too, but Go calls fall back to a browser stub there.
+`wails3 dev` starts Vite on port 9245 and opens the app window with hot reload. To work on the UI in a plain browser against the fake backend, run `npm run dev -- --mode fake` in `frontend/`.
 
-After changing a Go service's methods, the bindings in `frontend/bindings` are regenerated on the next `wails3 dev` or `wails3 build` (or run `wails3 generate bindings`).
+The log file is in `%AppData%\Kanopa\logs` on Windows and `~/Library/Application Support/Kanopa/logs` on macOS.
+
+## Test
+
+```bash
+wails3 task test
+```
+
+That runs `test:go` (Go unit), `test:web` (Vitest), `test:e2e` (Playwright, fake backend) and `test:it` (Go against OpenLDAP in Docker). On Windows, Docker runs inside WSL: see [test/ldap/README.md](test/ldap/README.md). The first Playwright run needs `npx playwright install chromium` in `frontend/`.
+
+After changing a Go service's methods, regenerate the bindings with `wails3 generate bindings -clean=true -ts -i` (or run `wails3 dev`/`wails3 build`). After editing `tokens.json`, run `npm run tokens` in `frontend/`.
 
 ## Build
 
@@ -45,32 +59,11 @@ After changing a Go service's methods, the bindings in `frontend/bindings` are r
 wails3 build
 ```
 
-Produces `bin/kanopa.exe` on Windows. Packaging:
-
-| Target               | Command                              | Run on        |
-| -------------------- | ------------------------------------ | ------------- |
-| Windows installer    | `wails3 package` (NSIS; `FORMAT=msix` for MSIX) | Windows |
-| Windows from a Mac   | `wails3 build GOOS=windows`          | macOS / Linux |
-| macOS `.dmg`         | `wails3 task darwin:package:dmg`     | macOS         |
-| Sign + notarize Mac  | `wails3 task darwin:sign:notarize`   | macOS         |
-
-App name, identifier and version live in `build/config.yml`; after editing it, run `wails3 task common:update:build-assets` to regenerate the platform files.
+This produces `bin/kanopa.exe` on Windows. Packaging (`wails3 package`, `wails3 task darwin:package:dmg`) comes in stage 6.
 
 ## Prerequisites
 
-- Go (latest), Node.js LTS
+- Go 1.26+, Node.js 22+
 - `wails3` CLI: `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0`
-- Windows: WebView2 (ships with Windows 11). No C compiler needed.
-- macOS: Xcode Command Line Tools
-
-Run `wails3 doctor` to check the setup.
-
-## Adding shadcn-vue components
-
-Run from `frontend/`:
-
-```bash
-npx shadcn-vue@latest add <component>
-```
-
-The CLI currently rewrites the `cn` import as `from "cn"` and installs an unrelated `cn` npm package. After adding a component, change the import to `from "@/lib/utils"` and run `npm uninstall cn`.
+- Docker (on Windows: Docker Engine in WSL, see test/ldap/README.md)
+- Windows: WebView2 (ships with Windows 11). macOS: Xcode Command Line Tools

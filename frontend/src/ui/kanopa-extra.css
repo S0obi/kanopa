@@ -1,0 +1,25 @@
+/* Pieces the Kanopa screens draw that the design system bundle has no class for. Same tokens. */
+
+.kn-spin { animation: kn-spin 900ms linear infinite; }
+@media (prefers-reduced-motion: reduce) { .kn-spin { animation-duration: 2.4s; } }
+
+/* Segmented control: the connection form's Encryption switch. */
+.kn-segmented { display: inline-flex; gap: 2px; padding: 2px; height: var(--size-control); box-sizing: border-box; border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--surface-sunken); }
+.kn-segmented button { all: unset; box-sizing: border-box; height: 24px; padding: 0 10px; border-radius: var(--radius-xs); font: 500 13px/24px var(--font-sans); color: var(--ink-muted); cursor: default; transition: background-color 120ms; }
+.kn-segmented button:hover { color: var(--ink); }
+.kn-segmented button[aria-pressed="true"] { background: var(--surface-raised); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px #1c27201f; }
+.kn-segmented button:focus-visible { box-shadow: var(--focus-ring); }
+
+/* Disclosure button (Advanced). */
+.kn-disclosure { all: unset; display: inline-flex; align-items: center; gap: 6px; height: 24px; align-self: flex-start; font: 600 14px/20px var(--font-sans); color: var(--ink); cursor: default; border-radius: var(--radius-xs); }
+.kn-disclosure:focus-visible { box-shadow: var(--focus-ring); }
+.kn-disclosure .kn-icon { transition: transform 120ms; }
+.kn-disclosure[aria-expanded="true"] .kn-icon { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .kn-disclosure .kn-icon { transition: none; } }
+
+/* Field with a button glued inside it (password show/hide). */
+.kn-input .kn-btn--ghost.kn-btn--sm { margin-right: -7px; }
+
+/* Base: buttons and fields inherit the interface font. */
+button, input, select, textarea { font-family: inherit; }
+code, .kn-code { font: 400 12px/20px var(--font-mono); word-break: break-all; }
