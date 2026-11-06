@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/S0obi/kanopa/internal/ldapx"
 	"github.com/S0obi/kanopa/internal/testldap"
 )
 
@@ -77,5 +78,31 @@ func TestConnectSavedConnection(t *testing.T) {
 	}
 	if pw, _ := mem.Get(c.ID); pw != testldap.AdminPassword || !s.List().Connections[0].SavePassword {
 		t.Fatal("the password given at connect should now be saved")
+	}
+}
+
+func TestDeletedWhileConnectingKeepsNoSession(t *testing.T) {
+	srv := testldap.Shared(t)
+	s := newTestService(t)
+	c, err := s.Save(SaveRequest{Name: "Gone", URL: srv.LDAPSURL(), Security: "ldaps", Bind: "simple",
+		BindDN: testldap.AdminDN, Password: testldap.AdminPassword, SavePassword: true, TimeoutSeconds: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	real := s.open
+	s.open = func(ctx context.Context, p ldapx.Params) (*ldapx.Session, error) {
+		sess, err := real(ctx, p)
+		_ = s.Delete(c.ID) // the person deletes it while the bind runs
+		return sess, err
+	}
+	res := s.Connect(context.Background(), c.ID, "", false)
+	if res.OK || res.Title != "Connection not found." {
+		t.Fatalf("unexpected %+v", res)
+	}
+	s.mu.Lock()
+	n := len(s.sessions)
+	s.mu.Unlock()
+	if n != 0 {
+		t.Fatal("no session should be kept for a deleted connection")
 	}
 }

@@ -6,6 +6,7 @@ import { formatLastUsed, plural } from "@/lib/time";
 import { useApp } from "@/stores/app";
 import { Badge, Banner, Button, Checkbox, ConfirmDialog, Dialog, EmptyState, Icon, Kbd, Logo, MenuButton, Spinner, TextField, cx, useToasts } from "@/ui";
 import { ConnectionDialog } from "./ConnectionDialog";
+import { hostOf, hostPortOf } from "./url";
 
 type RowStatus = { state: "connecting" } | { state: "error"; title: string; message: string; reason: ConnectReason };
 
@@ -18,10 +19,6 @@ type DialogState =
   | { kind: "password"; id: string };
 
 export const CONNECTIONS_KEY = ["connections"];
-
-function hostOf(url: string): string {
-  return url.replace(/^ldaps?:\/\//i, "");
-}
 
 /** The welcome screen from the design: saved connections, filter, connect. */
 export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Platform }) {
@@ -44,6 +41,7 @@ export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Plat
   const [dialog, setDialog] = useState<DialogState>(null);
   const [busyDialog, setBusyDialog] = useState(false);
   const filterRef = useRef<HTMLInputElement>(null);
+  const tableRef = useRef<HTMLElement>(null);
   const aborts = useRef<Record<string, AbortController>>({});
 
   const q = filter.trim().toLowerCase();
@@ -143,8 +141,11 @@ export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Plat
     return () => window.removeEventListener("keydown", onKey);
   }, [dialog, platform]);
 
-  // Arrows move the highlight; Enter connects the highlighted connection.
+  // Arrows move the highlight; Enter connects the highlighted connection. Only from the filter field
+  // or the table itself: keys pressed in a dialog or a row menu (React bubbles portal events) are theirs.
   function onListKey(e: KeyboardEvent) {
+    const t = e.target as Node;
+    if (t !== filterRef.current && !tableRef.current?.contains(t)) return;
     if (!rows.length) return;
     const i = Math.max(0, rows.findIndex((c) => c.id === active?.id));
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -212,7 +213,7 @@ export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Plat
             </EmptyState>
           </section>
         ) : (
-          <section aria-label="Saved connections" className="overflow-x-auto rounded-md border border-line bg-surface-raised shadow-sm">
+          <section ref={tableRef} aria-label="Saved connections" className="overflow-x-auto rounded-md border border-line bg-surface-raised shadow-sm">
             <div role="table" aria-label="Saved connections" className="min-w-[900px]">
               <div role="row" className="conn-grid type-label h-8 border-b border-line px-4 text-ink-muted">
                 <span role="columnheader">Connection</span>
@@ -261,12 +262,12 @@ export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Plat
           mode="new"
           platform={platform}
           onClose={() => setDialog(null)}
-          onSaved={(saved, connectNow) => {
+          onSaved={(saved, connectNow, password) => {
             setDialog(null);
             setFilter("");
             setActiveId(saved.id);
             void refresh();
-            if (connectNow) void connect(saved.id);
+            if (connectNow) void connect(saved.id, password);
             else toast(`Saved “${saved.name}”.`);
           }}
         />
@@ -296,7 +297,7 @@ export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Plat
           onCancel={() => setDialog(null)}
           onConfirm={() => void confirmDelete(dlgConn.id)}
         >
-          Kanopa removes its settings and the saved password from the {store}. Nothing changes on <code>{hostOf(dlgConn.url).replace(/:\d+$/, "")}</code>. This cannot be undone.
+          Kanopa removes its settings and the saved password from the {store}. Nothing changes on <code>{hostOf(dlgConn.url)}</code>. This cannot be undone.
         </ConfirmDialog>
       )}
       {dialog?.kind === "consent" && dlgConn && (
@@ -308,7 +309,7 @@ export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Plat
           onCancel={() => setDialog(null)}
           onConfirm={() => void confirmConsent(dlgConn.id)}
         >
-          <code>{hostOf(dlgConn.url)}</code> uses neither LDAPS nor StartTLS, so the bind and every value you read cross the network in clear text. That is fine for a server on this computer.
+          <code>{hostPortOf(dlgConn.url)}</code> uses neither LDAPS nor StartTLS, so the bind and every value you read cross the network in clear text. That is fine for a server on this computer.
         </ConfirmDialog>
       )}
       {dialog?.kind === "password" && dlgConn && (
@@ -386,15 +387,10 @@ function ConnectionRow({ conn: c, last, active, status, platform, onActivate, on
           )}
         </div>
         <div role="cell" className="flex items-center justify-end gap-1">
-          {connecting ? (
-            <Button disabled busy>
-              Connecting…
-            </Button>
-          ) : (
-            <Button variant={active ? "primary" : "secondary"} onClick={onConnect} aria-label={`Connect to ${c.name}`}>
-              Connect
-            </Button>
-          )}
+          {/* One button in both states, so focus stays on it while connecting. */}
+          <Button variant={active && !connecting ? "primary" : "secondary"} busy={connecting} onClick={onConnect} aria-label={connecting ? `Connecting to ${c.name}` : `Connect to ${c.name}`}>
+            {connecting ? "Connecting…" : "Connect"}
+          </Button>
           <MenuButton
             label={`Actions for ${c.name}`}
             platform={platform}

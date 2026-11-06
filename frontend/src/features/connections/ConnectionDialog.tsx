@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { errorText, useBackend, type SavedConnection, type TestResult } from "@/api/backend";
@@ -34,7 +34,8 @@ export interface ConnectionDialogProps {
   reason?: "badPassword" | "";
   platform?: Platform;
   onClose: () => void;
-  onSaved: (saved: SavedConnection, connectNow: boolean) => void;
+  /** `password` is the one typed when it was not to be saved, so connecting needs no second prompt. */
+  onSaved: (saved: SavedConnection, connectNow: boolean, password: string) => void;
   /** Initial values for a new connection (tests). */
   defaultValues?: Partial<Form>;
 }
@@ -108,31 +109,39 @@ export function ConnectionDialog({ mode, connection, reason = "", platform = det
     if (await trigger([...fields])) await run("fetch", getValues());
   }
 
-  const save = (connectNow: boolean) =>
-    handleSubmit(async (values) => {
-      abort.current?.abort();
-      setStatus({ kind: "saving" });
-      try {
-        const saved = await backend.saveConnection(toSaveRequest(values, isEdit ? connection.id : ""));
-        onSaved(saved, connectNow);
-      } catch (e) {
-        setStatus({ kind: "saveFailed", message: errorText(e) });
-      }
-    })();
-
-  // Ctrl+Enter / ⌘↩ saves (and connects, for a new connection) wherever focus is, even after a button was disabled.
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  useEffect(() => {
-    function onKey(e: globalThis.KeyboardEvent) {
-      if (e.key === "Enter" && isMod(e, platform)) {
-        e.preventDefault();
-        void saveRef.current(!isEdit);
-      }
+  // One save at a time, whatever starts it (buttons, Enter, Ctrl+Enter, a repeating key),
+  // and none after a successful one: the dialog is closing.
+  const saving = useRef<"idle" | "saving" | "saved">("idle");
+  const save = async (connectNow: boolean) => {
+    if (saving.current !== "idle") return;
+    saving.current = "saving";
+    let ok = false;
+    try {
+      await handleSubmit(async (values) => {
+        abort.current?.abort();
+        setStatus({ kind: "saving" });
+        try {
+          const saved = await backend.saveConnection(toSaveRequest(values, isEdit ? connection.id : ""));
+          ok = true;
+          // A password typed but not saved is still the one to connect with.
+          const typed = values.bind === "simple" && !values.savePassword ? values.password : "";
+          onSaved(saved, connectNow, typed);
+        } catch (e) {
+          setStatus({ kind: "saveFailed", message: errorText(e) });
+        }
+      })();
+    } finally {
+      saving.current = ok ? "saved" : "idle";
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [platform, isEdit]);
+  };
+
+  // Ctrl+Enter / ⌘↩ saves, and connects a new connection. Busy buttons keep focus, so the form always hears it.
+  function onKeyDown(e: KeyboardEvent<HTMLFormElement>) {
+    if (e.key === "Enter" && isMod(e, platform)) {
+      e.preventDefault();
+      void save(!isEdit);
+    }
+  }
 
   const busy = status.kind === "testing" || status.kind === "fetching" || status.kind === "saving";
   const urlField = register("url", {
@@ -176,6 +185,7 @@ export function ConnectionDialog({ mode, connection, reason = "", platform = det
       <form
         className="flex max-h-[calc(100vh-48px)] flex-col overflow-hidden rounded-lg border border-line bg-surface-raised text-ink shadow-lg"
         noValidate
+        onKeyDown={onKeyDown}
         onSubmit={(e) => {
           e.preventDefault();
           void save(false);

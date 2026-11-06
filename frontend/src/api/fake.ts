@@ -119,7 +119,8 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     if (!c) throw new Error("This connection no longer exists. It may have been deleted in another window.");
     return c;
   };
-  const view = (c: SavedConnection): SavedConnection => ({ ...c, hasPassword: c.bind === "simple" && c.savePassword && passwords.has(c.id) });
+  // Like Go: savePassword is only true while a password is stored, so it is also hasPassword.
+  const view = (c: SavedConnection): SavedConnection => ({ ...c, hasPassword: c.bind === "simple" && c.savePassword });
 
   return {
     passwords,
@@ -147,7 +148,8 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
       const old = r.id ? find(r.id) : undefined;
       const c: SavedConnection = {
         id: r.id || `c${++seq}`, name: r.name.trim(), url: u.url, security: u.scheme === "ldaps" ? "ldaps" : r.security, baseDn: r.baseDn,
-        bind: r.bind, bindDn: r.bind === "simple" ? r.bindDn : "", savePassword: r.bind === "simple" && r.savePassword, hasPassword: false,
+        bind: r.bind, bindDn: r.bind === "simple" ? r.bindDn : "",
+        savePassword: r.bind === "simple" && r.savePassword && (!!r.password || (!!old?.savePassword && passwords.has(old.id))), hasPassword: false,
         timeoutSeconds: r.timeoutSeconds, pageSize: r.pageSize, referrals: r.referrals === "ignore" ? "ignore" : "show", readOnly: r.readOnly,
         verifyCert: r.verifyCert, plainConsent: !!old?.plainConsent && old.url === u.url, lastUsed: old?.lastUsed ?? "", lastError: "",
       };

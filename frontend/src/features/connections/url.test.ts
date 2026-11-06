@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseLdapUrl, securityForUrl, urlForSecurity } from "./url";
+import { hostOf, hostPortOf, parseLdapUrl, securityForUrl, urlForSecurity } from "./url";
 
 describe("parseLdapUrl", () => {
   it.each([
@@ -30,4 +30,13 @@ describe("urlForSecurity", () => {
   it("None → LDAPS swaps 389 for 636", () => expect(urlForSecurity("ldap://localhost", "ldaps")).toBe("ldaps://localhost:636"));
   it("keeps a custom port", () => expect(urlForSecurity("ldap://localhost:10389", "ldaps")).toBe("ldaps://localhost:10389"));
   it("leaves an unparseable URL alone", () => expect(urlForSecurity("localhost", "ldaps")).toBe("localhost"));
+});
+
+describe("hostOf and hostPortOf", () => {
+  it("read the host and port", () => {
+    expect(hostOf("ldaps://ldap.example.org:636")).toBe("ldap.example.org");
+    expect(hostPortOf("ldap://localhost")).toBe("localhost:389");
+    expect(hostOf("ldap://[::1]:389")).toBe("[::1]");
+    expect(hostPortOf("not a url")).toBe("not a url");
+  });
 });
