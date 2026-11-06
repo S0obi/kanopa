@@ -1,4 +1,5 @@
-import type { Backend, ConnectionParams, ConnectResult, SavedConnection, SaveRequest, TestResult } from "./backend";
+import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult } from "./backend";
+import { BASE, SUBSCHEMA, fakeChildren, fakeEntry, fakeMemberOf, fakeNode } from "./fakeDirectory";
 
 /**
  * A stand-in for the Go services, for Vitest, Playwright and UI work in a plain browser
@@ -17,6 +18,8 @@ export const FAKE = {
     "uid=svc-kanopa,ou=services,dc=example,dc=org": "kanopa-reader",
   } as Record<string, string>,
   delayMs: 250,
+  /** Simulates a server that stopped answering. */
+  lost: false,
 };
 
 const URL_RE = /^(ldaps?):\/\/([A-Za-z0-9.-]+)(?::(\d{1,5}))?\/?$/i;
@@ -106,7 +109,7 @@ export interface FakeOptions {
 let seq = 0;
 
 /** A fresh fake backend with its own connections and credential store. */
-export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords: Map<string, string> } {
+export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords: Map<string, string>; clipboard: { text: string } } {
   const conns: SavedConnection[] = [];
   const passwords = new Map<string, string>();
   for (const { password, ...c } of opts.connections ?? []) {
@@ -114,6 +117,16 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     if (password && c.savePassword) passwords.set(c.id, password);
   }
   let notice = opts.notice ?? "";
+  const open = new Map<string, number>(); // open sessions and their page size
+  const clipboard = { text: "" };
+  // FAKE.lost simulates a server that stopped answering: the session is dropped.
+  const check = (id: string): Failure | null => {
+    if (FAKE.lost) open.delete(id);
+    if (open.has(id)) return null;
+    return FAKE.lost
+      ? { title: "Connection to localhost lost.", message: "The server stopped answering. Reconnect to keep working. Server is unavailable (52)", code: 52, lost: true }
+      : { title: "Not connected.", message: "This connection is closed. Reconnect to keep working.", code: 0, lost: true };
+  };
   const find = (id: string) => {
     const c = conns.find((x) => x.id === id);
     if (!c) throw new Error("This connection no longer exists. It may have been deleted in another window.");
@@ -124,6 +137,7 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
 
   return {
     passwords,
+    clipboard,
     async testConnection(p, signal) {
       await wait(FAKE.delayMs, signal);
       if (!p.password && p.connectionId) p = { ...p, password: passwords.get(p.connectionId) ?? "" };
@@ -197,16 +211,59 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
       }
       c.lastUsed = new Date().toISOString();
       c.lastError = "";
+      open.set(id, c.pageSize || 500);
       const u = canonical(c.url)!;
       return {
         ok: true, title: "Connected.", code: 0, reason: "", message: `Bound to ${u.host}:${u.port} in 42 ms over ${secLabel(c.url, c.security)}.`,
         session: {
           connectionId: id, name: c.name, url: u.url, security: secLabel(c.url, c.security), boundAs: c.bind === "simple" ? c.bindDn : "",
           baseDn: c.baseDn || FAKE.baseDn, vendor: "", namingContexts: [FAKE.baseDn], ldapVersions: ["3"], controls: 14, extensions: 5, elapsedMs: 42, readOnly: c.readOnly,
+          subschemaDn: SUBSCHEMA, schemaRead: true,
         },
       };
     },
-    async disconnect() {},
+    async disconnect(id) {
+      open.delete(id);
+    },
+    async roots(id) {
+      const lost = check(id);
+      if (lost) return { nodes: [], more: "", total: -1, truncated: false, elapsedMs: 0, failure: lost };
+      const roots = [{ ...fakeNode(BASE)!, rdn: BASE }, { ...fakeNode(SUBSCHEMA)!, rdn: SUBSCHEMA, sub: "Schema" }];
+      return { nodes: roots, more: "", total: -1, truncated: false, elapsedMs: 3, failure: null };
+    },
+    async children(id, dn, more) {
+      await wait(FAKE.delayMs / 2);
+      const lost = check(id);
+      if (lost) return { nodes: [], more: "", total: -1, truncated: false, elapsedMs: 0, failure: lost };
+      const all = fakeChildren(dn) ?? [];
+      const size = open.get(id) ?? 500;
+      const from = more ? Number(more) : 0;
+      const to = Math.min(from + size, all.length);
+      return { nodes: all.slice(from, to), more: to < all.length ? String(to) : "", total: all.length, truncated: false, elapsedMs: 9, failure: null };
+    },
+    async entry(id, dn) {
+      await wait(FAKE.delayMs / 2);
+      const lost = check(id);
+      const empty = { dn, title: "", subtitle: "", type: "entry", objectClasses: [], attributes: [], ldif: "", referral: false, elapsedMs: 0 };
+      if (lost) return { ...empty, failure: lost };
+      return (
+        fakeEntry(dn) ?? {
+          ...empty,
+          failure: { title: "Entry not found.", message: `The server has no entry at ${dn}. It may have been renamed or deleted. No such object (32)`, code: 32, lost: false },
+        }
+      );
+    },
+    async memberOf(id, dn) {
+      await wait(FAKE.delayMs / 2);
+      const lost = check(id);
+      return lost ? { entries: [], truncated: false, failure: lost } : { entries: fakeMemberOf(dn), truncated: false, failure: null };
+    },
+    async ping(id) {
+      return check(id);
+    },
+    async copyText(text) {
+      clipboard.text = text;
+    },
   };
 }
 

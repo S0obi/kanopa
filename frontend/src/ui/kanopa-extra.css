@@ -49,3 +49,22 @@ code, .kn-code { font: 400 12px/20px var(--font-mono); word-break: break-all; }
 
 /* The menu separator is an <hr>. */
 hr.kn-menu__sep { border: 0; }
+
+/* Directory tree (virtualized): the tree scrolls, rows are absolutely placed. */
+.kn-tree--virtual { height: 100%; overflow: auto; box-sizing: border-box; outline: none; }
+.kn-tree--virtual:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.kn-tree--virtual .kn-tree__row { box-sizing: border-box; cursor: default; }
+.kn-tree--virtual:focus-visible .kn-tree__row.is-active { box-shadow: inset 0 0 0 2px var(--focus); }
+.kn-tree__row--note:hover, .kn-tree__row--more:hover { background: transparent; }
+.kn-tree__label { display: flex; align-items: baseline; gap: var(--space-2); }
+.kn-tree__rdn { font: 400 12px/20px var(--font-mono); white-space: nowrap; flex: none; }
+.kn-tree__row[aria-selected="true"] .kn-tree__rdn { font-weight: 600; }
+.kn-tree__sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); font-size: 12px; }
+.kn-tree__badge { flex: none; height: 16px; padding: 0 5px; border-radius: var(--radius-xs); border: 1px solid var(--line-strong); background: var(--surface-raised); font: 500 11px/14px var(--font-sans); color: var(--ink-muted); }
+.kn-tree__more.kn-btn--ghost { color: var(--moss-ink); font-weight: 500; }
+
+/* Entry pane: attribute values and related entries. */
+.kn-attrs__link { all: unset; display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--moss-ink); cursor: pointer; border-radius: var(--radius-xs); }
+.kn-attrs__link:hover { text-decoration: underline; }
+.kn-attrs__link:focus-visible { box-shadow: var(--focus-ring); }
+.kn-ldif--readonly { border-color: var(--line); }

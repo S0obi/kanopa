@@ -11,3 +11,7 @@ export {
   Modal, Dialog, ConfirmDialog, Menu, MenuButton, ToastRegion, useToasts, EmptyState, orderActions,
   type DialogProps, type DialogAction, type MenuItem, type EmptyStateProps,
 } from "./overlays";
+export {
+  TypeTile, asEntryType, Tabs, DnBreadcrumb, LdifView, tokenizeLdifLine, SplitPane, StatusBar, Skeleton,
+  type EntryType, type TabsProps, type SplitPaneProps,
+} from "./directory";

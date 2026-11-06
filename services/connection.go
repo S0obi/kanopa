@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/S0obi/kanopa/internal/connections"
@@ -48,8 +47,7 @@ type ConnectionService struct {
 	store   *connections.Store
 	secrets secrets.Store
 
-	mu       sync.Mutex
-	sessions map[string]*ldapx.Session // open connections by connection ID
+	live *registry // open connections, shared with DirectoryService
 }
 
 // NewConnectionService returns a service over the given connections file and credential store.
@@ -57,7 +55,7 @@ func NewConnectionService(log *slog.Logger, store *connections.Store, sec secret
 	if log == nil {
 		log = slog.Default()
 	}
-	return &ConnectionService{log: log, open: ldapx.Open, store: store, secrets: sec, sessions: map[string]*ldapx.Session{}}
+	return &ConnectionService{log: log, open: ldapx.Open, store: store, secrets: sec, live: newRegistry()}
 }
 
 // storeName is where passwords live on this OS, as the UI names it.

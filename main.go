@@ -40,12 +40,15 @@ func run() error {
 	logger.Info("kanopa starting", "version", version)
 
 	store := openConnections(logger)
+	connSvc := services.NewConnectionService(logger, store, secrets.Keyring{})
+	dirSvc := services.NewDirectoryService(logger, connSvc)
 
 	app := application.New(application.Options{
 		Name:        "Kanopa",
 		Description: "A calm, exact LDAP client",
 		Services: []application.Service{
-			application.NewService(services.NewConnectionService(logger, store, secrets.Keyring{})),
+			application.NewService(connSvc),
+			application.NewService(dirSvc),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
