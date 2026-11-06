@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { FAKE, createFakeBackend, sampleConnections } from "@/api/fake";
 import { renderWith } from "@/test/render";
 import { useApp } from "@/stores/app";
@@ -151,5 +151,49 @@ describe("WelcomeScreen", () => {
     expect(await screen.findByText("Saved “Test directory”.")).toBeInTheDocument();
     expect(screen.getByText("Test directory", { selector: "span" })).toBeInTheDocument();
     expect(screen.getByText("1 saved connection")).toBeInTheDocument();
+  });
+});
+
+describe("WelcomeScreen — review fixes", () => {
+  it("keeps arrow keys out of the list while a dialog is open", async () => {
+    const { user } = setup();
+    await screen.findByText("Production directory");
+    await user.click(screen.getByRole("button", { name: "Actions for Staging" }));
+    await user.click(screen.getByRole("menuitem", { name: "Edit…" }));
+    expect(fireEvent.keyDown(screen.getByLabelText("Bind method"), { key: "ArrowDown" })).toBe(true);
+    expect(row("Staging")).toHaveAttribute("data-active", "true");
+  });
+
+  it("moves through the row menu without moving the highlight", async () => {
+    const { user } = setup();
+    await screen.findByText("Production directory");
+    await user.click(screen.getByRole("button", { name: "Actions for Staging" }));
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitem", { name: "Duplicate" })).toHaveFocus();
+    expect(row("Staging")).toHaveAttribute("data-active", "true");
+  });
+
+  it("keeps focus on Connect while connecting", async () => {
+    FAKE.delayMs = 200;
+    const { user } = setup();
+    const connect = await screen.findByRole("button", { name: "Connect to Staging" });
+    await user.click(connect);
+    expect(connect).toHaveAccessibleName("Connecting to Staging");
+    expect(connect).toHaveFocus();
+  });
+
+  it("connects a new connection with the password typed but not saved", async () => {
+    const { user } = setup([]);
+    await user.click((await screen.findAllByRole("button", { name: "New connection" }))[0]);
+    await user.type(screen.getByLabelText("Connection name"), "Test directory");
+    await user.type(screen.getByLabelText("LDAP URL"), "ldaps://localhost:636");
+    await user.type(screen.getByLabelText("Bind DN"), "cn=admin,dc=example,dc=org");
+    await user.type(screen.getByLabelText("Password", { exact: true }), "kanopa-admin");
+    await user.click(screen.getByLabelText("Save the password in the Windows Credential Manager"));
+    await user.click(screen.getByRole("button", { name: /Advanced/ }));
+    await user.click(screen.getByLabelText("Verify the server certificate against the system trust store"));
+    await user.click(screen.getByRole("button", { name: /Save and connect/ }));
+    await waitFor(() => expect(useApp.getState().view.name).toBe("connected"));
+    expect(screen.queryByRole("dialog", { name: /Connect to/ })).not.toBeInTheDocument();
   });
 });

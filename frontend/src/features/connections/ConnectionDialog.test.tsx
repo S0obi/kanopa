@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import type userEvent from "@testing-library/user-event";
 import { FAKE, createFakeBackend, sampleConnections } from "@/api/fake";
 import { renderWith } from "@/test/render";
@@ -92,7 +92,7 @@ describe("ConnectionDialog — new", () => {
     const { user, onSaved, backend } = setup();
     await fillAdmin(user);
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ name: "Test directory", url: "ldaps://localhost:636", hasPassword: true }), false);
+    expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ name: "Test directory", url: "ldaps://localhost:636", hasPassword: true }), false, "");
     const saved = onSaved.mock.calls[0][0];
     expect(backend.passwords.get(saved.id)).toBe("kanopa-admin");
   });
@@ -101,7 +101,7 @@ describe("ConnectionDialog — new", () => {
     const { user, onSaved } = setup();
     await fillAdmin(user);
     await user.keyboard("{Control>}{Enter}{/Control}");
-    expect(onSaved).toHaveBeenCalledWith(expect.anything(), true);
+    expect(onSaved).toHaveBeenCalledWith(expect.anything(), true, "");
   });
 
   it("puts the primary action first on Windows and last on macOS", () => {
@@ -131,7 +131,7 @@ describe("ConnectionDialog — edit", () => {
     await user.clear(screen.getByLabelText("Connection name"));
     await user.type(screen.getByLabelText("Connection name"), "Prod");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
-    expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ id: "prod", name: "Prod" }), false);
+    expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ id: "prod", name: "Prod" }), false, "");
     expect(backend.passwords.get("prod")).toBe("kanopa-admin");
   });
 
@@ -146,5 +146,46 @@ describe("ConnectionDialog — edit", () => {
     setup({ mode: "edit", connection: conn, reason: "badPassword" });
     expect(screen.getByText(/The server refused the saved password for/)).toHaveTextContent("Invalid credentials (49)");
     expect(screen.getByLabelText("Password", { exact: true })).toHaveFocus();
+  });
+});
+
+describe("ConnectionDialog — review fixes", () => {
+  it("saves once however often Ctrl+Enter is pressed", async () => {
+    const backend = createFakeBackend();
+    const spy = vi.spyOn(backend, "saveConnection");
+    const { user, onSaved } = setup({}, backend);
+    await fillAdmin(user);
+    await user.keyboard("{Control>}{Enter}{Enter}{Enter}{/Control}");
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands over a password that is typed but not saved", async () => {
+    const { user, onSaved, backend } = setup();
+    await fillAdmin(user);
+    await user.click(screen.getByLabelText("Save the password in the Windows Credential Manager"));
+    await user.click(screen.getByRole("button", { name: /Save and connect/ }));
+    expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ savePassword: false, hasPassword: false }), true, "kanopa-admin");
+    expect(backend.passwords.size).toBe(0);
+  });
+
+  it("keeps focus on a busy button, so Ctrl+Enter still works after Test connection", async () => {
+    FAKE.delayMs = 200;
+    const { user, onSaved } = setup();
+    await fillAdmin(user);
+    await verificationOff(user);
+    const test = screen.getByRole("button", { name: "Test connection" });
+    await user.click(test);
+    expect(test).toHaveAttribute("aria-busy", "true");
+    expect(test).not.toBeDisabled();
+    expect(test).toHaveFocus();
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves arrow keys to the fields inside the dialog", () => {
+    setup();
+    // fireEvent returns false when a handler called preventDefault().
+    expect(fireEvent.keyDown(screen.getByLabelText("Bind method"), { key: "ArrowDown" })).toBe(true);
   });
 });

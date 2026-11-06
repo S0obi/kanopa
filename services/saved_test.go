@@ -2,9 +2,15 @@ package services
 
 import (
 	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/S0obi/kanopa/internal/connections"
 	"github.com/S0obi/kanopa/internal/ldapx"
 	"github.com/S0obi/kanopa/internal/secrets"
 )
@@ -172,3 +178,104 @@ func TestTestUsesTheSavedPassword(t *testing.T) {
 		t.Fatalf("password used = %q", got)
 	}
 }
+
+// spySecrets counts reads and can fail writes.
+type spySecrets struct {
+	*secrets.Memory
+	gets    int
+	failSet bool
+}
+
+func (s *spySecrets) Get(id string) (string, error) { s.gets++; return s.Memory.Get(id) }
+func (s *spySecrets) Set(id, pw string) error {
+	if s.failSet {
+		return errors.New("access denied")
+	}
+	return s.Memory.Set(id, pw)
+}
+
+func newSpyService(t *testing.T, store *connections.Store) (*ConnectionService, *spySecrets) {
+	t.Helper()
+	spy := &spySecrets{Memory: secrets.NewMemory()}
+	svc := NewConnectionService(slog.New(slog.NewTextHandler(io.Discard, nil)), store, spy)
+	t.Cleanup(func() { _ = svc.ServiceShutdown() })
+	return svc, spy
+}
+
+func openStore(t *testing.T, content string) *connections.Store {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "connections.json")
+	if content != "" {
+		os.WriteFile(path, []byte(content), 0o600)
+	}
+	st, err := connections.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st
+}
+
+func TestListNeverReadsPasswords(t *testing.T) {
+	s, spy := newSpyService(t, openStore(t, ""))
+	for _, n := range []string{"A", "B", "C"} {
+		if _, err := s.Save(req(n)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	spy.gets = 0
+	l := s.List()
+	if spy.gets != 0 {
+		t.Fatalf("List read %d passwords", spy.gets)
+	}
+	if !l.Connections[0].HasPassword {
+		t.Fatal("HasPassword should come from the saved flag")
+	}
+}
+
+func TestNewConnectionWithoutPasswordIsNotSaved(t *testing.T) {
+	s := newTestService(t)
+	r := req("No password")
+	r.Password = ""
+	c, _ := s.Save(r)
+	if c.SavePassword || c.HasPassword {
+		t.Fatalf("nothing to save, got %+v", c)
+	}
+}
+
+func TestFailedFileWriteLeavesTheCredentialStoreAlone(t *testing.T) {
+	// A file from a newer Kanopa: listed, never written.
+	st := openStore(t, `{"version":99,"connections":[{"id":"a","name":"A","url":"ldaps://h:636","security":"ldaps","bind":"simple","bindDn":"cn=x","savePassword":true}]}`)
+	s, spy := newSpyService(t, st)
+	_ = spy.Memory.Set("a", "kept")
+
+	r := req("A")
+	r.ID, r.URL, r.SavePassword, r.Password = "a", "ldaps://h:636", false, ""
+	if _, err := s.Save(r); err == nil {
+		t.Fatal("saving should fail")
+	}
+	if err := s.Delete("a"); err == nil {
+		t.Fatal("deleting should fail")
+	}
+	if pw, _ := spy.Memory.Get("a"); pw != "kept" {
+		t.Fatal("the saved password must survive a failed save or delete")
+	}
+	if _, err := s.Save(req("New")); err == nil {
+		t.Fatal("saving a new connection should fail")
+	}
+	if spy.Memory.Len() != 1 {
+		t.Fatal("a failed save must not leave a password behind")
+	}
+}
+
+func TestPasswordThatCannotBeStoredIsReported(t *testing.T) {
+	s, spy := newSpyService(t, openStore(t, ""))
+	spy.failSet = true
+	_, err := s.Save(req("Production"))
+	if err == nil || !strings.HasPrefix(err.Error(), "The connection is saved, but not its password:") {
+		t.Fatalf("err = %v", err)
+	}
+	if c := s.List().Connections[0]; c.SavePassword || c.HasPassword {
+		t.Fatalf("the connection should not claim a saved password: %+v", c)
+	}
+}
+

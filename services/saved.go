@@ -104,10 +104,9 @@ func (s *ConnectionService) view(c connections.Connection) SavedConnection {
 	if c.LastUsed != nil {
 		v.LastUsed = c.LastUsed.Format(time.RFC3339)
 	}
-	if c.Bind == string(ldapx.BindSimple) && c.SavePassword {
-		_, err := s.secrets.Get(c.ID)
-		v.HasPassword = err == nil
-	}
+	// SavePassword is only true while a password is in the credential store (Save and Connect keep
+	// that so), so listing never reads a secret. One removed by hand is caught by Connect (needsPassword).
+	v.HasPassword = c.Bind == string(ldapx.BindSimple) && c.SavePassword
 	return v
 }
 
@@ -174,6 +173,8 @@ func (s *ConnectionService) Save(r SaveRequest) (SavedConnection, error) {
 	}
 	if c.ID == "" {
 		c.ID = newID()
+		// Nothing to keep yet: "save the password" means nothing without one.
+		c.SavePassword = c.SavePassword && r.Password != ""
 	} else {
 		old, err := s.store.Get(c.ID)
 		if err != nil {
@@ -182,19 +183,26 @@ func (s *ConnectionService) Save(r SaveRequest) (SavedConnection, error) {
 		c.LastUsed = old.LastUsed
 		// Consent covers this host without encryption; a new host or port asks again.
 		c.PlainConsent = old.PlainConsent && old.URL == c.URL
+		// Keeping the saved password needs one to be saved already.
+		c.SavePassword = c.SavePassword && (r.Password != "" || (old.SavePassword && old.Bind == string(ldapx.BindSimple)))
+	}
+
+	// The file first: if it cannot be written, the credential store is left as it was.
+	if err := s.store.Put(c, ""); err != nil {
+		return SavedConnection{}, err
 	}
 	switch {
 	case !c.SavePassword:
 		if err := s.secrets.Delete(c.ID); err != nil {
-			return SavedConnection{}, s.secretErr(err)
+			s.log.Error("credential store: remove an unused password", "id", c.ID, "err", err)
 		}
 	case r.Password != "":
 		if err := s.secrets.Set(c.ID, r.Password); err != nil {
-			return SavedConnection{}, s.secretErr(err)
+			// The settings are saved; record that no password is, so Connect asks for it.
+			c.SavePassword = false
+			_ = s.store.Put(c, "")
+			return SavedConnection{}, fmt.Errorf("The connection is saved, but not its password: %w", s.secretErr(err))
 		}
-	}
-	if err := s.store.Put(c, ""); err != nil {
-		return SavedConnection{}, err
 	}
 	s.log.Info("connection saved", "id", c.ID, "url", c.URL, "security", c.Security, "bind", c.Bind)
 	return s.view(c), nil
@@ -213,13 +221,18 @@ func (s *ConnectionService) Duplicate(id string) (SavedConnection, error) {
 	}
 	copied := c
 	copied.ID, copied.Name, copied.LastUsed, copied.LastError = newID(), c.Name+" (copy)", nil, ""
-	if pw, err := s.secrets.Get(id); err == nil {
-		if err := s.secrets.Set(copied.ID, pw); err != nil {
-			return SavedConnection{}, s.secretErr(err)
-		}
-	}
+	pw, perr := s.secrets.Get(id)
+	copied.SavePassword = c.SavePassword && perr == nil
 	if err := s.store.Put(copied, id); err != nil {
 		return SavedConnection{}, err
+	}
+	if copied.SavePassword {
+		if err := s.secrets.Set(copied.ID, pw); err != nil {
+			// The copy exists; it asks for its password on connect.
+			s.log.Error("credential store: copy a password", "id", copied.ID, "err", err)
+			copied.SavePassword = false
+			_ = s.store.Put(copied, "")
+		}
 	}
 	return s.view(copied), nil
 }
@@ -229,12 +242,13 @@ func (s *ConnectionService) Delete(id string) error {
 	if _, err := s.store.Get(id); err != nil {
 		return err
 	}
-	s.Disconnect(id)
-	if err := s.secrets.Delete(id); err != nil {
-		return s.secretErr(err)
-	}
+	// The file first: if it cannot be written, the connection and its password both stay.
 	if err := s.store.Delete(id); err != nil {
 		return err
+	}
+	s.Disconnect(id)
+	if err := s.secrets.Delete(id); err != nil {
+		s.log.Error("credential store: remove the password of a deleted connection", "id", id, "err", err)
 	}
 	s.log.Info("connection deleted", "id", id)
 	return nil
@@ -261,6 +275,10 @@ func (s *ConnectionService) Connect(ctx context.Context, id, password string, sa
 	if c.Bind == string(ldapx.BindSimple) && pw == "" {
 		saved, err := s.secrets.Get(id)
 		if err != nil {
+			if c.SavePassword {
+				// Removed from the credential store outside Kanopa: stop showing it as saved.
+				_, _ = s.store.Update(id, func(x *connections.Connection) { x.SavePassword = false })
+			}
 			return ConnectResult{Title: "Password needed.", Reason: ReasonNeedsPassword,
 				Message: fmt.Sprintf("Enter the password for %s.", c.BindDN)}
 		}
@@ -304,9 +322,20 @@ func (s *ConnectionService) Connect(ctx context.Context, id, password string, sa
 		}
 	}
 	now := time.Now()
-	c, _ = s.store.Update(id, func(x *connections.Connection) {
+	updated, uerr := s.store.Update(id, func(x *connections.Connection) {
 		x.LastUsed, x.LastError, x.SavePassword = &now, "", c.SavePassword
 	})
+	switch {
+	case errors.Is(uerr, connections.ErrNotFound):
+		// Deleted while connecting: do not keep a session for it.
+		sess.Close()
+		return ConnectResult{Title: "Connection not found.", Message: uerr.Error(), Reason: ReasonOther}
+	case uerr != nil:
+		// The bind worked; only the "last used" record failed. Connect anyway, with the settings read before.
+		s.log.Error("record last use", "id", id, "err", uerr)
+	default:
+		c = updated
+	}
 	s.mu.Lock()
 	if old := s.sessions[id]; old != nil {
 		old.Close()

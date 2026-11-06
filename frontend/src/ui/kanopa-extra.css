@@ -43,3 +43,6 @@ code, .kn-code { font: 400 12px/20px var(--font-mono); word-break: break-all; }
 
 /* A <select> reset with `all: unset` puts its text at the top of the box: centre it on the field's inner height. */
 .kn-select select { line-height: calc(var(--size-control) - 2px); }
+
+/* A busy button keeps focus (aria-disabled) but looks inactive. */
+.kn-btn[aria-disabled="true"] { opacity: .7; cursor: progress; }

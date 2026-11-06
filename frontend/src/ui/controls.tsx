@@ -12,18 +12,24 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Required when the button has an icon and no children. */
   label?: string;
   ref?: Ref<HTMLButtonElement>;
-  /** Shows a spinner in place of the icon. */
+  /**
+   * Shows a spinner in place of the icon and ignores clicks. A busy button stays focusable
+   * (aria-disabled, not disabled), so keyboard focus is not lost while the work runs.
+   */
   busy?: boolean;
 }
 
-export function Button({ variant = "secondary", size = "md", icon, label, busy, className, children, type, ...rest }: ButtonProps) {
+export function Button({ variant = "secondary", size = "md", icon, label, busy, className, children, type, disabled, onClick, ...rest }: ButtonProps) {
   const iconOnly = !!icon && children == null;
   const iconSize = size === "sm" ? 14 : 16;
   return (
     <button
       type={type ?? "button"}
       {...rest}
-      className={cx("kn-btn", `kn-btn--${variant}`, `kn-btn--${size}`, iconOnly && "kn-btn--icon", className)}
+      disabled={busy ? undefined : disabled}
+      aria-disabled={busy || undefined}
+      onClick={busy ? (e) => e.preventDefault() : onClick}
+      className={cx("kn-btn", `kn-btn--${variant}`, `kn-btn--${size}`, iconOnly && "kn-btn--icon", busy && "is-busy", className)}
       aria-label={iconOnly ? label : rest["aria-label"]}
       title={iconOnly ? label : rest.title}
       aria-busy={busy || undefined}
