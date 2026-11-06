@@ -5,13 +5,13 @@ version: '3'
 
 # This information is used to generate the build assets.
 info:
-  companyName: "Thibault" # The name of the company
+  companyName: "Kanopa" # The name of the company
   productName: "Kanopa" # The name of the application
   productIdentifier: "app.kanopa.desktop" # The unique product identifier
-  description: "One big button, endless confetti" # The application description
+  description: "A calm, exact LDAP client" # The application description
   copyright: "(c) 2026, Thibault" # Copyright text
   comments: "Kanopa" # Comments
-  version: "0.1.0" # The application version
+  version: "0.0.1" # The application version
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension
   #                               # If not set and Assets.car exists, defaults to "appicon"

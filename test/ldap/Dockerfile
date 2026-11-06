@@ -25,5 +25,9 @@ RUN sed -i "s|@ROOTPW@|$(slappasswd -s "$ADMIN_PASSWORD")|" /etc/openldap/slapd.
  && chown -R ldap:ldap /var/lib/openldap /run/openldap \
  && rm /tmp/seed.ldif
 
+# kanopa-search <dn>: the entry as the server holds it, for comparing with Kanopa by hand.
+RUN printf '#!/bin/sh\nexec ldapsearch -LLL -o ldif-wrap=no -x -H ldap://localhost -D cn=admin,dc=example,dc=org -w "%s" -b "$1" -s base "*" "+"\n' "$ADMIN_PASSWORD" \
+      > /usr/local/bin/kanopa-search && chmod +x /usr/local/bin/kanopa-search
+
 EXPOSE 389 636
 CMD ["slapd", "-d", "256", "-u", "ldap", "-g", "ldap", "-h", "ldap:/// ldaps:///", "-f", "/etc/openldap/slapd.conf"]

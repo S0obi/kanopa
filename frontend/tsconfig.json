@@ -1,29 +1,25 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "lib": ["ES2020", "DOM"],
-    "skipLibCheck": true,
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
+    "jsx": "react-jsx",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
     "noEmit": true,
-    "jsx": "preserve",
-    "types": ["vite/client"],
+    "types": ["vite/client", "node", "@testing-library/jest-dom"],
     "paths": {
       "@/*": ["./src/*"]
     },
 
-    /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue", "bindings"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src", "bindings", "e2e", "scripts", "vite.config.ts", "playwright.config.ts"]
 }
