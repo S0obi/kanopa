@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { create } from "zustand";
 import { cx } from "./cx";
 import { Icon, type IconName } from "./icons";
@@ -241,17 +242,49 @@ export function Menu({ items, onSelect, onClose, platform, autoFocus, label, cla
   );
 }
 
-/** An icon button that opens a menu below it; outside clicks and Esc close it and return focus. */
+type MenuPlacement = { top?: number; bottom?: number; right: number };
+
+/**
+ * An icon button that opens a menu below it (above it when there is no room).
+ * The menu is drawn in a layer of its own, so a scrolling container (a table) never clips it
+ * or grows a scrollbar for it. Outside clicks, Esc, scrolling and resizing close it.
+ */
 export function MenuButton({ label, items, onSelect, platform }: { label: string; items: MenuItem[]; onSelect: (id: string) => void; platform?: Platform }) {
   const [open, setOpen] = useState(false);
+  const [place, setPlace] = useState<MenuPlacement | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
+  const layer = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+
+  // Below the button, right edges aligned; flipped above when the window is too short.
+  useLayoutEffect(() => {
+    if (!open || !button.current) return setPlace(null);
+    const r = button.current.getBoundingClientRect();
+    const right = window.innerWidth - r.right;
+    const height = layer.current?.offsetHeight ?? 0;
+    const below = r.bottom + 4;
+    setPlace(height && below + height > window.innerHeight - 8 && r.top - 4 - height > 8 ? { bottom: window.innerHeight - r.top + 4, right } : { top: below, right });
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false);
+    const away = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!wrap.current?.contains(t) && !layer.current?.contains(t)) setOpen(false);
+    };
+    const dismiss = (e: Event) => {
+      if (e.type === "scroll" && layer.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
     window.addEventListener("pointerdown", away);
-    return () => window.removeEventListener("pointerdown", away);
+    window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("resize", dismiss);
+    return () => {
+      window.removeEventListener("pointerdown", away);
+      window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("resize", dismiss);
+    };
   }, [open]);
   const close = () => {
     setOpen(false);
@@ -275,7 +308,13 @@ export function MenuButton({ label, items, onSelect, platform }: { label: string
           }
         }}
       />
-      {open && <Menu id={menuId} items={items} label={label} platform={platform} autoFocus onClose={close} onSelect={onSelect} className="absolute top-8 right-0 z-20 min-w-[180px]" />}
+      {open &&
+        createPortal(
+          <div ref={layer} className="fixed z-40" style={place ?? { top: 0, right: 0, visibility: "hidden" }}>
+            <Menu id={menuId} items={items} label={label} platform={platform} autoFocus={!!place} onClose={close} onSelect={onSelect} className="min-w-[180px]" />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
