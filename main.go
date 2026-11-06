@@ -3,8 +3,13 @@ package main
 import (
 	"embed"
 	"log"
+	"log/slog"
+	"os"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+
+	"github.com/S0obi/kanopa/internal/applog"
+	"github.com/S0obi/kanopa/services"
 )
 
 // The built frontend (frontend/dist) is embedded into the binary.
@@ -12,12 +17,24 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// version is set at build time with -ldflags "-X main.version=…".
+var version = "0.0.1-dev"
+
 func main() {
+	logger := slog.Default()
+	if dir, err := applog.Dir(); err == nil {
+		if l, closer, err := applog.New(dir, os.Stderr); err == nil {
+			logger = l
+			defer closer.Close()
+		}
+	}
+	logger.Info("kanopa starting", "version", version)
+
 	app := application.New(application.Options{
-		Name:        "Tada",
-		Description: "One big button, endless confetti",
+		Name:        "Kanopa",
+		Description: "A calm, exact LDAP client",
 		Services: []application.Service{
-			application.NewService(&PartyService{}),
+			application.NewService(services.NewConnectionService(logger)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -28,13 +45,13 @@ func main() {
 	})
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "Tada",
-		Width:     1100,
-		Height:    760,
-		MinWidth:  720,
-		MinHeight: 560,
-		// Matches the dark theme background so the window doesn't flash white on start.
-		BackgroundColour: application.NewRGB(18, 14, 30),
+		Title:     "Kanopa",
+		Width:     1280,
+		Height:    800,
+		MinWidth:  960,
+		MinHeight: 640,
+		// The Kanopa surface colour, so the window doesn't flash white on start.
+		BackgroundColour: application.NewRGB(243, 246, 240),
 		URL:              "/",
 	})
 
