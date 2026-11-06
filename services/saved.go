@@ -93,6 +93,8 @@ type SessionInfo struct {
 	Extensions     int      `json:"extensions"`
 	ElapsedMs      int64    `json:"elapsedMs"`
 	ReadOnly       bool     `json:"readOnly"`
+	SubschemaDN    string   `json:"subschemaDn"` // the schema entry, shown at the top of the tree
+	SchemaRead     bool     `json:"schemaRead"`  // false when the server would not share its schema
 }
 
 func (s *ConnectionService) view(c connections.Connection) SavedConnection {
@@ -336,21 +338,30 @@ func (s *ConnectionService) Connect(ctx context.Context, id, password string, sa
 	default:
 		c = updated
 	}
-	s.mu.Lock()
-	if old := s.sessions[id]; old != nil {
-		old.Close()
+	// The schema tells DN-valued, binary and operational attributes apart. Without it Kanopa still browses.
+	schema, serr := sess.ReadSchema(ctx, dse.SubschemaSubentry)
+	if serr != nil {
+		s.log.Info("schema not readable", "id", id, "err", serr)
 	}
-	s.sessions[id] = sess
-	s.mu.Unlock()
+	live := &liveSession{Session: sess, id: id, name: c.Name, baseDN: c.BaseDN, namingContexts: nonNil(dse.NamingContexts),
+		subschemaDN: dse.SubschemaSubentry, schema: schema, pageSize: c.PageSize, referrals: ldapx.ReferralsAsEntries}
+	if live.baseDN == "" {
+		live.baseDN = dse.BaseDN()
+	}
+	if c.Referrals == "ignore" {
+		live.referrals = ldapx.ReferralsIgnored
+	}
+	if live.pageSize < 1 {
+		live.pageSize = 500
+	}
+	s.live.put(live)
 
 	info := &SessionInfo{
 		ConnectionID: id, Name: c.Name, URL: sess.Endpoint.URL(), Security: sess.Security.Label(), BoundAs: sess.BindDN,
-		BaseDN: c.BaseDN, Vendor: strings.TrimSpace(dse.VendorName + " " + dse.VendorVersion),
-		NamingContexts: nonNil(dse.NamingContexts), LDAPVersions: nonNil(dse.LDAPVersions),
+		BaseDN: live.baseDN, Vendor: strings.TrimSpace(dse.VendorName + " " + dse.VendorVersion),
+		NamingContexts: live.namingContexts, LDAPVersions: nonNil(dse.LDAPVersions),
 		Controls: len(dse.SupportedControls), Extensions: len(dse.SupportedExts), ElapsedMs: elapsed, ReadOnly: c.ReadOnly,
-	}
-	if info.BaseDN == "" {
-		info.BaseDN = dse.BaseDN()
+		SubschemaDN: dse.SubschemaSubentry, SchemaRead: schema != nil,
 	}
 	s.log.Info("connected", "id", id, "url", info.URL, "security", c.Security, "elapsed_ms", elapsed)
 	return ConnectResult{OK: true, Title: "Connected.", Code: 0, Session: info,
@@ -359,24 +370,14 @@ func (s *ConnectionService) Connect(ctx context.Context, id, password string, sa
 
 // Disconnect closes an open connection. Closing one that is not open is fine.
 func (s *ConnectionService) Disconnect(id string) {
-	s.mu.Lock()
-	sess := s.sessions[id]
-	delete(s.sessions, id)
-	s.mu.Unlock()
-	if sess != nil {
-		sess.Close()
+	if s.live.drop(id, nil) {
 		s.log.Info("disconnected", "id", id)
 	}
 }
 
 // ServiceShutdown closes every open connection when Kanopa quits (Wails service hook).
 func (s *ConnectionService) ServiceShutdown() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for id, sess := range s.sessions {
-		sess.Close()
-		delete(s.sessions, id)
-	}
+	s.live.closeAll()
 	return nil
 }
 
