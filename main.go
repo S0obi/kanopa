@@ -9,6 +9,8 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/S0obi/kanopa/internal/applog"
+	"github.com/S0obi/kanopa/internal/connections"
+	"github.com/S0obi/kanopa/internal/secrets"
 	"github.com/S0obi/kanopa/services"
 )
 
@@ -30,11 +32,13 @@ func main() {
 	}
 	logger.Info("kanopa starting", "version", version)
 
+	store := openConnections(logger)
+
 	app := application.New(application.Options{
 		Name:        "Kanopa",
 		Description: "A calm, exact LDAP client",
 		Services: []application.Service{
-			application.NewService(services.NewConnectionService(logger)),
+			application.NewService(services.NewConnectionService(logger, store, secrets.Keyring{})),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -58,4 +62,17 @@ func main() {
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// openConnections opens the saved connections. When that fails the app still starts, with none, and says why.
+func openConnections(logger *slog.Logger) *connections.Store {
+	path, err := connections.DefaultPath()
+	if err == nil {
+		var store *connections.Store
+		if store, err = connections.Open(path); err == nil {
+			return store
+		}
+	}
+	logger.Error("open connections", "path", path, "err", err)
+	return connections.Unavailable(path, err)
 }
