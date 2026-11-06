@@ -23,3 +23,20 @@
 /* Base: buttons and fields inherit the interface font. */
 button, input, select, textarea { font-family: inherit; }
 code, .kn-code { font: 400 12px/20px var(--font-mono); word-break: break-all; }
+
+/* Shortcut inside a primary button (Save and connect). */
+.kn-kbd--on-moss, .kn-kbd--on-moss kbd { color: var(--on-moss); }
+.kn-kbd--on-moss kbd { background: var(--moss-soft); border-color: transparent; box-shadow: none; }
+
+/* A field the person must look at (the password after a refused bind). */
+.kn-input--attention { border-color: var(--danger-ink); }
+
+/* Rows of the saved-connections table. */
+.kn-conn-row { transition: background-color 120ms; }
+.kn-conn-row:hover { background: var(--surface-hover); }
+.kn-conn-row[data-active="true"] { background: var(--moss-soft); }
+@media (prefers-reduced-motion: reduce) { .kn-conn-row { transition: none; } }
+
+/* Columns of the saved-connections table (Main design). */
+.conn-grid { display: grid; grid-template-columns: minmax(0, 2.3fr) minmax(0, 1.7fr) minmax(0, 2fr) 120px 170px 150px; gap: var(--space-4); align-items: center; }
+.kn-input input[type="search"]::-webkit-search-cancel-button { display: none; }

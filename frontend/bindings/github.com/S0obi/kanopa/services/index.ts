@@ -7,6 +7,11 @@ export {
 };
 
 export type {
+    ConnectResult,
     ConnectionParams,
+    ListResult,
+    SaveRequest,
+    SavedConnection,
+    SessionInfo,
     TestResult
 } from "./models.js";

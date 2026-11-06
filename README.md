@@ -41,7 +41,7 @@ wails3 dev
 
 `wails3 dev` starts Vite on port 9245 and opens the app window with hot reload. To work on the UI in a plain browser against the fake backend, run `npm run dev -- --mode fake` in `frontend/`.
 
-The log file is in `%AppData%\Kanopa\logs` on Windows and `~/Library/Application Support/Kanopa/logs` on macOS.
+Kanopa keeps its files in `%AppData%\Kanopa` on Windows and `~/Library/Application Support/Kanopa` on macOS: `connections.json` (saved connections, never passwords) and `logs/`. Passwords are in the Windows Credential Manager or the macOS Keychain, under "Kanopa".
 
 ## Test
 

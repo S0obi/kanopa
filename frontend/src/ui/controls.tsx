@@ -1,4 +1,4 @@
-import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from "react";
 import { cx } from "./cx";
 import { Icon, type IconName } from "./icons";
 import { detectPlatform, type Platform } from "@/lib/platform";
@@ -11,6 +11,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: IconName;
   /** Required when the button has an icon and no children. */
   label?: string;
+  ref?: Ref<HTMLButtonElement>;
   /** Shows a spinner in place of the icon. */
   busy?: boolean;
 }
@@ -115,6 +116,7 @@ export function Field({ id, label, hint, error, className, children }: FieldProp
 }
 
 export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
+  ref?: Ref<HTMLInputElement>;
   label?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
@@ -146,6 +148,7 @@ export function TextField({ label, hint, error, mono, icon, trailing, className,
 }
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+  ref?: Ref<HTMLSelectElement>;
   label?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
