@@ -12,4 +12,11 @@ function withSignal<T>(p: Cancellable<T>, signal?: AbortSignal): Promise<T> {
 export const wailsBackend: Backend = {
   testConnection: (p, signal) => withSignal(ConnectionService.Test(p), signal),
   fetchBaseDn: (p, signal) => withSignal(ConnectionService.FetchBaseDN(p), signal),
+  listConnections: () => ConnectionService.List(),
+  saveConnection: (r) => ConnectionService.Save(r),
+  duplicateConnection: (id) => ConnectionService.Duplicate(id),
+  deleteConnection: (id) => ConnectionService.Delete(id),
+  allowUnencrypted: (id) => ConnectionService.AllowUnencrypted(id),
+  connect: (id, password, save, signal) => withSignal(ConnectionService.Connect(id, password, save), signal),
+  disconnect: (id) => ConnectionService.Disconnect(id),
 };

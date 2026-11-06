@@ -7,3 +7,7 @@ export {
 } from "./controls";
 export { Banner, Badge, StatusIndicator, Tooltip, type BannerProps, type BadgeProps, type StatusIndicatorProps, type TooltipProps } from "./feedback";
 export { cx } from "./cx";
+export {
+  Modal, Dialog, ConfirmDialog, Menu, MenuButton, ToastRegion, useToasts, EmptyState, orderActions,
+  type DialogProps, type DialogAction, type MenuItem, type EmptyStateProps,
+} from "./overlays";
