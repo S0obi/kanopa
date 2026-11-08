@@ -28,6 +28,7 @@ type AttributeType struct {
 	Names       []string
 	Sup         string
 	Syntax      string
+	Equality    string // the EQUALITY matching rule; empty when values can't be compared
 	SingleValue bool
 	NoUserMod   bool
 	Usage       string // userApplications (default) or a directory/DSA operation usage
@@ -102,6 +103,53 @@ func (s *Schema) Required(classes []string) map[string]bool {
 	return out
 }
 
+// Allowed lists the attributes the given object classes (and their superclasses) require or allow,
+// by first name, required ones first, each once.
+func (s *Schema) Allowed(classes []string) (must, may []string) {
+	seen := map[string]bool{}
+	visited := map[string]bool{}
+	var walk func(name string)
+	add := func(list *[]string, names []string) {
+		for _, n := range names {
+			a := s.Attr(n)
+			key := strings.ToLower(n)
+			if a != nil {
+				key = a.OID
+				if len(a.Names) > 0 {
+					n = a.Names[0]
+				}
+			}
+			if !seen[key] {
+				seen[key] = true
+				*list = append(*list, n)
+			}
+		}
+	}
+	var mustDefs, mayDefs [][]string
+	walk = func(name string) {
+		oc := s.Class(name)
+		if oc == nil || visited[oc.OID] {
+			return
+		}
+		visited[oc.OID] = true
+		mustDefs = append(mustDefs, oc.Must)
+		mayDefs = append(mayDefs, oc.May)
+		for _, sup := range oc.Sup {
+			walk(sup)
+		}
+	}
+	for _, c := range classes {
+		walk(c)
+	}
+	for _, m := range mustDefs {
+		add(&must, m)
+	}
+	for _, m := range mayDefs {
+		add(&may, m)
+	}
+	return must, may
+}
+
 // ParseSchema reads attributeTypes and objectClasses definitions (RFC 4512 §4.1).
 func ParseSchema(dn string, attributeTypes, objectClasses []string) *Schema {
 	s := &Schema{DN: dn, attrs: map[string]*AttributeType{}, classes: map[string]*ObjectClass{}}
@@ -111,6 +159,7 @@ func ParseSchema(dn string, attributeTypes, objectClasses []string) *Schema {
 			continue
 		}
 		a := &AttributeType{OID: f.oid, Names: f.list("NAME"), Sup: f.one("SUP"), Syntax: syntaxOID(f.one("SYNTAX")),
+			Equality:    f.one("EQUALITY"),
 			SingleValue: f.flag("SINGLE-VALUE"), NoUserMod: f.flag("NO-USER-MODIFICATION"), Usage: f.one("USAGE")}
 		s.AttrCount++
 		s.attrs[strings.ToLower(a.OID)] = a
@@ -118,17 +167,23 @@ func ParseSchema(dn string, attributeTypes, objectClasses []string) *Schema {
 			s.attrs[strings.ToLower(n)] = a
 		}
 	}
-	// Inherit SYNTAX (and usage) from SUP, following chains.
+	// Inherit SYNTAX, EQUALITY and USAGE from SUP, following chains.
 	for _, a := range s.attrs {
-		for depth, sup := 0, a.Sup; a.Syntax == "" && sup != "" && depth < 16; depth++ {
+		for depth, sup := 0, a.Sup; (a.Syntax == "" || a.Equality == "") && sup != "" && depth < 16; depth++ {
 			p := s.attrs[strings.ToLower(sup)]
 			if p == nil {
 				break
 			}
-			a.Syntax, sup = p.Syntax, p.Sup
+			if a.Syntax == "" {
+				a.Syntax = p.Syntax
+			}
+			if a.Equality == "" {
+				a.Equality = p.Equality
+			}
 			if a.Usage == "" {
 				a.Usage = p.Usage
 			}
+			sup = p.Sup
 		}
 	}
 	for _, def := range objectClasses {

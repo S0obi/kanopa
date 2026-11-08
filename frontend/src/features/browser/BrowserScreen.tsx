@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { errorText, useBackend, type SavedConnection, type SessionInfo } from "@/api/backend";
 import { PasswordDialog } from "@/features/connections/PasswordDialog";
+import { hostOf } from "@/features/connections/url";
 import { credentialStoreName, detectPlatform, isMod } from "@/lib/platform";
 import { plural } from "@/lib/time";
 import { useApp } from "@/stores/app";
-import { Banner, Button, SplitPane, StatusBar, StatusIndicator, Tooltip, TypeTile } from "@/ui";
+import { Badge, Banner, Button, SplitPane, StatusBar, StatusIndicator, Tooltip, TypeTile } from "@/ui";
+import { ApplyFailureBanner, ChangesBar, DropChangesDialog, useApplyChanges, useApplyShortcut } from "./ChangesBar";
+import { useChanges } from "./changes";
 import { EntryPane } from "./EntryPane";
 import { useBrowser } from "./store";
 import { DirectoryTree } from "./Tree";
@@ -24,8 +27,13 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
   const [refreshing, setRefreshing] = useState(false);
   const [askPassword, setAskPassword] = useState(false);
   const [reconnectError, setReconnectError] = useState("");
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const changes = useApplyChanges(session);
+  const dropChanges = useChanges((s) => s.discard);
+  const setTab = useBrowser((s) => s.setTab);
+  useApplyShortcut(() => void changes.apply());
   const id = session.connectionId;
-  const host = session.url.replace(/^ldaps?:\/\//i, "").replace(/:\d+$/, "");
+  const host = hostOf(session.url);
 
   useEffect(() => {
     void start(backend, session);
@@ -89,7 +97,13 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
     }
   }
 
-  async function disconnect() {
+  async function disconnect(force = false) {
+    if (!force && changes.summary.count > 0) {
+      setConfirmLeave(true);
+      return;
+    }
+    setConfirmLeave(false);
+    dropChanges(id);
     setLeaving(true);
     try {
       await backend.disconnect(id);
@@ -106,6 +120,11 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
       <header className="flex h-10 shrink-0 items-center gap-3 border-b border-line bg-surface-sunken pr-2.5 pl-3.5">
         <TypeTile type="server" size={22} />
         <h1 className="type-heading m-0 truncate">{session.name}</h1>
+        {session.readOnly && (
+          <Badge tone="neutral" icon={false} title="Kanopa sends no changes over this connection">
+            Read-only
+          </Badge>
+        )}
         <span className="grow" />
         <Tooltip content="Read the tree and the entry again" shortcut={platform === "mac" ? ["mod", "r"] : ["F5"]} placement="bottom">
           <Button variant="ghost" size="sm" icon="refresh" label="Refresh" busy={refreshing} disabled={connection !== "connected"} onClick={() => void refresh()} />
@@ -152,7 +171,23 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
                 <Banner tone="info" busy title={`Reconnecting to ${host}…`} />
               </div>
             )}
+            {changes.failure && (
+              <div className="px-4 pt-3">
+                <ApplyFailureBanner f={changes.failure} pending={changes.summary.count} onDismiss={changes.dismissFailure} />
+              </div>
+            )}
             <EntryPane />
+            {changes.summary.count > 0 && (
+              <ChangesBar
+                count={changes.summary.count}
+                summary={changes.summary.text}
+                connected={connection === "connected"}
+                applying={changes.applying}
+                onReview={() => setTab("ldif")}
+                onDiscard={changes.discard}
+                onApply={() => void changes.apply()}
+              />
+            )}
           </main>
         }
       />
@@ -169,6 +204,9 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
         ]}
       />
 
+      {confirmLeave && (
+        <DropChangesDialog what="disconnect" count={changes.summary.count} host={changes.host} onCancel={() => setConfirmLeave(false)} onConfirm={() => void disconnect(true)} />
+      )}
       {askPassword && (
         <PasswordDialog
           conn={{ name: session.name, bindDn: session.boundAs } as SavedConnection}

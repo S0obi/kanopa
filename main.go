@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/S0obi/kanopa/internal/applog"
 	"github.com/S0obi/kanopa/internal/connections"
@@ -42,6 +43,13 @@ func run() error {
 	store := openConnections(logger)
 	connSvc := services.NewConnectionService(logger, store, secrets.Keyring{})
 	dirSvc := services.NewDirectoryService(logger, connSvc)
+	changeSvc := services.NewChangeService(logger, connSvc)
+	var win *application.WebviewWindow
+	appSvc := services.NewAppService(func() {
+		if win != nil {
+			win.Close()
+		}
+	})
 
 	app := application.New(application.Options{
 		Name:        "Kanopa",
@@ -49,6 +57,8 @@ func run() error {
 		Services: []application.Service{
 			application.NewService(connSvc),
 			application.NewService(dirSvc),
+			application.NewService(changeSvc),
+			application.NewService(appSvc),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -58,7 +68,7 @@ func run() error {
 		},
 	})
 
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	win = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "Kanopa",
 		Width:     1280,
 		Height:    800,
@@ -67,6 +77,13 @@ func run() error {
 		// The Kanopa surface color, so the window doesn't flash white on start.
 		BackgroundColour: application.NewRGB(243, 246, 240),
 		URL:              "/",
+	})
+	// Closing with unapplied changes waits for the person's answer. (Cmd+Q on macOS: stage 6.)
+	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		if appSvc.ShouldBlockClose() {
+			e.Cancel()
+			app.Event.Emit(services.EventCloseRequested)
+		}
 	})
 
 	if err := app.Run(); err != nil {

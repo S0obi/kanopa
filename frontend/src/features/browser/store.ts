@@ -26,6 +26,9 @@ interface BrowserState {
   connection: ConnectionState;
   lost: Failure | null;
   lastReadMs: number | null;
+  /** The entry view's tab: attributes, ldif, members or memberOf. */
+  tab: string;
+  setTab(tab: string): void;
 
   start(b: Backend, session: SessionInfo): Promise<void>;
   select(dn: string | null): void;
@@ -35,6 +38,8 @@ interface BrowserState {
   collapseAll(): void;
   loadMore(b: Backend, dn: string): Promise<void>;
   reveal(b: Backend, dn: string): Promise<void>;
+  /** Replaces nodes the server sent again (after Apply), keeping what is known of their children. */
+  patchNodes(list: TreeNode[]): void;
   /** Reads the roots and every expanded entry again (Refresh, and after Reconnect). */
   reload(b: Backend): Promise<void>;
   /** Any read that failed: a lost connection switches the whole screen to "lost". */
@@ -85,12 +90,14 @@ export const useBrowser = create<BrowserState>((set, get) => {
     roots: [],
     expanded: {},
     selected: null,
+    tab: "attributes",
+    setTab: (tab) => set({ tab }),
     connection: "connected",
     lost: null,
     lastReadMs: null,
 
     async start(b, session) {
-      set({ session, nodes: {}, roots: [], expanded: {}, selected: null, connection: "connected", lost: null, lastReadMs: null });
+      set({ session, nodes: {}, roots: [], expanded: {}, selected: null, connection: "connected", lost: null, lastReadMs: null, tab: "attributes" });
       const r = await b.roots(session.connectionId);
       if (r.failure) return get().failed(r.failure);
       set({ nodes: putNodes((r.nodes ?? [])), roots: (r.nodes ?? []).map((n) => dnKey(n.dn)) });
@@ -145,6 +152,9 @@ export const useBrowser = create<BrowserState>((set, get) => {
       }
     },
 
+    patchNodes(list) {
+      if (list.length) set({ nodes: putNodes(list) });
+    },
     async reload(b) {
       const s = get();
       if (!s.session) return;

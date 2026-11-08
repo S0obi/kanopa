@@ -1,11 +1,15 @@
 import { createContext, useContext } from "react";
 import type {
+  AllowedAttribute,
+  ApplyResult,
   ConnectionParams,
   ConnectResult,
   EntryAttribute,
+  EntryChange,
   EntryView,
   Failure,
   ListResult,
+  PreviewResult,
   RelatedEntry,
   RelatedResult,
   SavedConnection,
@@ -17,7 +21,8 @@ import type {
 } from "../../bindings/github.com/S0obi/kanopa/services/models";
 
 export type {
-  ConnectionParams, ConnectResult, EntryAttribute, EntryView, Failure, ListResult, RelatedEntry, RelatedResult, SavedConnection,
+  AllowedAttribute, ApplyResult, ConnectionParams, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, ListResult, PreviewResult,
+  RelatedEntry, RelatedResult, SavedConnection,
   SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
 };
 
@@ -50,6 +55,18 @@ export interface Backend {
   /** null while the connection answers. */
   ping(id: string): Promise<Failure | null>;
   copyText(text: string): Promise<void>;
+
+  /** The pending changes as LDIF; nothing is sent. */
+  preview(id: string, changes: EntryChange[]): Promise<PreviewResult>;
+  /** Sends the changes entry by entry, stopping at the first failure. */
+  apply(id: string, changes: EntryChange[]): Promise<ApplyResult>;
+
+  /** Tells the window how many entries have unapplied changes, so closing it asks first. */
+  setPendingChanges(n: number): Promise<void>;
+  /** Called when the person closes the window while changes are pending. Returns the unsubscribe. */
+  onCloseRequested(f: () => void): () => void;
+  /** Closes the window, dropping the pending changes. */
+  closeAnyway(): Promise<void>;
 }
 
 export const BackendContext = createContext<Backend | null>(null);
