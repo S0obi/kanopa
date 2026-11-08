@@ -26,6 +26,9 @@ interface BrowserState {
   connection: ConnectionState;
   lost: Failure | null;
   lastReadMs: number | null;
+  /** The entry view's tab: attributes, ldif, members or memberOf. */
+  tab: string;
+  setTab(tab: string): void;
 
   start(b: Backend, session: SessionInfo): Promise<void>;
   select(dn: string | null): void;
@@ -85,12 +88,14 @@ export const useBrowser = create<BrowserState>((set, get) => {
     roots: [],
     expanded: {},
     selected: null,
+    tab: "attributes",
+    setTab: (tab) => set({ tab }),
     connection: "connected",
     lost: null,
     lastReadMs: null,
 
     async start(b, session) {
-      set({ session, nodes: {}, roots: [], expanded: {}, selected: null, connection: "connected", lost: null, lastReadMs: null });
+      set({ session, nodes: {}, roots: [], expanded: {}, selected: null, connection: "connected", lost: null, lastReadMs: null, tab: "attributes" });
       const r = await b.roots(session.connectionId);
       if (r.failure) return get().failed(r.failure);
       set({ nodes: putNodes((r.nodes ?? [])), roots: (r.nodes ?? []).map((n) => dnKey(n.dn)) });

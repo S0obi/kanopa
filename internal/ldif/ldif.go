@@ -83,3 +83,38 @@ func Safe(v []byte) bool {
 	}
 	return true
 }
+
+// Change is one modification in a changetype: modify record.
+type Change struct {
+	Op     string // add | delete | replace
+	Name   string
+	Values [][]byte
+	Notes  []string // comment lines written inside the change, for values not shown
+}
+
+// Modify writes one changetype: modify record (RFC 2849): "dn", "changetype: modify", then each
+// change and its values, separated by "-". Comments come first, then the record.
+func Modify(dn string, comments []string, changes []Change) string {
+	var b strings.Builder
+	for _, c := range comments {
+		comment(&b, c)
+	}
+	line(&b, "dn", []byte(dn))
+	b.WriteString("changetype: modify\n")
+	for _, c := range changes {
+		b.WriteString(c.Op + ": " + c.Name + "\n")
+		for _, v := range c.Values {
+			line(&b, c.Name, v)
+		}
+		for _, n := range c.Notes {
+			comment(&b, n)
+		}
+		b.WriteString("-\n")
+	}
+	return b.String()
+}
+
+// comment writes "# text" on one line; line breaks in text become spaces.
+func comment(b *strings.Builder, text string) {
+	b.WriteString("# " + strings.NewReplacer("\r", " ", "\n", " ").Replace(text) + "\n")
+}

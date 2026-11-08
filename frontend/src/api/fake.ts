@@ -1,5 +1,5 @@
 import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult } from "./backend";
-import { BASE, SUBSCHEMA, fakeChildren, fakeEntry, fakeMemberOf, fakeNode } from "./fakeDirectory";
+import { BASE, SUBSCHEMA, fakeChildren, fakeEntry, fakeMemberOf, fakeModify, fakeNode, fakePreview } from "./fakeDirectory";
 
 /**
  * A stand-in for the Go services, for Vitest, Playwright and UI work in a plain browser
@@ -20,6 +20,10 @@ export const FAKE = {
   delayMs: 250,
   /** Simulates a server that stopped answering. */
   lost: false,
+  /** Set by the fake backend: pretends the person closed the window. */
+  requestClose: () => {},
+  /** Entries with unapplied changes, as the app last reported them; closed once the window would close. */
+  window: { pending: 0, closed: false },
 };
 
 const URL_RE = /^(ldaps?):\/\/([A-Za-z0-9.-]+)(?::(\d{1,5}))?\/?$/i;
@@ -118,6 +122,12 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
   }
   let notice = opts.notice ?? "";
   const open = new Map<string, number>(); // open sessions and their page size
+  const bound = new Map<string, SavedConnection>(); // the connection each session opened
+  const closeListeners = new Set<() => void>();
+  FAKE.requestClose = () => {
+    if (FAKE.window.pending > 0) closeListeners.forEach((f) => f());
+    else FAKE.window.closed = true;
+  };
   const clipboard = { text: "" };
   // FAKE.lost simulates a server that stopped answering: the session is dropped.
   const check = (id: string): Failure | null => {
@@ -212,6 +222,7 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
       c.lastUsed = new Date().toISOString();
       c.lastError = "";
       open.set(id, c.pageSize || 500);
+      bound.set(id, { ...c });
       const u = canonical(c.url)!;
       return {
         ok: true, title: "Connected.", code: 0, reason: "", message: `Bound to ${u.host}:${u.port} in 42 ms over ${secLabel(c.url, c.security)}.`,
@@ -244,7 +255,7 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     async entry(id, dn) {
       await wait(FAKE.delayMs / 2);
       const lost = check(id);
-      const empty = { dn, title: "", subtitle: "", type: "entry", objectClasses: [], attributes: [], ldif: "", referral: false, elapsedMs: 0 };
+      const empty = { dn, title: "", subtitle: "", type: "entry", objectClasses: [], attributes: [], allowed: [], ldif: "", referral: false, elapsedMs: 0 };
       if (lost) return { ...empty, failure: lost };
       return (
         fakeEntry(dn) ?? {
@@ -263,6 +274,43 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     },
     async copyText(text) {
       clipboard.text = text;
+    },
+    async preview(id, changes) {
+      const lost = check(id);
+      if (lost) return { ldif: "", entries: 0, failure: lost };
+      return { ldif: fakePreview(changes), entries: changes.length, failure: null };
+    },
+    async apply(id, changes) {
+      await wait(FAKE.delayMs);
+      const lost = check(id);
+      if (lost) return { results: [], applied: 0, elapsedMs: 0, failure: lost };
+      const c = bound.get(id)!;
+      if (c.readOnly)
+        return {
+          results: [], applied: 0, elapsedMs: 0,
+          failure: { title: "Read-only connection.", message: "This connection is set to read-only, so Kanopa sends no changes over it. Edit the connection to allow changes.", code: 0, lost: false },
+        };
+      const results = [];
+      let applied = 0;
+      for (const ch of changes) {
+        const f: Failure | null = c.bindDn.startsWith("uid=svc-kanopa")
+          ? { title: "Not allowed.", message: "The account you bound as may not change this entry. Connect as an account with write access, or ask its administrator. Insufficient access (50)", code: 50, lost: false }
+          : fakeModify(ch);
+        results.push({ dn: ch.dn, ok: !f, failure: f });
+        if (f) break;
+        applied++;
+      }
+      return { results, applied, elapsedMs: 31, failure: null };
+    },
+    async setPendingChanges(n) {
+      FAKE.window.pending = n;
+    },
+    onCloseRequested(f) {
+      closeListeners.add(f);
+      return () => closeListeners.delete(f);
+    },
+    async closeAnyway() {
+      FAKE.window.closed = true;
     },
   };
 }
