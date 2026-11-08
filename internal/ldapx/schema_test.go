@@ -1,6 +1,9 @@
 package ldapx
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 var testAttrs = []string{
 	"( 2.5.4.41 NAME 'name' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{32768} )",
@@ -61,5 +64,23 @@ func TestNilSchemaIsSafe(t *testing.T) {
 	var s *Schema
 	if s.Attr("cn") != nil || s.Class("top") != nil {
 		t.Fatal("a missing schema answers nil")
+	}
+}
+
+func TestEqualityAndAllowed(t *testing.T) {
+	s := ParseSchema("cn=Subschema", testAttrs, testClasses)
+	if s.Attr("cn").Equality != "caseIgnoreMatch" || s.Attr("member").Equality != "distinguishedNameMatch" || s.Attr("jpegPhoto").Equality != "" {
+		t.Fatal("EQUALITY should be read and inherited from SUP")
+	}
+	must, may := s.Allowed([]string{"inetOrgPerson", "namedObject"})
+	if strings.Join(must, ",") != "sn,cn,objectClass" {
+		t.Fatalf("must %v", must)
+	}
+	if strings.Join(may, ",") != "displayName,jpegPhoto,title,ou,userPassword,telephoneNumber" {
+		t.Fatalf("may %v", may)
+	}
+	var none *Schema
+	if m, y := none.Allowed([]string{"top"}); m != nil || y != nil {
+		t.Fatal("no schema, nothing allowed")
 	}
 }

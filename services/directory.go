@@ -2,9 +2,12 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -65,6 +68,7 @@ type TreeResult struct {
 type EntryAttribute struct {
 	Name        string   `json:"name"`
 	Values      []string `json:"values"` // text, or a description such as "JPEG image · 14,236 bytes"
+	IDs         []string `json:"ids"`    // binary and password values: a fingerprint of each, to name it in a change
 	Kind        string   `json:"kind"`   // text | dn | binary | password
 	Operational bool     `json:"operational"`
 	SingleValue bool     `json:"singleValue"`
@@ -73,16 +77,25 @@ type EntryAttribute struct {
 
 // EntryView is one entry, ready to show.
 type EntryView struct {
-	DN            string           `json:"dn"`
-	Title         string           `json:"title"`
-	Subtitle      string           `json:"subtitle"`
-	Type          string           `json:"type"`
-	ObjectClasses []string         `json:"objectClasses"`
-	Attributes    []EntryAttribute `json:"attributes"`
-	LDIF          string           `json:"ldif"`
-	Referral      bool             `json:"referral"`
-	ElapsedMs     int64            `json:"elapsedMs"`
-	Failure       *Failure         `json:"failure"`
+	DN            string             `json:"dn"`
+	Title         string             `json:"title"`
+	Subtitle      string             `json:"subtitle"`
+	Type          string             `json:"type"`
+	ObjectClasses []string           `json:"objectClasses"`
+	Attributes    []EntryAttribute   `json:"attributes"`
+	Allowed       []AllowedAttribute `json:"allowed"` // attributes the object classes allow that the entry lacks
+	LDIF          string             `json:"ldif"`
+	Referral      bool               `json:"referral"`
+	ElapsedMs     int64              `json:"elapsedMs"`
+	Failure       *Failure           `json:"failure"`
+}
+
+// AllowedAttribute is an attribute that can be added to an entry.
+type AllowedAttribute struct {
+	Name        string `json:"name"`
+	Kind        string `json:"kind"` // text | dn | password
+	SingleValue bool   `json:"singleValue"`
+	Required    bool   `json:"required"`
 }
 
 // RelatedEntry is a group (Member of) or a member.
@@ -329,19 +342,11 @@ func viewOf(raw *ldapx.RawEntry, schema *ldapx.Schema, root bool) EntryView {
 	for _, a := range raw.Attributes {
 		def := schema.Attr(a.Name)
 		lower := strings.ToLower(a.Name)
-		ea := EntryAttribute{Name: a.Name, Kind: "text", Required: required[lower]}
+		ea := EntryAttribute{Name: a.Name, Kind: kindOf(a.Name, def), Required: required[lower]}
 		if def != nil {
 			ea.Operational, ea.SingleValue = def.Operational(), def.SingleValue
 		} else {
 			ea.Operational = operationalAttrs[lower]
-		}
-		switch {
-		case strings.Contains(lower, "password"):
-			ea.Kind = "password"
-		case def != nil && (def.Syntax == ldapx.SyntaxDN || def.Syntax == ldapx.SyntaxNameAndOptionalU), def == nil && dnAttrs[lower]:
-			ea.Kind = "dn"
-		case def != nil && binarySyntaxes[def.Syntax]:
-			ea.Kind = "binary"
 		}
 		for _, b := range a.Values {
 			if ea.Kind == "text" && !utf8.Valid(b) {
@@ -350,6 +355,9 @@ func viewOf(raw *ldapx.RawEntry, schema *ldapx.Schema, root bool) EntryView {
 		}
 		for _, b := range a.Values {
 			ea.Values = append(ea.Values, display(ea.Kind, b))
+			if ea.Kind == "binary" || ea.Kind == "password" {
+				ea.IDs = append(ea.IDs, valueID(b))
+			}
 		}
 		if !ea.Operational {
 			ldifAttrs = append(ldifAttrs, ldif.Attribute{Name: a.Name, Values: a.Values})
@@ -372,6 +380,7 @@ func viewOf(raw *ldapx.RawEntry, schema *ldapx.Schema, root bool) EntryView {
 		}
 	}
 	v.LDIF = ldif.Entry(raw.DN, ldifAttrs)
+	v.Allowed = allowedOf(raw, schema, classes)
 
 	rdn := firstRDN(raw.DN)
 	v.Title = rdn
@@ -398,6 +407,71 @@ func viewOf(raw *ldapx.RawEntry, schema *ldapx.Schema, root bool) EntryView {
 		v.Subtitle = strings.Join(raw.Get("ref"), " ")
 	}
 	return v
+}
+
+// kindOf says how an attribute's values are shown and edited.
+func kindOf(name string, def *ldapx.AttributeType) string {
+	lower := strings.ToLower(name)
+	switch {
+	case strings.Contains(lower, "password"):
+		return "password"
+	case def != nil && (def.Syntax == ldapx.SyntaxDN || def.Syntax == ldapx.SyntaxNameAndOptionalU), def == nil && dnAttrs[lower]:
+		return "dn"
+	case def != nil && binarySyntaxes[def.Syntax]:
+		return "binary"
+	}
+	return "text"
+}
+
+// valueID fingerprints a value Kanopa does not show, so a change can name it.
+func valueID(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:12])
+}
+
+// allowedOf lists what the entry's object classes allow and it lacks. Binary attributes are left
+// out: Kanopa only deletes binary values.
+func allowedOf(raw *ldapx.RawEntry, schema *ldapx.Schema, classes []string) []AllowedAttribute {
+	out := []AllowedAttribute{}
+	must, may := schema.Allowed(classes)
+	add := func(names []string, required bool) {
+		for _, n := range names {
+			if len(raw.Get(n)) > 0 || hasAlias(raw, schema.Attr(n)) {
+				continue
+			}
+			def := schema.Attr(n)
+			if def != nil && def.Operational() {
+				continue
+			}
+			kind := kindOf(n, def)
+			if kind == "binary" {
+				continue
+			}
+			out = append(out, AllowedAttribute{Name: n, Kind: kind, SingleValue: def != nil && def.SingleValue, Required: required})
+		}
+	}
+	add(must, true)
+	add(may, false)
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Required != out[j].Required {
+			return out[i].Required
+		}
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+	return out
+}
+
+// hasAlias reports whether the entry holds the attribute under another of its names.
+func hasAlias(raw *ldapx.RawEntry, def *ldapx.AttributeType) bool {
+	if def == nil {
+		return false
+	}
+	for _, n := range def.Names {
+		if len(raw.Get(n)) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func joinNonEmpty(sep string, parts ...string) string {

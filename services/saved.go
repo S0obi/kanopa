@@ -344,7 +344,9 @@ func (s *ConnectionService) Connect(ctx context.Context, id, password string, sa
 		s.log.Info("schema not readable", "id", id, "err", serr)
 	}
 	live := &liveSession{Session: sess, id: id, name: c.Name, baseDN: c.BaseDN, namingContexts: nonNil(dse.NamingContexts),
-		subschemaDN: dse.SubschemaSubentry, schema: schema, pageSize: c.PageSize, referrals: ldapx.ReferralsAsEntries}
+		subschemaDN: dse.SubschemaSubentry, schema: schema, pageSize: c.PageSize, referrals: ldapx.ReferralsAsEntries,
+		readOnly: c.ReadOnly, assertion: hasString(dse.SupportedControls, ldapx.ControlTypeAssertion),
+		passwordModify: hasString(dse.SupportedExts, ldapx.ExtPasswordModify)}
 	if live.baseDN == "" {
 		live.baseDN = dse.BaseDN()
 	}

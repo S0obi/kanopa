@@ -65,6 +65,15 @@ func (s *Session) Children(ctx context.Context, dn string, pageSize, limit int, 
 	return children, truncated, nil
 }
 
+// Child describes the entry as the tree lists it.
+func (e *RawEntry) Child() Child {
+	attrs := map[string][]string{}
+	for _, a := range e.Attributes {
+		attrs[a.Name] = e.Get(a.Name)
+	}
+	return childOf(ldap.NewEntry(e.DN, attrs))
+}
+
 func childOf(e *ldap.Entry) Child {
 	c := Child{DN: e.DN, ObjectClasses: e.GetAttributeValues("objectClass"), Description: e.GetAttributeValue("description"),
 		CN: e.GetAttributeValue("cn"), DisplayName: e.GetAttributeValue("displayName"), Refs: e.GetAttributeValues("ref"), NumSubordinates: -1}
