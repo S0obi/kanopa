@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { create } from "zustand";
 import { cx } from "./cx";
@@ -19,9 +19,10 @@ export interface ModalProps {
   children: ReactNode;
   /** Element to focus first; defaults to the first [autofocus] or focusable element. */
   initialFocus?: RefObject<HTMLElement | null>;
+  style?: CSSProperties;
 }
 
-export function Modal({ onClose, labelledBy, describedBy, role = "dialog", className, children, initialFocus }: ModalProps) {
+export function Modal({ onClose, labelledBy, describedBy, role = "dialog", className, children, initialFocus, style }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
@@ -54,7 +55,7 @@ export function Modal({ onClose, labelledBy, describedBy, role = "dialog", class
 
   return (
     <div className="kn-scrim z-30" onKeyDown={onKeyDown}>
-      <div ref={ref} role={role} aria-modal="true" aria-labelledby={labelledBy} aria-describedby={describedBy} className={className}>
+      <div ref={ref} role={role} aria-modal="true" aria-labelledby={labelledBy} aria-describedby={describedBy} className={className} style={style}>
         {children}
       </div>
     </div>
@@ -101,8 +102,8 @@ export function Dialog({ title, description, children, primaryAction, secondaryA
       </Button>
     );
   return (
-    <Modal onClose={onClose} labelledBy={titleId} describedBy={description ? descId : undefined} className={cx("kn-dialog", className)}>
-      <div style={width ? { width } : undefined}>
+    <Modal onClose={onClose} labelledBy={titleId} describedBy={description ? descId : undefined} className={cx("kn-dialog", className)} style={width ? { width } : undefined}>
+      <div>
         <div className="kn-dialog__head">
           <h2 className="kn-dialog__title" id={titleId}>
             {title}

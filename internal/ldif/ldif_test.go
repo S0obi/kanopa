@@ -68,3 +68,20 @@ func TestFoldingKeepsUTF8Whole(t *testing.T) {
 		}
 	}
 }
+
+func TestModify(t *testing.T) {
+	got := Modify("uid=ada,ou=people,dc=example,dc=org", []string{"Ada Lovelace"}, []Change{
+		{Op: "replace", Name: "title", Values: [][]byte{[]byte("Analyst")}},
+		{Op: "add", Name: "description", Values: [][]byte{[]byte(" leading space")}},
+		{Op: "delete", Name: "jpegPhoto", Notes: []string{"1 binary value, not shown"}},
+	})
+	want := "# Ada Lovelace\n" +
+		"dn: uid=ada,ou=people,dc=example,dc=org\n" +
+		"changetype: modify\n" +
+		"replace: title\ntitle: Analyst\n-\n" +
+		"add: description\ndescription:: IGxlYWRpbmcgc3BhY2U=\n-\n" +
+		"delete: jpegPhoto\n# 1 binary value, not shown\n-\n"
+	if got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
+}

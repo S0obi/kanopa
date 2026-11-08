@@ -18,6 +18,9 @@ type liveSession struct {
 	schema         *ldapx.Schema // nil when the server would not share it
 	pageSize       int
 	referrals      ldapx.ReferralMode
+	readOnly       bool // Kanopa never sends changes over this connection
+	assertion      bool // the server supports the assertion control (RFC 4528)
+	passwordModify bool // the server supports the Password Modify operation (RFC 3062)
 
 	// paged serializes paged searches: many servers keep one per connection, and a second
 	// one started meanwhile invalidates the first one's cookie.
@@ -46,6 +49,13 @@ func (l *liveSession) cacheChildren(dn string, c *childList) {
 		l.children = map[string]*childList{}
 	}
 	l.children[strings.ToLower(dn)] = c
+}
+
+// forgetChildren drops every cached child list, so the tree reads them again.
+func (l *liveSession) forgetChildren() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.children = nil
 }
 
 // registry holds the open sessions, shared by ConnectionService and DirectoryService.
@@ -101,4 +111,13 @@ func (r *registry) closeAll() {
 	for _, l := range all {
 		l.Close()
 	}
+}
+
+func hasString(list []string, v string) bool {
+	for _, s := range list {
+		if strings.EqualFold(strings.TrimSpace(s), v) {
+			return true
+		}
+	}
+	return false
 }

@@ -1,5 +1,5 @@
-import { Clipboard } from "@wailsio/runtime";
-import { ConnectionService, DirectoryService } from "../../bindings/github.com/S0obi/kanopa/services";
+import { Clipboard, Events } from "@wailsio/runtime";
+import { AppService, ChangeService, ConnectionService, DirectoryService } from "../../bindings/github.com/S0obi/kanopa/services";
 import type { Backend } from "./backend";
 
 type Cancellable<T> = Promise<T> & { cancel(): void };
@@ -28,4 +28,9 @@ export const wailsBackend: Backend = {
   copyText: async (text) => {
     await Clipboard.SetText(text);
   },
+  preview: (id, changes) => ChangeService.Preview(id, changes),
+  apply: (id, changes) => ChangeService.Apply(id, changes),
+  setPendingChanges: (n) => AppService.SetPendingChanges(n),
+  onCloseRequested: (f) => Events.On("kanopa:close-requested", () => f()),
+  closeAnyway: () => AppService.CloseAnyway(),
 };

@@ -79,6 +79,7 @@ var codeNames = map[int]string{
 	69:               "Object class mods prohibited",
 	71:               "Affects multiple DSAs",
 	80:               "Other",
+	122:              "Assertion failed",
 }
 
 // CodeName returns the sentence-case name of a result code.
@@ -106,6 +107,7 @@ const (
 	StageStartTLS
 	StageBind
 	StageRead
+	StageWrite
 )
 
 func newErr(code int, title, detail string, cause error) *Error {
@@ -194,6 +196,8 @@ func classifyResult(code int, le *ldap.Error, op Op) *Error {
 	case op.Stage == StageStartTLS:
 		return newErr(code, "StartTLS refused.",
 			fmt.Sprintf("%s refused StartTLS. Use LDAPS, or choose None for a server on this computer.", hp), le)
+	case op.Stage == StageWrite && writeErrors[code] != nil:
+		return writeErrors[code](diag, le)
 	case code == 52 || code == 51:
 		return newErr(code, "Server unavailable.",
 			fmt.Sprintf("%s is not accepting requests right now. Try again in a moment.", hp), le)
@@ -277,4 +281,76 @@ func rootMessage(err error) string {
 		}
 		err = u
 	}
+}
+
+// writeErrors word the refusals of a change. diag is the server's own message, possibly empty.
+var writeErrors = map[int]func(diag string, le *ldap.Error) *Error{
+	16: func(_ string, le *ldap.Error) *Error {
+		return newErr(16, "Entry changed meanwhile.",
+			"A value you removed is no longer there: someone changed this entry since you read it. Reload it, then make your changes again.", le)
+	},
+	19: func(diag string, le *ldap.Error) *Error {
+		return newErr(19, "Change refused.", said(diag, "A value breaks a rule of the server, such as a single-value attribute or a password policy.")+" Correct it, then apply again.", le)
+	},
+	20: func(diag string, le *ldap.Error) *Error {
+		return newErr(20, "Value already there.", said(diag, "A value you added is already in the entry.")+" Remove the duplicate, then apply again.", le)
+	},
+	21: func(diag string, le *ldap.Error) *Error {
+		return newErr(21, "Invalid value.", said(diag, "A value does not match the syntax of its attribute.")+" Correct it, then apply again.", le)
+	},
+	32: func(_ string, le *ldap.Error) *Error {
+		return newErr(32, "Entry gone.", "This entry no longer exists: someone deleted or renamed it. Reload the tree.", le)
+	},
+	50: func(_ string, le *ldap.Error) *Error {
+		return newErr(50, "Not allowed.", "The account you bound as may not change this entry. Connect as an account with write access, or ask its administrator.", le)
+	},
+	53: func(diag string, le *ldap.Error) *Error {
+		return newErr(53, "Change refused.", said(diag, "The server will not make this change."), le)
+	},
+	65: func(diag string, le *ldap.Error) *Error {
+		if class, attr, ok := requiresAttr(diag); ok {
+			return newErr(65, "Required attribute missing.",
+				fmt.Sprintf("%s requires the attribute %s. Add a value for %s, then apply again.", class, attr, attr), le)
+		}
+		return newErr(65, "Object class rules broken.", said(diag, "The entry would break the rules of its object classes.")+" Correct it, then apply again.", le)
+	},
+	67: func(_ string, le *ldap.Error) *Error {
+		return newErr(67, "Value names the entry.", "You can't remove the value that names this entry (its RDN). Keep it, then apply again.", le)
+	},
+	122: func(_ string, le *ldap.Error) *Error {
+		return newErr(122, "Entry changed meanwhile.", "Someone changed this entry since you read it. Reload it, then make your changes again.", le)
+	},
+}
+
+// said quotes the server when it explained itself, else uses the fallback sentence.
+func said(diag, fallback string) string {
+	if diag == "" {
+		return fallback
+	}
+	return "The server said: " + strings.TrimSuffix(diag, ".") + "."
+}
+
+// requiresAttr reads OpenLDAP's "object class 'inetOrgPerson' requires attribute 'sn'".
+func requiresAttr(diag string) (class, attr string, ok bool) {
+	quoted := func(s string) (string, string, bool) {
+		i := strings.IndexByte(s, '\'')
+		if i < 0 {
+			return "", "", false
+		}
+		j := strings.IndexByte(s[i+1:], '\'')
+		if j < 0 {
+			return "", "", false
+		}
+		return s[i+1 : i+1+j], s[i+2+j:], true
+	}
+	i := strings.Index(diag, "object class ")
+	if i < 0 || !strings.Contains(diag, " requires attribute ") {
+		return "", "", false
+	}
+	class, rest, ok := quoted(diag[i:])
+	if !ok {
+		return "", "", false
+	}
+	attr, _, ok = quoted(rest)
+	return class, attr, ok
 }

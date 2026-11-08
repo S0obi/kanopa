@@ -1,4 +1,4 @@
-import type { EntryAttribute, EntryView, RelatedEntry, TreeNode } from "./backend";
+import type { AllowedAttribute, EntryAttribute, EntryChange, EntryView, Failure, RelatedEntry, TreeNode } from "./backend";
 import { splitDn } from "@/lib/dn";
 
 /**
@@ -98,6 +98,11 @@ function build(): Map<string, Node> {
 let dir: Map<string, Node> | null = null;
 const directory = () => (dir ??= build());
 
+/** Forgets every change applied to the sample directory (for tests). */
+export function resetFakeDirectory() {
+  dir = null;
+}
+
 const has = (oc: string[], ...names: string[]) => names.some((n) => oc.some((c) => c.toLowerCase() === n.toLowerCase()));
 export function typeOf(oc: string[], dn: string): string {
   if (key(dn) === key(BASE) || has(oc, "dcObject", "organization")) return "root";
@@ -112,6 +117,22 @@ const DN_ATTRS = new Set(["member", "uniquemember", "manager", "owner", "seealso
 const OPERATIONAL = new Set(["createtimestamp", "creatorsname", "entryuuid"]);
 const SINGLE = new Set(["displayname", "employeenumber"]);
 const REQUIRED: Record<string, string[]> = { person: ["objectclass", "cn", "sn"], group: ["objectclass", "cn", "member"], ou: ["objectclass", "ou"] };
+const STRUCTURAL: Record<string, string> = { person: "inetOrgPerson", group: "groupOfNames", ou: "organizationalUnit" };
+// What the object classes allow, as the fixture's schema would say (a sample, not the whole schema).
+const ALLOWED: Record<string, Array<[string, string, boolean]>> = {
+  person: [["cn", "text", false], ["sn", "text", false], ["description", "text", false], ["displayName", "text", true], ["employeeNumber", "text", true],
+    ["givenName", "text", false], ["l", "text", false], ["mail", "text", false], ["manager", "dn", false], ["mobile", "text", false],
+    ["roomNumber", "text", false], ["seeAlso", "dn", false], ["telephoneNumber", "text", false], ["title", "text", false], ["userPassword", "password", false]],
+  group: [["businessCategory", "text", false], ["description", "text", false], ["o", "text", false], ["owner", "dn", false], ["seeAlso", "dn", false]],
+  ou: [["description", "text", false], ["l", "text", false], ["postalCode", "text", false], ["seeAlso", "dn", false], ["telephoneNumber", "text", false]],
+};
+
+/** A stand-in for Go's value fingerprint. */
+export function valueId(v: string): string {
+  let h = 5381;
+  for (let i = 0; i < v.length; i++) h = ((h * 33) ^ v.charCodeAt(i)) >>> 0;
+  return `v${h.toString(16)}${v.length.toString(16)}`;
+}
 
 export function fakeNode(dn: string): TreeNode | null {
   const n = directory().get(key(dn));
@@ -143,17 +164,87 @@ export function fakeEntry(dn: string): EntryView | null {
   const attributes: EntryAttribute[] = Object.entries(n.attrs).map(([name, values]) => {
     const lower = name.toLowerCase();
     const kind = lower.includes("password") ? "password" : DN_ATTRS.has(lower) ? "dn" : lower === "jpegphoto" ? "binary" : "text";
-    const shown = kind === "password" ? values.map((v) => `{SSHA} hashed value · ${v.length} bytes`) : kind === "binary" ? ["JPEG image · 14,236 bytes"] : values;
-    return { name, values: shown, kind, operational: OPERATIONAL.has(lower), singleValue: SINGLE.has(lower), required: required.has(lower) };
+    const shown = kind === "password" ? values.map((v) => `{SSHA} hashed value · ${v.length} bytes`) : kind === "binary" ? values.map(() => "JPEG image · 14,236 bytes") : values;
+    const ids = kind === "password" || kind === "binary" ? values.map(valueId) : null;
+    return { name, values: shown, ids, kind, operational: OPERATIONAL.has(lower), singleValue: SINGLE.has(lower), required: required.has(lower) };
   });
+  const present = new Set(Object.keys(n.attrs).map((a) => a.toLowerCase()));
+  const allowed: AllowedAttribute[] = (ALLOWED[type] ?? [])
+    .filter(([name]) => !present.has(name.toLowerCase()))
+    .map(([name, kind, singleValue]) => ({ name, kind, singleValue, required: required.has(name.toLowerCase()) }));
   const ldif = [ldifLine("dn", n.dn)];
   for (const a of attributes) if (!a.operational) for (const v of n.attrs[a.name]) ldif.push(ldifLine(a.name, v));
   const rdnValue = splitDn(dn)[0].split("=").slice(1).join("=");
   return {
-    dn: n.dn, type, objectClasses: oc, attributes, ldif: `${ldif.join("\n")}\n`, referral: has(oc, "referral"), elapsedMs: 12, failure: null,
+    dn: n.dn, type, objectClasses: oc, attributes, allowed, ldif: `${ldif.join("\n")}\n`, referral: has(oc, "referral"), elapsedMs: 12, failure: null,
     title: type === "person" ? n.attrs.cn[0] : rdnValue,
     subtitle: type === "person" ? [n.attrs.title?.[0], n.attrs.departmentNumber?.[0], n.attrs.mail?.[0]].filter(Boolean).join(" · ") : n.attrs.description?.[0] ?? "",
   };
+}
+
+const refused = (code: number, name: string, title: string, detail: string): Failure => ({ title, message: `${detail} ${name} (${code})`, code, lost: false });
+
+/** Applies one entry's changes like OpenLDAP would, or says why it refuses them. */
+export function fakeModify(ch: EntryChange): Failure | null {
+  const n = directory().get(key(ch.dn));
+  if (!n) return refused(32, "No such object", "Entry gone.", "This entry no longer exists: someone deleted or renamed it. Reload the tree.");
+  const type = typeOf(n.attrs.objectClass ?? [], ch.dn);
+  const next: Attrs = { ...n.attrs };
+  for (const a of ch.attributes ?? []) {
+    const name = Object.keys(next).find((k) => k.toLowerCase() === a.name.toLowerCase()) ?? a.name;
+    const now = next[name] ?? [];
+    const hidden = a.kind === "binary" || a.kind === "password";
+    const nowIds = hidden ? now.map(valueId) : now;
+    const before = a.before ?? [];
+    if (nowIds.length !== before.length || !before.every((v) => nowIds.includes(v)))
+      return refused(122, "Assertion failed", "Entry changed meanwhile.", "Someone changed this entry since you read it. Reload it, then make your changes again.");
+    const after = a.after ?? [];
+    let values = hidden ? now.filter((v) => after.includes(valueId(v))) : after;
+    if (a.kind === "password" && a.password) values = [`{SSHA}${btoa(a.password).slice(0, 28)}`];
+    if (SINGLE.has(name.toLowerCase()) && values.length > 1)
+      return refused(19, "Constraint violation", "Change refused.", `The server said: attribute '${name}' cannot have multiple values. Correct it, then apply again.`);
+    if (values.length) next[name] = values;
+    else delete next[name];
+  }
+  for (const r of REQUIRED[type] ?? [])
+    if (!Object.keys(next).some((k) => k.toLowerCase() === r)) {
+      const attr = (ALLOWED[type] ?? []).find(([a]) => a.toLowerCase() === r)?.[0] ?? r;
+      return refused(65, "Object class violation", "Required attribute missing.", `${STRUCTURAL[type]} requires the attribute ${attr}. Add a value for ${attr}, then apply again.`);
+    }
+  n.attrs = next;
+  return null;
+}
+
+/** The change set as Go's Preview writes it (text values only; hidden values become comments). */
+export function fakePreview(changes: EntryChange[]): string {
+  const records: string[] = [];
+  for (const ch of changes) {
+    const lines: string[] = [];
+    if (ch.title) lines.push(`# ${ch.title}`);
+    lines.push(ldifLine("dn", ch.dn), "changetype: modify");
+    let password = false;
+    for (const a of ch.attributes ?? []) {
+      const before = a.before ?? [];
+      const after = a.after ?? [];
+      const added = after.filter((v) => !before.includes(v));
+      const removed = before.filter((v) => !after.includes(v));
+      if (a.kind === "password" && a.password) {
+        password = true;
+        continue;
+      }
+      if (!added.length && !removed.length) continue;
+      if (a.kind === "binary" || a.kind === "password") {
+        lines.push(`delete: ${a.name}`, `# ${removed.length} ${a.kind} value${removed.length === 1 ? "" : "s"} removed, not shown`, "-");
+        continue;
+      }
+      const op = !after.length ? "delete" : !before.length ? "add" : added.length && removed.length ? "replace" : added.length ? "add" : "delete";
+      const vals = op === "replace" || (op === "add" && !before.length) ? after : op === "add" ? added : after.length ? removed : [];
+      lines.push(`${op}: ${a.name}`, ...vals.map((v) => ldifLine(a.name, v)), "-");
+    }
+    if (password) lines.splice(ch.title ? 1 : 0, 0, "# The password is set with the Password Modify operation (RFC 3062); it is not shown.");
+    if (lines.length > (ch.title ? 3 : 2) + (password ? 1 : 0) || password) records.push(lines.join("\n") + "\n");
+  }
+  return records.join("\n");
 }
 
 export function fakeMemberOf(dn: string): RelatedEntry[] {
