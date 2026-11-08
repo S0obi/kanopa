@@ -98,6 +98,11 @@ func TestPlanHiddenValues(t *testing.T) {
 	if p.password != "s3cret!" || len(p.mods) != 0 || strings.Contains(p.ldif(pw.Title), "s3cret") {
 		t.Fatalf("password modify: %+v", p)
 	}
+	// Removing an old value while setting a new one still goes through Password Modify, which replaces them all.
+	two := EntryChange{DN: "uid=ada", Attributes: []AttributeChange{{Name: "userPassword", Kind: "password", Before: []string{"h1", "h2"}, After: []string{"h2"}, Password: "s3cret!"}}}
+	if p, _ = planEntry(l, two, nil); p.password != "s3cret!" || len(p.mods) != 0 {
+		t.Fatalf("password modify with a removed value: %+v", p)
+	}
 	l.passwordModify = false
 	p, _ = planEntry(l, pw, nil)
 	if p.password != "" || len(p.mods) != 1 || p.mods[0].Op != ldapx.ModReplace || strings.Contains(p.ldif(""), "s3cret") {

@@ -38,6 +38,8 @@ interface BrowserState {
   collapseAll(): void;
   loadMore(b: Backend, dn: string): Promise<void>;
   reveal(b: Backend, dn: string): Promise<void>;
+  /** Replaces nodes the server sent again (after Apply), keeping what is known of their children. */
+  patchNodes(list: TreeNode[]): void;
   /** Reads the roots and every expanded entry again (Refresh, and after Reconnect). */
   reload(b: Backend): Promise<void>;
   /** Any read that failed: a lost connection switches the whole screen to "lost". */
@@ -150,6 +152,9 @@ export const useBrowser = create<BrowserState>((set, get) => {
       }
     },
 
+    patchNodes(list) {
+      if (list.length) set({ nodes: putNodes(list) });
+    },
     async reload(b) {
       const s = get();
       if (!s.session) return;

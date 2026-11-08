@@ -62,12 +62,19 @@ export function pendingOf(set: ChangeSet | undefined, dn: string, name: string):
   return set?.[dnKey(dn)]?.attrs.find((a) => lower(a.name) === lower(name));
 }
 
-/** What Preview and Apply receive. */
-export function toEntryChanges(set: ChangeSet): EntryChange[] {
+/** A stand-in for a new password: Preview only needs to know one is set. */
+export const PASSWORD_SET = "(set)";
+
+/**
+ * What Preview and Apply receive. For a preview the new password is replaced by a stand-in,
+ * so the cleartext only ever crosses to Go to be applied.
+ */
+export function toEntryChanges(set: ChangeSet, opts: { preview?: boolean } = {}): EntryChange[] {
+  const pw = (a: PendingAttr) => (a.password ? (opts.preview ? PASSWORD_SET : a.password) : "");
   return Object.values(set).map((e) => ({
     dn: e.dn,
     title: e.title,
-    attributes: e.attrs.map((a) => ({ name: a.name, kind: a.kind, before: a.before, after: a.after, password: a.password ?? "" })),
+    attributes: e.attrs.map((a) => ({ name: a.name, kind: a.kind, before: a.before, after: a.after, password: pw(a) })),
   }));
 }
 
@@ -138,7 +145,9 @@ export interface EditorRules {
   baseDn: string;
 }
 
-const DN_SYNTAX = /^\s*[A-Za-z][A-Za-z0-9-]*\s*=\s*[^,]+(\s*,\s*[A-Za-z][A-Za-z0-9-]*\s*=\s*[^,]+)*\s*$/;
+// attr=value pairs separated by commas (RFC 4514); a value may hold escaped characters such as "\,".
+const RDN_PART = String.raw`\s*(?:[A-Za-z][A-Za-z0-9-]*|\d+(?:\.\d+)+)\s*=\s*(?:\\.|[^,+\\])+`;
+const DN_SYNTAX = new RegExp(String.raw`^${RDN_PART}(?:\+${RDN_PART})*(?:,${RDN_PART}(?:\+${RDN_PART})*)*\s*$`);
 
 /** The values the editor would stage: trimmed, blanks dropped. */
 export function cleanValues(values: string[]): string[] {
@@ -171,8 +180,11 @@ interface ChangesState {
   stage(connectionId: string, entry: Pick<EntryView, "dn" | "title">, attr: PendingAttr): void;
   /** Drops every pending change of the connection. */
   discard(connectionId: string): void;
-  /** Drops the changes of the entries that were applied. */
-  applied(connectionId: string, dns: string[]): void;
+  /**
+   * Drops the changes that were applied: the given entries as they were sent. An attribute
+   * staged again while Apply ran is a new change and stays.
+   */
+  applied(connectionId: string, sent: PendingEntry[]): void;
 }
 
 export const useChanges = create<ChangesState>((set) => ({
@@ -184,10 +196,17 @@ export const useChanges = create<ChangesState>((set) => ({
       delete next[id];
       return { byConnection: next };
     }),
-  applied: (id, dns) =>
+  applied: (id, sent) =>
     set((s) => {
       const cs = { ...(s.byConnection[id] ?? {}) };
-      for (const dn of dns) delete cs[dnKey(dn)];
+      for (const e of sent) {
+        const k = dnKey(e.dn);
+        const now = cs[k];
+        if (!now) continue;
+        const left = now.attrs.filter((a) => !e.attrs.includes(a));
+        if (left.length) cs[k] = { ...now, attrs: left };
+        else delete cs[k];
+      }
       return { byConnection: { ...s.byConnection, [id]: cs } };
     }),
 }));

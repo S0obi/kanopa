@@ -63,6 +63,9 @@ func TestApplyChanges(t *testing.T) {
 	if res.Failure != nil || res.Applied != 1 || !res.Results[0].OK {
 		t.Fatalf("apply %+v %+v", res, res.Results)
 	}
+	if n := res.Results[0].Node; n == nil || n.DN != ada || n.Type != "person" {
+		t.Fatalf("the changed entry comes back for the tree: %+v", n)
+	}
 	after := d.Entry(ctx, admin, ada)
 	if got := attrOf(after, "title").Values; len(got) != 1 || got[0] != "Chief engineer" {
 		t.Fatalf("title %v", got)

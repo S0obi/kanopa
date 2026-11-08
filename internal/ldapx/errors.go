@@ -181,6 +181,10 @@ func classifyResult(code int, le *ldap.Error, op Op) *Error {
 		diag = strings.TrimSpace(le.Err.Error())
 	}
 	switch {
+	case op.Stage == StageWrite && writeErrors[code] != nil:
+		return writeErrors[code](diag, le)
+	case op.Stage == StageWrite && (code == 34 || code == 13 || code == 48 || code == 49):
+		return newErr(code, "Request refused.", said(diag, "The server refused the change."), le)
 	case code == 49:
 		return newErr(49, "Bind refused.",
 			fmt.Sprintf("The server refused the password for %s. Enter the current password, then try again.", op.BindDN), le)
@@ -196,8 +200,6 @@ func classifyResult(code int, le *ldap.Error, op Op) *Error {
 	case op.Stage == StageStartTLS:
 		return newErr(code, "StartTLS refused.",
 			fmt.Sprintf("%s refused StartTLS. Use LDAPS, or choose None for a server on this computer.", hp), le)
-	case op.Stage == StageWrite && writeErrors[code] != nil:
-		return writeErrors[code](diag, le)
 	case code == 52 || code == 51:
 		return newErr(code, "Server unavailable.",
 			fmt.Sprintf("%s is not accepting requests right now. Try again in a moment.", hp), le)

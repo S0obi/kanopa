@@ -296,7 +296,7 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
         const f: Failure | null = c.bindDn.startsWith("uid=svc-kanopa")
           ? { title: "Not allowed.", message: "The account you bound as may not change this entry. Connect as an account with write access, or ask its administrator. Insufficient access (50)", code: 50, lost: false }
           : fakeModify(ch);
-        results.push({ dn: ch.dn, ok: !f, failure: f });
+        results.push({ dn: ch.dn, ok: !f, node: f ? null : fakeNode(ch.dn), failure: f });
         if (f) break;
         applied++;
       }

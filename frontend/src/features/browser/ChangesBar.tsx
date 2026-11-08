@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { errorText, useBackend, type Failure, type SessionInfo } from "@/api/backend";
+import { hostOf } from "@/features/connections/url";
 import { splitDn } from "@/lib/dn";
 import { detectPlatform, isMod } from "@/lib/platform";
 import { Banner, Button, ConfirmDialog, Kbd, useToasts } from "@/ui";
@@ -8,7 +9,6 @@ import { summarize, toEntryChanges, useChanges } from "./changes";
 import { useBrowser } from "./store";
 
 const changesText = (n: number) => `${n} ${n === 1 ? "change" : "changes"}`;
-export const hostOf = (url: string) => url.replace(/^ldaps?:\/\//i, "").replace(/:\d+$/, "");
 
 export interface ApplyFailure {
   failure: Failure;
@@ -24,7 +24,7 @@ export function useApplyChanges(session: SessionInfo) {
   const backend = useBackend();
   const qc = useQueryClient();
   const toast = useToasts((s) => s.show);
-  const { connection, failed, reload } = useBrowser();
+  const { connection, failed, patchNodes } = useBrowser();
   const id = session.connectionId;
   const set = useChanges((s) => s.byConnection[id]);
   const { applied, discard: drop } = useChanges();
@@ -38,13 +38,16 @@ export function useApplyChanges(session: SessionInfo) {
     setApplying(true);
     setFailure(null);
     try {
+      const sent = Object.values(set);
       const r = await backend.apply(id, toEntryChanges(set));
-      const done = (r.results ?? []).filter((x) => x.ok).map((x) => x.dn);
-      const count = done.reduce((n, dn) => n + (Object.values(set).find((e) => e.dn === dn)?.attrs.length ?? 0), 0);
+      const ok = (r.results ?? []).filter((x) => x.ok);
+      const done = sent.filter((e) => ok.some((x) => x.dn === e.dn));
+      const count = done.reduce((n, e) => n + e.attrs.length, 0);
       applied(id, done);
       if (done.length) {
+        patchNodes(ok.flatMap((x) => (x.node ? [x.node] : [])));
         await qc.invalidateQueries({ queryKey: ["entry", id] });
-        void reload(backend);
+        await qc.invalidateQueries({ queryKey: ["memberOf", id] });
       }
       const refused = (r.results ?? []).find((x) => !x.ok);
       const f = r.failure ?? refused?.failure ?? null;
