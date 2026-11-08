@@ -490,7 +490,7 @@ services/
 <!-- ============================================================ S3 -->
 <section id="s3">
   <div class="card">
-    <div class="stage-head"><span class="badge c3">Stage 3</span><h3>Browse</h3><span class="status">In review</span><span class="tagv">v0.0.3</span></div>
+    <div class="stage-head"><span class="badge c3">Stage 3</span><h3>Browse</h3><span class="status done">Done · 6 Nov 2026</span><span class="tagv">v0.0.3</span></div>
     <div class="value"><strong>You can:</strong> explore a real directory without risk: walk the tree page by page, open any entry, read every attribute and its LDIF, follow DN links, and see which groups a person belongs to. If the server drops, Kanopa says so and reconnects.</div>
     <div class="grid">
       <div class="cell">
@@ -549,15 +549,17 @@ services/
 <!-- ============================================================ S4 -->
 <section id="s4">
   <div class="card">
-    <div class="stage-head"><span class="badge c4">Stage 4</span><h3>Edit safely</h3><span class="status">Not started</span><span class="tagv">v0.0.4</span></div>
+    <div class="stage-head"><span class="badge c4">Stage 4</span><h3>Edit safely</h3><span class="status">In progress</span><span class="tagv">v0.0.4</span></div>
     <div class="value"><strong>You can:</strong> change attributes on existing entries, see each change against what the server holds, review the exact LDIF, and apply or discard. Nothing reaches the server until you press Apply.</div>
     <div class="grid">
       <div class="cell">
         <h4>Backend</h4>
         <ul>
-          <li><code>changes</code>: a change set per connection; LDIF preview; translation to modify operations (add / delete / replace values)</li>
+          <li>Go stays stateless: the UI holds the pending change set and sends it whole to <code>ChangeService.Preview</code> (the LDIF) and <code>ChangeService.Apply</code>; changes translate to modify operations (add / delete / replace values)</li>
           <li><code>ChangeService.Apply</code>: applies entry by entry, stops at the first failure, reports which changes were applied and keeps the rest pending</li>
-          <li>Before applying, re-read the touched attributes; if the server changed them meanwhile, stop and say which</li>
+          <li>Concurrent changes: each modify carries an assertion (RFC 4528) that the touched values are still the ones Kanopa read, so the server refuses atomically; on servers without the assertion control, re-read the touched attributes first. Either way, stop and say which attribute changed</li>
+          <li><code>userPassword</code>: the Password Modify extended operation (RFC 3062) when the server offers it, so the server hashes with its own policy; otherwise a replace over TLS, saying the server stores what it receives</li>
+          <li>Binary values (<code>jpegPhoto</code>, certificates): delete only; replacing from a file comes later</li>
           <li>Read-only connections refuse every change in the backend, not only in the UI</li>
           <li>Errors mapped: 19, 20, 21, 50, 65 with the design's wording ("Object class violation (65) — inetOrgPerson requires the attribute sn.")</li>
         </ul>
