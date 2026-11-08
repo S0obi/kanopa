@@ -202,8 +202,9 @@ tasks:
       - "windows/icon.ico"
     cmds:
       # macOS master (1024, inset tile) for .icns; the Windows master (near full-bleed tile) for .ico.
-      - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename ../bin/unused.ico
-      - wails3 generate icons -input appicon-windows.png -macfilename ../bin/unused.icns -windowsfilename windows/icon.ico -sizes "256,64,48,40,32,24,20,16"
+      # The tool always writes both formats: the unwanted one goes to a git-ignored file in a folder that exists.
+      - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename windows/.unused-from-mac-master.ico
+      - wails3 generate icons -input appicon-windows.png -macfilename darwin/.unused-from-windows-master.icns -windowsfilename windows/icon.ico -sizes "256,64,48,40,32,24,20,16"
 
   dev:frontend:
     summary: Runs the frontend in development mode
