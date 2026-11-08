@@ -33,6 +33,7 @@ describe("change set", () => {
       },
     ]);
     expect(diff(pw).map((r) => r.value).join()).not.toContain("s3cret");
+    expect(JSON.stringify(toEntryChanges(set, { preview: true }))).not.toContain("s3cret");
   });
 
   it("diffs against the server", () => {
@@ -69,6 +70,10 @@ describe("value rules", () => {
       "Invalid DN syntax (34) — manager needs a DN such as uid=…,ou=people,dc=example,dc=org.",
     ]);
     expect(valueErrors({ ...rules, name: "manager", kind: "dn", singleValue: false }, ["uid=grace,ou=people,dc=example,dc=org"])).toEqual([]);
+    const dn = { ...rules, name: "manager", kind: "dn" as const, singleValue: false };
+    for (const ok of [String.raw`cn=Doe\, John,ou=people,dc=example,dc=org`, String.raw`cn=a\+b+uid=x,dc=org`,"CN=Kanopa Reader,OU=Service Accounts,DC=corp,DC=example,DC=com", "2.5.4.3=x,dc=org"])
+      expect({ dn: ok, errors: valueErrors(dn, [ok]) }).toEqual({ dn: ok, errors: [] });
+    for (const bad of ["cn=,dc=org", "cn=a,,dc=org", "cn=trailing\\"]) expect({ dn: bad, errors: valueErrors(dn, [bad]).length }).toEqual({ dn: bad, errors: 1 });
   });
 });
 
@@ -80,9 +85,20 @@ describe("store", () => {
     s.stage("prod", { dn: "uid=alan,ou=people,dc=example,dc=org", title: "Alan Turing" }, title(["x"]));
     s.stage("staging", ada, phone);
     expect(pendingEntries(useChanges.getState())).toBe(3);
-    useChanges.getState().applied("prod", [ada.dn]);
-    expect(Object.keys(useChanges.getState().byConnection.prod)).toEqual(["uid=alan,ou=people,dc=example,dc=org"]);
+    // Apply is under way with Ada's title when the person also adds a phone number.
+    const sent = Object.values(useChanges.getState().byConnection.prod);
+    useChanges.getState().stage("prod", ada, phone);
+    useChanges.getState().applied("prod", sent);
+    expect(useChanges.getState().byConnection.prod).toEqual({ "uid=ada,ou=people,dc=example,dc=org": { ...ada, attrs: [phone] } });
+    useChanges.getState().stage("prod", ada, { ...phone, after: phone.before });
+    // An attribute edited again while Apply ran is a new change and stays.
+    useChanges.getState().stage("prod", ada, title(["Analyst"]));
+    const again = Object.values(useChanges.getState().byConnection.prod);
+    useChanges.getState().stage("prod", ada, title(["Fellow"]));
+    useChanges.getState().applied("prod", again);
+    expect(pendingOf(useChanges.getState().byConnection.prod, ada.dn, "title")?.after).toEqual(["Fellow"]);
+    useChanges.getState().applied("prod", Object.values(useChanges.getState().byConnection.prod));
     useChanges.getState().discard("staging");
-    expect(pendingEntries(useChanges.getState())).toBe(1);
+    expect(pendingEntries(useChanges.getState())).toBe(0);
   });
 });

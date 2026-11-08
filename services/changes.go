@@ -55,9 +55,10 @@ type PreviewResult struct {
 
 // EntryResult is how applying one entry's changes went.
 type EntryResult struct {
-	DN      string   `json:"dn"`
-	OK      bool     `json:"ok"`
-	Failure *Failure `json:"failure"`
+	DN      string    `json:"dn"`
+	OK      bool      `json:"ok"`
+	Node    *TreeNode `json:"node"` // the entry as the tree shows it now; nil when it could not be read again
+	Failure *Failure  `json:"failure"`
 }
 
 // ApplyResult lists the entries tried, in order. Apply stops at the first failure: the entries
@@ -121,10 +122,13 @@ func (c *ChangeService) Apply(ctx context.Context, id string, changes []EntryCha
 		}
 		r.OK = true
 		out.Applied++
+		// The tree shows a description or name that may have changed: read the entry once more.
+		if raw, err := l.ReadEntry(ctx, ch.DN, l.referrals); err == nil {
+			n := nodeOf(raw.Child())
+			l.updateChild(n)
+			r.Node = &n
+		}
 		out.Results = append(out.Results, r)
-	}
-	if out.Applied > 0 {
-		l.forgetChildren() // descriptions and names shown in the tree may have changed
 	}
 	out.ElapsedMs = time.Since(start).Milliseconds()
 	c.log.Info("changes applied", "id", id, "entries", out.Applied, "of", len(changes), "elapsed_ms", out.ElapsedMs)
@@ -280,7 +284,8 @@ func planHidden(l *liveSession, a AttributeChange, def *ldapx.AttributeType, com
 	var mods []plannedMod
 	removed := minus(a.Before, a.After)
 	if a.Kind == "password" && a.Password != "" {
-		if l.passwordModify && strings.EqualFold(canonical(a.Name, def), "userPassword") && len(removed) == 0 {
+		// Password Modify replaces every value of userPassword, so the removed ones go too.
+		if l.passwordModify && strings.EqualFold(canonical(a.Name, def), "userPassword") {
 			return nil, a.Password, nil
 		}
 		// No Password Modify: the server stores what it is sent, and its policy may hash it.

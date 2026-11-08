@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { errorText, useBackend, type SavedConnection, type SessionInfo } from "@/api/backend";
 import { PasswordDialog } from "@/features/connections/PasswordDialog";
+import { hostOf } from "@/features/connections/url";
 import { credentialStoreName, detectPlatform, isMod } from "@/lib/platform";
 import { plural } from "@/lib/time";
 import { useApp } from "@/stores/app";
@@ -32,7 +33,7 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
   const setTab = useBrowser((s) => s.setTab);
   useApplyShortcut(() => void changes.apply());
   const id = session.connectionId;
-  const host = session.url.replace(/^ldaps?:\/\//i, "").replace(/:\d+$/, "");
+  const host = hostOf(session.url);
 
   useEffect(() => {
     void start(backend, session);

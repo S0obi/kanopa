@@ -30,6 +30,8 @@ function CloseGuard() {
     void backend.setPendingChanges(entries).catch(() => {});
   }, [backend, entries]);
   useEffect(() => backend.onCloseRequested(() => setAsking(true)), [backend]);
+  // Nothing left to drop (applied or discarded meanwhile): the question is moot, and a later change must not bring it back.
+  if (asking && count === 0) setAsking(false);
 
   if (!asking || count === 0) return null;
   return <DropChangesDialog what="close" count={count} host="" onCancel={() => setAsking(false)} onConfirm={() => void backend.closeAnyway()} />;

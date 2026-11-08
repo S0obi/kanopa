@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBackend, type EntryAttribute, type EntryView, type RelatedEntry, type SessionInfo } from "@/api/backend";
+import { hostOf } from "@/features/connections/url";
 import { rdnParts, splitDn } from "@/lib/dn";
 import { plural } from "@/lib/time";
 import { Badge, Banner, Button, DnBreadcrumb, EmptyState, LdifView, Skeleton, Tabs, Tooltip, TypeTile, cx, useToasts } from "@/ui";
@@ -179,12 +180,10 @@ function Entry({ entry: e, session, editable, onOpen }: { entry: EntryView; sess
   );
 }
 
-const hostOf = (url: string) => url.replace(/^ldaps?:\/\//i, "").replace(/:\d+$/, "");
-
 /** The pending changes of the connection, as the LDIF Apply sends. */
 function PendingLdif({ connectionId, set, host }: { connectionId: string; set: ChangeSet; host: string }) {
   const backend = useBackend();
-  const changes = toEntryChanges(set);
+  const changes = toEntryChanges(set, { preview: true });
   const q = useQuery({
     queryKey: ["preview", connectionId, JSON.stringify(changes)],
     queryFn: () => backend.preview(connectionId, changes),

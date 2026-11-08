@@ -77,3 +77,14 @@ func TestCodeName(t *testing.T) {
 		t.Fatal("unexpected code names")
 	}
 }
+
+func TestWriteRefusalsAreNotWordedAsBinds(t *testing.T) {
+	op := Op{Endpoint: Endpoint{Host: "ldap.example.org", Port: 636}, BindDN: "cn=admin,dc=example,dc=org", Stage: StageWrite}
+	e := Classify(ldap.NewError(34, errors.New("invalid DN")), op)
+	if e.Code != 34 || strings.Contains(e.Detail, "bind DN") || e.Detail != "The server said: invalid DN." {
+		t.Fatalf("write 34: %+v", e)
+	}
+	if e := Classify(ldap.NewError(122, errors.New("")), op); e.Title != "Entry changed meanwhile." {
+		t.Fatalf("write 122: %+v", e)
+	}
+}

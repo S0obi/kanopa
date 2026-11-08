@@ -51,11 +51,17 @@ func (l *liveSession) cacheChildren(dn string, c *childList) {
 	l.children[strings.ToLower(dn)] = c
 }
 
-// forgetChildren drops every cached child list, so the tree reads them again.
-func (l *liveSession) forgetChildren() {
+// updateChild replaces the cached node of an entry that changed, wherever it is listed.
+func (l *liveSession) updateChild(n TreeNode) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.children = nil
+	for _, list := range l.children {
+		for i := range list.nodes {
+			if strings.EqualFold(list.nodes[i].DN, n.DN) {
+				list.nodes[i] = n
+			}
+		}
+	}
 }
 
 // registry holds the open sessions, shared by ConnectionService and DirectoryService.

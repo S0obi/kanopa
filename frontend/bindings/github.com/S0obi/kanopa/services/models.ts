@@ -129,6 +129,11 @@ export interface EntryChange {
 export interface EntryResult {
     "dn": string;
     "ok": boolean;
+
+    /**
+     * the entry as the tree shows it now; nil when it could not be read again
+     */
+    "node": TreeNode | null;
     "failure": Failure | null;
 }
 
