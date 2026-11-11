@@ -83,7 +83,7 @@ describe("editing an entry", () => {
     await user.click(within(bar()).getByRole("button", { name: /Apply/ }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Required attribute missing. uid=ada was not changed.");
-    expect(alert).toHaveTextContent("inetOrgPerson requires the attribute sn. Add a value for sn, then apply again. Object class violation (65)");
+    expect(alert).toHaveTextContent("Object class violation (65) — inetOrgPerson requires the attribute sn.");
     expect(alert).toHaveTextContent("Your 1 pending change is kept.");
     expect(bar()).toHaveTextContent("Pending change: sn on uid=ada");
   });
@@ -93,7 +93,23 @@ describe("editing an entry", () => {
     await user.click(within(table()).getByRole("button", { name: "Edit title" }));
     await user.type(screen.getByRole("textbox", { name: "title value 1" }), "!{Enter}");
     await user.click(within(bar()).getByRole("button", { name: /Apply/ }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Insufficient access (50)");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Insufficient access (50) — ");
+  });
+
+  it("names the attribute someone else changed meanwhile", async () => {
+    const { user, backend } = await openAda();
+    await user.click(within(table()).getByRole("button", { name: "Edit title" }));
+    await user.type(screen.getByRole("textbox", { name: "title value 1" }), "!{Enter}");
+    // Someone else changes Ada's title before Apply.
+    const r = await backend.apply("prod", [
+      { dn: "uid=ada,ou=people,dc=example,dc=org", title: "", attributes: [{ name: "title", kind: "text", before: ["Principal engineer"], after: ["Director"], password: "" }] },
+    ]);
+    expect(r.applied).toBe(1);
+    await user.click(within(bar()).getByRole("button", { name: /Apply/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Assertion failed (122) — title changed on the server since you read it. Reload the entry, then make your changes again.",
+    );
+    expect(bar()).toHaveTextContent("Pending change: title on uid=ada");
   });
 
   it("offers no edit control on a read-only connection", async () => {

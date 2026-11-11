@@ -77,8 +77,22 @@ func TestApplyChanges(t *testing.T) {
 	t.Run("stale read is a conflict", func(t *testing.T) {
 		r := c.Apply(ctx, admin, []EntryChange{{DN: ada, Attributes: []AttributeChange{
 			{Name: "title", Kind: "text", Before: []string{"Principal engineer"}, After: []string{"x"}}}}})
-		if f := r.Results[0].Failure; f == nil || f.Code != 122 || f.Title != "Entry changed meanwhile." {
-			t.Fatalf("want 122: %+v", r.Results)
+		want := "Assertion failed (122) — title changed on the server since you read it. Reload the entry, then make your changes again."
+		if f := r.Results[0].Failure; f == nil || f.Code != 122 || f.Title != "Entry changed meanwhile." || f.Message != want {
+			t.Fatalf("want 122 naming title: %+v", r.Results[0].Failure)
+		}
+	})
+
+	t.Run("a refused assertion names what changed", func(t *testing.T) {
+		// The server refused the write (122): someone changed title between Kanopa's read and its write.
+		l := s.live.get(admin)
+		ch := EntryChange{DN: ada, Attributes: []AttributeChange{
+			{Name: "title", Kind: "text", Before: []string{"Principal engineer"}, After: []string{"x"}},
+			{Name: "displayName", Kind: "text", Before: []string{"Countess Lovelace"}, After: nil},
+		}}
+		var le *ldapx.Error
+		if err := nameConflict(ctx, l, ch, ldapx.Conflict(nil)); !errors.As(err, &le) || !strings.HasPrefix(le.Detail, "title changed on the server") {
+			t.Fatalf("want title named, got %v", err)
 		}
 	})
 
@@ -95,7 +109,7 @@ func TestApplyChanges(t *testing.T) {
 		r := c.Apply(ctx, admin, []EntryChange{{DN: ada, Attributes: []AttributeChange{
 			{Name: "sn", Kind: "text", Before: []string{"Lovelace"}}}}})
 		f := r.Results[0].Failure
-		if f == nil || f.Code != 65 || f.Title != "Required attribute missing." || !strings.Contains(f.Message, "requires the attribute sn. Add a value for sn") {
+		if f == nil || f.Code != 65 || f.Title != "Required attribute missing." || f.Message != "Object class violation (65) — inetOrgPerson requires the attribute sn." {
 			t.Fatalf("want 65: %+v", f)
 		}
 	})
@@ -144,7 +158,7 @@ func TestApplyChanges(t *testing.T) {
 		reader := connectPrivate(t, s, srv, testldap.ReaderDN, testldap.ReaderPassword)
 		r := c.Apply(ctx, reader, []EntryChange{{DN: ada, Attributes: []AttributeChange{
 			{Name: "description", Kind: "text", After: []string{"Hi"}}}}})
-		if f := r.Results[0].Failure; f == nil || f.Code != 50 || f.Title != "Not allowed." {
+		if f := r.Results[0].Failure; f == nil || f.Code != 50 || f.Title != "Not allowed." || !strings.HasPrefix(f.Message, "Insufficient access (50) — ") {
 			t.Fatalf("want 50: %+v", f)
 		}
 	})

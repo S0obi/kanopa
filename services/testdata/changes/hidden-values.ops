@@ -1,0 +1,4 @@
+dn: uid=ada,ou=people,dc=example,dc=org
+  replace jpegPhoto <0 hidden>
+  password modify (RFC 3062)
+  assert (&(jpegPhoto=*)(userPassword=*))

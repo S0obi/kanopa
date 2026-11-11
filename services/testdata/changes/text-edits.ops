@@ -1,0 +1,7 @@
+dn: uid=ada,ou=people,dc=example,dc=org
+  replace title ["Chief engineer"]
+  add telephoneNumber ["+41 44 555 01 11"]
+  delete cn ["Ada King"]
+  delete description []
+  replace noEq ["a"]
+  assert (&(title=Principal engineer)(telephoneNumber=+41 44 555 01 10)(cn=Ada Lovelace)(cn=Ada King)(description=Analyst)(noEq=*))

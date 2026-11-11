@@ -1,0 +1,13 @@
+# Ada Lovelace
+dn: uid=ada,ou=people,dc=example,dc=org
+changetype: modify
+replace: title
+title: Fellow
+-
+
+# admins
+dn: cn=admins,ou=groups,dc=example,dc=org
+changetype: modify
+add: member
+member: uid=grace,ou=people,dc=example,dc=org
+-

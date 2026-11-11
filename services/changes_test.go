@@ -85,8 +85,12 @@ func TestPlanHiddenValues(t *testing.T) {
 	if err != nil || len(p.mods) != 1 || p.mods[0].Op != ldapx.ModReplace || string(p.mods[0].Values[0]) != string(other) {
 		t.Fatalf("partial removal: %+v %v", p, err)
 	}
-	if _, err := planEntry(l, EntryChange{DN: "uid=ada", Attributes: []AttributeChange{{Name: "jpegPhoto", Kind: "binary", Before: []string{id1}, After: nil}}}, now); err == nil || !strings.Contains(err.Error(), "(122)") {
-		t.Fatalf("a stale read must be a conflict, got %v", err)
+	stale := EntryChange{DN: "uid=ada", Attributes: []AttributeChange{
+		{Name: "title", Kind: "text", Before: []string{"Principal engineer"}, After: []string{"x"}},
+		{Name: "jpegPhoto", Kind: "binary", Before: []string{id1}, After: nil},
+	}}
+	if got := changedSince(stale, now); strings.Join(got, ",") != "title,jpegPhoto" {
+		t.Fatalf("a stale read names what changed, got %v", got)
 	}
 	if _, err := planEntry(l, EntryChange{DN: "uid=ada", Attributes: []AttributeChange{{Name: "jpegPhoto", Kind: "binary", Before: []string{id1, id2}, After: []string{id1, id2, "new"}}}}, nil); err == nil {
 		t.Fatal("binary values can't be added")
