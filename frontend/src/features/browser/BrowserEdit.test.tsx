@@ -102,7 +102,7 @@ describe("editing an entry", () => {
     await user.type(screen.getByRole("textbox", { name: "title value 1" }), "!{Enter}");
     // Someone else changes Ada's title before Apply.
     const r = await backend.apply("prod", [
-      { dn: "uid=ada,ou=people,dc=example,dc=org", title: "", attributes: [{ name: "title", kind: "text", before: ["Principal engineer"], after: ["Director"], password: "" }] },
+      { dn: "uid=ada,ou=people,dc=example,dc=org", title: "", op: "", newRdn: "", attributes: [{ name: "title", kind: "text", before: ["Principal engineer"], after: ["Director"], password: "", add: [], remove: [] }] },
     ]);
     expect(r.applied).toBe(1);
     await user.click(within(bar()).getByRole("button", { name: /Apply/ }));

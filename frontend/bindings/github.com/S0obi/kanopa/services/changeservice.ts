@@ -25,7 +25,8 @@ export function Apply(id: string, changes: $models.EntryChange[] | null): $Cance
 }
 
 /**
- * Preview writes the change set as changetype: modify records, without contacting the server.
+ * Preview writes the change set as LDIF records in the order Apply sends them, without
+ * contacting the server.
  */
 export function Preview(id: string, changes: $models.EntryChange[] | null): $CancellablePromise<$models.PreviewResult> {
     return $Call.ByID(1231830702, id, changes);

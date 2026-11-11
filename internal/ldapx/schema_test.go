@@ -84,3 +84,17 @@ func TestEqualityAndAllowed(t *testing.T) {
 		t.Fatal("no schema, nothing allowed")
 	}
 }
+
+func TestClassList(t *testing.T) {
+	s := ParseSchema("cn=Subschema", testAttrs, append(testClasses, "( 9.9.9 NAME 'oldThing' DESC 'Gone' OBSOLETE STRUCTURAL )"))
+	var names []string
+	for _, c := range s.ClassList() {
+		names = append(names, c.Names[0])
+	}
+	if strings.Join(names, ",") != "inetOrgPerson,namedObject,oldThing,organizationalPerson,person,top" {
+		t.Fatalf("classes %v", names)
+	}
+	if c := s.Class("person"); c.Desc != "RFC2256: a person" || c.Obsolete || !s.Class("oldThing").Obsolete {
+		t.Fatalf("desc and obsolete: %+v", c)
+	}
+}

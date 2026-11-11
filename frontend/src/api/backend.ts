@@ -2,12 +2,16 @@ import { createContext, useContext } from "react";
 import type {
   AllowedAttribute,
   ApplyResult,
+  ClassInfo,
+  ClassesResult,
+  CountResult,
   ConnectionParams,
   ConnectResult,
   EntryAttribute,
   EntryChange,
   EntryView,
   Failure,
+  FindResult,
   ListResult,
   PreviewResult,
   RelatedEntry,
@@ -21,7 +25,7 @@ import type {
 } from "../../bindings/github.com/S0obi/kanopa/services/models";
 
 export type {
-  AllowedAttribute, ApplyResult, ConnectionParams, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, ListResult, PreviewResult,
+  AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FindResult, ListResult, PreviewResult,
   RelatedEntry, RelatedResult, SavedConnection,
   SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
 };
@@ -52,6 +56,14 @@ export interface Backend {
   children(id: string, dn: string, more: string): Promise<TreeResult>;
   entry(id: string, dn: string): Promise<EntryView>;
   memberOf(id: string, dn: string): Promise<RelatedResult>;
+  /** Picker search under the base DN: kind "people" or "groups", q of 2 characters or more. */
+  find(id: string, kind: "people" | "groups", q: string): Promise<FindResult>;
+  /** How many entries lie directly below dn, reading none of them. */
+  countChildren(id: string, dn: string): Promise<CountResult>;
+  /** Structural and auxiliary object classes of the server's schema, for the New entry form. */
+  objectClasses(id: string): Promise<ClassesResult>;
+  /** Groups whose member or uniqueMember lists dn, with the attribute that lists it. */
+  referrers(id: string, dn: string): Promise<RelatedResult>;
   /** null while the connection answers. */
   ping(id: string): Promise<Failure | null>;
   copyText(text: string): Promise<void>;

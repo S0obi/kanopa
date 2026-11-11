@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/go-ldap/ldap/v3"
@@ -131,5 +132,17 @@ func (e *Error) orNil() error {
 	return e
 }
 
-// EscapeFilter escapes a value for use in a search or assertion filter (RFC 4515).
-func EscapeFilter(v string) string { return ldap.EscapeFilter(v) }
+// EscapeFilter escapes a value for use in a search or assertion filter (RFC 4515): only the
+// characters the filter syntax needs, * ( ) \ and NUL, so UTF-8 text stays readable.
+func EscapeFilter(v string) string {
+	var b strings.Builder
+	for i := 0; i < len(v); i++ {
+		switch c := v[i]; c {
+		case '*', '(', ')', '\\', 0:
+			fmt.Fprintf(&b, `\%02x`, c)
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}

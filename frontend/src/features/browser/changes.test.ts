@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { cells, diff, pendingEntries, pendingOf, stage, summarize, toEntryChanges, useChanges, valueErrors, type PendingAttr } from "./changes";
+import { buildChanges, cells, diff, pendingEntries, pendingOf, stage, summarize, toEntryChanges, useChanges, valueErrors, type PendingAttr } from "./changes";
 
 const ada = { dn: "uid=ada,ou=people,dc=example,dc=org", title: "Ada Lovelace" };
 const title = (after: string[]): PendingAttr => ({ name: "title", kind: "text", before: ["Principal engineer"], after });
@@ -24,11 +24,13 @@ describe("change set", () => {
     const set = stage(stage({}, ada, title(["Chief engineer"])), ada, pw);
     expect(toEntryChanges(set)).toEqual([
       {
+        op: "modify",
+        newRdn: "",
         dn: ada.dn,
         title: "Ada Lovelace",
         attributes: [
-          { name: "title", kind: "text", before: ["Principal engineer"], after: ["Chief engineer"], password: "" },
-          { name: "userPassword", kind: "password", before: ["id1"], after: ["id1"], password: "s3cret" },
+          { name: "title", kind: "text", before: ["Principal engineer"], after: ["Chief engineer"], password: "", add: [], remove: [] },
+          { name: "userPassword", kind: "password", before: ["id1"], after: ["id1"], password: "s3cret", add: [], remove: [] },
         ],
       },
     ]);
@@ -86,18 +88,18 @@ describe("store", () => {
     s.stage("staging", ada, phone);
     expect(pendingEntries(useChanges.getState())).toBe(3);
     // Apply is under way with Ada's title when the person also adds a phone number.
-    const sent = Object.values(useChanges.getState().byConnection.prod);
+    const sent = buildChanges(useChanges.getState().byConnection.prod).parts;
     useChanges.getState().stage("prod", ada, phone);
     useChanges.getState().applied("prod", sent);
     expect(useChanges.getState().byConnection.prod).toEqual({ "uid=ada,ou=people,dc=example,dc=org": { ...ada, attrs: [phone] } });
     useChanges.getState().stage("prod", ada, { ...phone, after: phone.before });
     // An attribute edited again while Apply ran is a new change and stays.
     useChanges.getState().stage("prod", ada, title(["Analyst"]));
-    const again = Object.values(useChanges.getState().byConnection.prod);
+    const again = buildChanges(useChanges.getState().byConnection.prod).parts;
     useChanges.getState().stage("prod", ada, title(["Fellow"]));
     useChanges.getState().applied("prod", again);
     expect(pendingOf(useChanges.getState().byConnection.prod, ada.dn, "title")?.after).toEqual(["Fellow"]);
-    useChanges.getState().applied("prod", Object.values(useChanges.getState().byConnection.prod));
+    useChanges.getState().applied("prod", buildChanges(useChanges.getState().byConnection.prod).parts);
     useChanges.getState().discard("staging");
     expect(pendingEntries(useChanges.getState())).toBe(0);
   });

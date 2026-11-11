@@ -328,6 +328,15 @@ var writeErrors = map[int]func(diag string, le *ldap.Error) *Error{
 		}
 		return newErr(65, "Object class rules broken.", serverSaid(diag, "the entry would break the rules of its object classes."), le)
 	},
+	64: func(diag string, le *ldap.Error) *Error {
+		return newErr(64, "Name refused.", serverSaid(diag, "the server does not accept this name for the entry here."), le)
+	},
+	66: func(_ string, le *ldap.Error) *Error {
+		return newErr(66, "Entry has children.", "this entry has entries below it. Delete them first.", le)
+	},
+	68: func(_ string, le *ldap.Error) *Error {
+		return newErr(68, "Name taken.", "an entry with this DN already exists. Choose another name.", le)
+	},
 	67: func(_ string, le *ldap.Error) *Error {
 		return newErr(67, "Value names the entry.", "you can't remove the value that names this entry (its RDN).", le)
 	},

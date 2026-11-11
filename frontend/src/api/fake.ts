@@ -1,5 +1,5 @@
 import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult } from "./backend";
-import { BASE, SUBSCHEMA, fakeChildren, fakeEntry, fakeMemberOf, fakeModify, fakeNode, fakePreview } from "./fakeDirectory";
+import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeMemberOf, fakeNode, fakePreview, fakeReferrers } from "./fakeDirectory";
 
 /**
  * A stand-in for the Go services, for Vitest, Playwright and UI work in a plain browser
@@ -20,6 +20,8 @@ export const FAKE = {
   delayMs: 250,
   /** Simulates a server that stopped answering. */
   lost: false,
+  /** Makes the referring-groups search fail, as a server over its limits would. */
+  failReferrers: false,
   /** Set by the fake backend: pretends the person closed the window. */
   requestClose: () => {},
   /** Entries with unapplied changes, as the app last reported them; closed once the window would close. */
@@ -290,17 +292,34 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
           results: [], applied: 0, elapsedMs: 0,
           failure: { title: "Read-only connection.", message: "This connection is set to read-only, so Kanopa sends no changes over it. Edit the connection to allow changes.", code: 0, lost: false },
         };
-      const results = [];
-      let applied = 0;
-      for (const ch of changes) {
-        const f: Failure | null = c.bindDn.startsWith("uid=svc-kanopa")
+      const reader = c.bindDn.startsWith("uid=svc-kanopa");
+      const results = fakeApply(changes, () =>
+        reader
           ? { title: "Not allowed.", message: "Insufficient access (50) — the account you bound as may not change this entry. Connect as an account with write access.", code: 50, lost: false }
-          : fakeModify(ch);
-        results.push({ dn: ch.dn, ok: !f, node: f ? null : fakeNode(ch.dn), failure: f });
-        if (f) break;
-        applied++;
-      }
-      return { results, applied, elapsedMs: 31, failure: null };
+          : null,
+      );
+      return { results, applied: results.filter((r) => r.ok).length, elapsedMs: 31, failure: null };
+    },
+    async find(id, kind, q) {
+      await wait(FAKE.delayMs / 2);
+      const lost = check(id);
+      return lost ? { entries: [], total: 0, more: false, filter: "", base: "", failure: lost } : fakeFind(kind, q);
+    },
+    async countChildren(id, dn) {
+      const lost = check(id);
+      return lost ? { count: 0, more: false, failure: lost } : { count: (fakeChildren(dn) ?? []).length, more: false, failure: null };
+    },
+    async objectClasses(id) {
+      const lost = check(id);
+      return lost ? { classes: [], failure: lost } : { classes: fakeClasses(), failure: null };
+    },
+    async referrers(id, dn) {
+      await wait(FAKE.delayMs / 2);
+      const lost = check(id);
+      if (lost) return { entries: [], truncated: false, failure: lost };
+      if (FAKE.failReferrers)
+        return { entries: [], truncated: false, failure: { title: "Request refused.", message: "Administrative limit exceeded (11) — the server stopped the search.", code: 11, lost: false } };
+      return { entries: fakeReferrers(dn), truncated: false, failure: null };
     },
     async setPendingChanges(n) {
       FAKE.window.pending = n;

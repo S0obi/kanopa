@@ -119,3 +119,40 @@ func golden(t *testing.T, name, got string) {
 		t.Errorf("%s differs from the golden file:\n--- got\n%s\n--- want\n%s", name, got, want)
 	}
 }
+
+// A mixed change set as Review LDIF shows it: in the order Apply sends it.
+func TestMixedSetGolden(t *testing.T) {
+	l := testSession()
+	l.passwordModify = true
+	changes := []EntryChange{
+		{Op: opDelete, DN: "uid=old.account,ou=people,dc=example,dc=org", Title: "Old Account"},
+		{DN: "cn=admins,ou=groups,dc=example,dc=org", Title: "admins", Attributes: []AttributeChange{
+			{Name: "member", Kind: "dn", Remove: []string{adaDN, "uid=old.account,ou=people,dc=example,dc=org"}, Add: []string{adaDN}}}},
+		{Op: opAdd, DN: "uid=zoe,ou=people,dc=example,dc=org", Title: "New entry", Attributes: []AttributeChange{
+			{Name: "objectClass", Kind: "text", After: []string{"inetOrgPerson", "organizationalPerson", "person", "top"}},
+			{Name: "uid", Kind: "text", After: []string{"zoe"}},
+			{Name: "cn", Kind: "text", After: []string{"Zoë Zürcher"}},
+			{Name: "sn", Kind: "text", After: []string{"Zürcher"}},
+			{Name: "manager", Kind: "dn", After: []string{adaDN}},
+			{Name: "userPassword", Kind: "password", Password: "n3w-Passw0rd"},
+		}},
+		{Op: opRename, DN: adaDN, Title: "Ada Lovelace", NewRDN: "ada.lovelace"},
+	}
+	steps, err := l.orderChanges(changes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parts []string
+	for _, s := range steps {
+		text, err := previewStep(l, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parts = append(parts, text)
+	}
+	got := strings.Join(parts, "\n")
+	golden(t, "mixed.ldif", got)
+	if strings.Contains(got, "n3w-Passw0rd") {
+		t.Fatal("a new password must never be written out")
+	}
+}

@@ -162,6 +162,7 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
                     </Button>
                   }
                 >
+                  {changes.summary.count > 0 && `Your ${changes.summary.count} pending ${changes.summary.count === 1 ? "change is" : "changes are"} kept. `}
                   {reconnectError || lost?.message || "The server stopped answering. Reconnect to keep working. Server is unavailable (52)"}
                 </Banner>
               </div>
