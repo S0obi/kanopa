@@ -1,0 +1,17 @@
+# Ada Lovelace
+dn: uid=ada,ou=people,dc=example,dc=org
+changetype: modify
+replace: title
+title: Chief engineer
+-
+add: telephoneNumber
+telephoneNumber: +41 44 555 01 11
+-
+delete: cn
+cn: Ada King
+-
+delete: description
+-
+replace: noEq
+noEq: a
+-

@@ -294,7 +294,7 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
       let applied = 0;
       for (const ch of changes) {
         const f: Failure | null = c.bindDn.startsWith("uid=svc-kanopa")
-          ? { title: "Not allowed.", message: "The account you bound as may not change this entry. Connect as an account with write access, or ask its administrator. Insufficient access (50)", code: 50, lost: false }
+          ? { title: "Not allowed.", message: "Insufficient access (50) — the account you bound as may not change this entry. Connect as an account with write access.", code: 50, lost: false }
           : fakeModify(ch);
         results.push({ dn: ch.dn, ok: !f, node: f ? null : fakeNode(ch.dn), failure: f });
         if (f) break;

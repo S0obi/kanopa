@@ -167,7 +167,7 @@ export function valueErrors(r: EditorRules, values: string[]): string[] {
       }
   for (const [i, v] of vals.entries())
     if (vals.indexOf(v) !== i) {
-      out.push(`Attribute or value exists (20) — ${r.name} lists “${v}” twice.`);
+      out.push(`Type or value exists (20) — ${r.name} lists “${v}” twice.`);
       break;
     }
   return out;

@@ -1,0 +1,7 @@
+# Ada Lovelace
+# The password is set with the Password Modify operation (RFC 3062); it is not shown.
+dn: uid=ada,ou=people,dc=example,dc=org
+changetype: modify
+replace: jpegPhoto
+# 1 binary value kept, not shown
+-

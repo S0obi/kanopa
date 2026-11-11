@@ -65,7 +65,7 @@ describe("value rules", () => {
     expect(valueErrors(rules, ["Ada", "Lovelace"])).toEqual(["Constraint violation (19) — displayName holds a single value."]);
   });
   it("refuses duplicates and malformed DNs", () => {
-    expect(valueErrors({ ...rules, singleValue: false }, ["a", "a "])).toEqual(["Attribute or value exists (20) — displayName lists “a” twice."]);
+    expect(valueErrors({ ...rules, singleValue: false }, ["a", "a "])).toEqual(["Type or value exists (20) — displayName lists “a” twice."]);
     expect(valueErrors({ ...rules, name: "manager", kind: "dn", singleValue: false }, ["grace"])).toEqual([
       "Invalid DN syntax (34) — manager needs a DN such as uid=…,ou=people,dc=example,dc=org.",
     ]);

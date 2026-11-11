@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -140,6 +141,9 @@ func (c *ChangeService) applyEntry(ctx context.Context, l *liveSession, ch Entry
 	if err != nil {
 		return err
 	}
+	if changed := changedSince(ch, current); len(changed) > 0 {
+		return ldapx.Conflict(changed)
+	}
 	p, err := planEntry(l, ch, current)
 	if err != nil {
 		return err
@@ -154,7 +158,7 @@ func (c *ChangeService) applyEntry(ctx context.Context, l *liveSession, ch Entry
 			assertion = p.assertion
 		}
 		if err := l.Modify(ctx, ch.DN, mods, assertion); err != nil {
-			return err
+			return nameConflict(ctx, l, ch, err)
 		}
 	}
 	if p.password != "" {
@@ -163,10 +167,29 @@ func (c *ChangeService) applyEntry(ctx context.Context, l *liveSession, ch Entry
 	return nil
 }
 
-// conflict is the error for an entry that changed since the person read it.
-func conflict() error {
-	return &ldapx.Error{Code: 122, Name: ldapx.CodeName(122), Title: "Entry changed meanwhile.",
-		Detail: "Someone changed this entry since you read it. Reload it, then make your changes again."}
+// changedSince lists the edited attributes whose values on the server (current) are no longer
+// the ones the person read, in the order of the change.
+func changedSince(ch EntryChange, current *ldapx.RawEntry) []string {
+	var out []string
+	for _, a := range ch.Attributes {
+		if !sameValues(a.Kind, a.Before, rawValues(current, a.Name)) {
+			out = append(out, a.Name)
+		}
+	}
+	return out
+}
+
+// nameConflict turns the server's assertion failure (122) into one that names the attributes
+// that changed between Kanopa's read and the write, by reading the entry once more.
+func nameConflict(ctx context.Context, l *liveSession, ch EntryChange, err error) error {
+	var le *ldapx.Error
+	if !errors.As(err, &le) || le.Code != 122 {
+		return err
+	}
+	if now, rerr := l.ReadEntry(ctx, ch.DN, l.referrals); rerr == nil {
+		return ldapx.Conflict(changedSince(ch, now))
+	}
+	return ldapx.Conflict(nil)
 }
 
 // plannedMod is one modification, with what the LDIF preview says instead of hidden values.
@@ -223,10 +246,7 @@ func planEntry(l *liveSession, ch EntryChange, current *ldapx.RawEntry) (*entryP
 		comparable := def == nil || def.Equality != ""
 		var now [][]byte
 		if current != nil {
-			now = rawValues(current, a.Name)
-			if !sameValues(a.Kind, a.Before, now) {
-				return nil, conflict()
-			}
+			now = rawValues(current, a.Name) // applyEntry checked them against what was read
 		}
 		switch a.Kind {
 		case "binary", "password":
@@ -314,7 +334,7 @@ func planHidden(l *liveSession, a AttributeChange, def *ldapx.AttributeType, com
 		}
 	}
 	if live && len(gone) != len(removed) {
-		return nil, "", conflict()
+		return nil, "", ldapx.Conflict([]string{a.Name})
 	}
 	if comparable {
 		return append(mods, plannedMod{Mod: ldapx.Mod{Op: ldapx.ModDelete, Attr: a.Name, Values: gone},

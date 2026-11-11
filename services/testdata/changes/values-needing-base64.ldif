@@ -1,0 +1,10 @@
+dn: uid=zoe.zurcher,ou=people,dc=example,dc=org
+changetype: modify
+add: l
+l:: WsO8cmljaA==
+-
+add: description
+description:: IGxlYWRpbmcgc3BhY2U=
+description: a line that is long enough to be folded at seventy-six columns 
+ by the LDIF writer
+-
