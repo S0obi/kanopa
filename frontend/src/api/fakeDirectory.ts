@@ -182,34 +182,51 @@ export function fakeEntry(dn: string): EntryView | null {
   };
 }
 
-const refused = (code: number, name: string, title: string, detail: string): Failure => ({ title, message: `${detail} ${name} (${code})`, code, lost: false });
+/** A refused change, worded like Go's: "<name> (<code>) — <detail>". */
+const refused = (code: number, name: string, title: string, detail: string): Failure => ({ title, message: `${name} (${code}) — ${detail}`, code, lost: false });
+
+/** Go's ldapx.Conflict: names the attributes that changed since they were read. */
+function conflict(attrs: string[]): Failure {
+  const n = attrs.length;
+  const what =
+    n === 0
+      ? "someone changed this entry since you read it."
+      : n === 1
+        ? `${attrs[0]} changed on the server since you read it.`
+        : `${attrs.slice(0, -1).join(", ")} and ${attrs[n - 1]} changed on the server since you read them.`;
+  return refused(122, "Assertion failed", "Entry changed meanwhile.", `${what} Reload the entry, then make your changes again.`);
+}
 
 /** Applies one entry's changes like OpenLDAP would, or says why it refuses them. */
 export function fakeModify(ch: EntryChange): Failure | null {
   const n = directory().get(key(ch.dn));
-  if (!n) return refused(32, "No such object", "Entry gone.", "This entry no longer exists: someone deleted or renamed it. Reload the tree.");
+  if (!n) return refused(32, "No such object", "Entry gone.", "this entry no longer exists: someone deleted or renamed it. Reload the tree.");
   const type = typeOf(n.attrs.objectClass ?? [], ch.dn);
+  const valuesOf = (attrs: Attrs, name: string) => attrs[Object.keys(attrs).find((k) => k.toLowerCase() === name.toLowerCase()) ?? name] ?? [];
+  const changed = (ch.attributes ?? []).filter((a) => {
+    const now = valuesOf(n.attrs, a.name);
+    const ids = a.kind === "binary" || a.kind === "password" ? now.map(valueId) : now;
+    const before = a.before ?? [];
+    return ids.length !== before.length || !before.every((v) => ids.includes(v));
+  });
+  if (changed.length) return conflict(changed.map((a) => a.name));
   const next: Attrs = { ...n.attrs };
   for (const a of ch.attributes ?? []) {
     const name = Object.keys(next).find((k) => k.toLowerCase() === a.name.toLowerCase()) ?? a.name;
     const now = next[name] ?? [];
     const hidden = a.kind === "binary" || a.kind === "password";
-    const nowIds = hidden ? now.map(valueId) : now;
-    const before = a.before ?? [];
-    if (nowIds.length !== before.length || !before.every((v) => nowIds.includes(v)))
-      return refused(122, "Assertion failed", "Entry changed meanwhile.", "Someone changed this entry since you read it. Reload it, then make your changes again.");
     const after = a.after ?? [];
     let values = hidden ? now.filter((v) => after.includes(valueId(v))) : after;
     if (a.kind === "password" && a.password) values = [`{SSHA}${btoa(a.password).slice(0, 28)}`];
     if (SINGLE.has(name.toLowerCase()) && values.length > 1)
-      return refused(19, "Constraint violation", "Change refused.", `The server said: attribute '${name}' cannot have multiple values. Correct it, then apply again.`);
+      return refused(19, "Constraint violation", "Change refused.", `attribute '${name}' cannot have multiple values.`);
     if (values.length) next[name] = values;
     else delete next[name];
   }
   for (const r of REQUIRED[type] ?? [])
     if (!Object.keys(next).some((k) => k.toLowerCase() === r)) {
       const attr = (ALLOWED[type] ?? []).find(([a]) => a.toLowerCase() === r)?.[0] ?? r;
-      return refused(65, "Object class violation", "Required attribute missing.", `${STRUCTURAL[type]} requires the attribute ${attr}. Add a value for ${attr}, then apply again.`);
+      return refused(65, "Object class violation", "Required attribute missing.", `${STRUCTURAL[type]} requires the attribute ${attr}.`);
     }
   n.attrs = next;
   return null;
