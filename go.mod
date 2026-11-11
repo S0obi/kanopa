@@ -2,6 +2,8 @@ module github.com/S0obi/kanopa
 
 go 1.26.0
 
+toolchain go1.27.4
+
 require (
 	github.com/go-asn1-ber/asn1-ber v1.5.8
 	github.com/go-ldap/ldap/v3 v3.4.15
