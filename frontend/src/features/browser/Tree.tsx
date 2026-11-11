@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useBackend } from "@/api/backend";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useBackend, type TreeNode } from "@/api/backend";
 import { rdnParts } from "@/lib/dn";
-import { Button, Icon, Spinner, TypeTile, cx } from "@/ui";
+import { detectPlatform, isMod } from "@/lib/platform";
+import { Button, ContextMenu, Icon, Spinner, TypeTile, cx, useToasts } from "@/ui";
 import { marks as marksOf, newChildren, useChanges, type Mark } from "./changes";
 import { dnKey, useBrowser, visibleRows, type TreeRow } from "./store";
+import { blockedReason, offered, treeMenu, type TreeAction, type TreeMenuContext } from "./treeMenu";
 
 const ROW = 28; // --size-row
 const OVERSCAN = 12;
@@ -24,7 +26,10 @@ function rowId(key: string): string {
  */
 export function DirectoryTree() {
   const backend = useBackend();
-  const { nodes, roots, expanded, selected, select, toggle, expand, collapse, loadMore, session } = useBrowser();
+  const { nodes, roots, expanded, selected, select, toggle, expand, collapse, loadMore, session, connection, ask } = useBrowser();
+  const toast = useToasts((s) => s.show);
+  const platform = detectPlatform();
+  const [menu, setMenu] = useState<{ x: number; y: number; node: TreeNode } | null>(null);
   const pending = useChanges((s) => (session ? s.byConnection[session.connectionId] : undefined));
   const added = useMemo(() => newChildren(pending), [pending]);
   const marks = useMemo(() => marksOf(pending), [pending]);
@@ -74,9 +79,71 @@ export function DirectoryTree() {
     if (row.kind === "node") select(row.state.node.dn);
   }
 
+  const contextOf = (n: TreeNode): TreeMenuContext => ({
+    canWrite: !!session && !session.readOnly && connection === "connected",
+    roots: session ? [session.baseDn, ...(session.namingContexts ?? [])] : [],
+    mark: marks[dnKey(n.dn)],
+    platform,
+  });
+
+  /** Runs a menu or shortcut action on an entry; the dialogs and the picker open in the entry view. */
+  async function run(action: TreeAction, n: TreeNode) {
+    if (!offered(action, n) || blockedReason(action, n, contextOf(n))) return;
+    if (action === "copy") {
+      try {
+        await backend.copyText(n.dn);
+        toast("Copied the DN.");
+      } catch {
+        toast("Kanopa could not copy the DN.", "danger");
+      }
+      return;
+    }
+    select(n.dn);
+    ask(action, n.dn);
+  }
+
+  /** Opens the menu for a row: at the pointer, or below the row's label for the keyboard. */
+  function openMenu(row: TreeRow, at?: { x: number; y: number }) {
+    if (row.kind !== "node") return;
+    activate(row);
+    let p = at;
+    if (!p) {
+      const r = document.getElementById(rowId(row.key))?.getBoundingClientRect();
+      const box = scroller.current?.getBoundingClientRect();
+      p = r ? { x: r.left + 24 + row.depth * 16, y: r.bottom } : { x: box?.left ?? 0, y: box?.top ?? 0 };
+    }
+    setMenu({ ...p, node: row.state.node });
+  }
+
+  const closeMenu = useCallback(() => {
+    setMenu(null);
+    scroller.current?.focus();
+  }, []);
+
   function onKeyDown(e: KeyboardEvent) {
     const row = rows[activeIndex];
     if (!row) return;
+    if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+      e.preventDefault();
+      openMenu(row);
+      return;
+    }
+    if (row.kind === "node") {
+      const n = row.state.node;
+      const shortcut: TreeAction | null =
+        isMod(e, platform) && e.key.toLowerCase() === "c" && !e.shiftKey && !e.altKey
+          ? "copy"
+          : e.key === "F2" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey
+            ? "rename"
+            : (platform === "mac" ? isMod(e, platform) && e.key === "Backspace" : e.key === "Delete" && !e.ctrlKey && !e.altKey && !e.shiftKey)
+              ? "delete"
+              : null;
+      if (shortcut) {
+        e.preventDefault();
+        void run(shortcut, n);
+        return;
+      }
+    }
     const go = (i: number) => {
       e.preventDefault();
       activate(rows[Math.max(0, Math.min(rows.length - 1, i))]);
@@ -135,6 +202,8 @@ export function DirectoryTree() {
         scroller.current?.focus();
       }}
       onScroll={(e) => setView({ top: e.currentTarget.scrollTop, height: heightOf(e.currentTarget) })}
+      // The tree has its own menu; the browser's never shows here.
+      onContextMenu={(e) => e.preventDefault()}
     >
       <div style={{ height: rows.length * ROW, position: "relative" }}>
         {rows.slice(first, last).map((row, i) => (
@@ -148,9 +217,25 @@ export function DirectoryTree() {
             onSelect={() => activate(row)}
             onToggle={() => row.kind === "node" && void toggle(backend, row.state.node.dn)}
             onMore={() => row.kind === "more" && void loadMore(backend, nodes[row.parent].node.dn)}
+            onMenu={(e) => {
+              e.preventDefault();
+              scroller.current?.focus();
+              openMenu(row, { x: e.clientX, y: e.clientY });
+            }}
           />
         ))}
       </div>
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          label={`Actions for ${menu.node.rdn}`}
+          items={treeMenu(menu.node, contextOf(menu.node))}
+          platform={platform}
+          onClose={closeMenu}
+          onSelect={(id) => void run(id as TreeAction, menu.node)}
+        />
+      )}
     </div>
   );
 }
@@ -164,11 +249,12 @@ interface RowProps {
   onSelect: () => void;
   onToggle: () => void;
   onMore: () => void;
+  onMenu: (e: MouseEvent) => void;
 }
 
 const MARKS: Record<Mark, string> = { new: "new", deleted: "delete", renamed: "rename" };
 
-function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore }: RowProps) {
+function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore, onMenu }: RowProps) {
   const style = { position: "absolute" as const, top, left: 0, right: 0, paddingLeft: `calc(var(--space-5) * ${row.depth} + var(--space-1))` };
   if (row.kind === "loading")
     return (
@@ -214,6 +300,7 @@ function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore }: R
       title={n.dn}
       onClick={onSelect}
       onDoubleClick={() => n.hasChildren && onToggle()}
+      onContextMenu={onMenu}
     >
       {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- ArrowRight / ArrowLeft open and close */}
       <span

@@ -332,10 +332,15 @@ function RelList({ rows, onOpen, onRemove, onUndo, editable }: { rows: RelRow[];
 }
 
 /** A group's members, with pending adds and removals; Add member searches people. */
-export function MembersPanel({ id, group, editable, onOpen }: { id: string; group: EntryView; editable: boolean; onOpen: (dn: string) => void }) {
+export function MembersPanel({ id, group, editable, onOpen, picking = 0 }: { id: string; group: EntryView; editable: boolean; onOpen: (dn: string) => void; /** Bumped to open the picker (the tree's Add member). */ picking?: number }) {
   const update = useChanges((s) => s.update);
   const set = useChanges((s) => s.byConnection[id]);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(picking > 0);
+  const [seen, setSeen] = useState(picking);
+  if (seen !== picking) {
+    setSeen(picking);
+    if (picking > 0) setAdding(true);
+  }
   const attrs = group.attributes ?? [];
   const attr = attrs.find((a) => /^uniqueMember$/i.test(a.name)) && !attrs.find((a) => /^member$/i.test(a.name)) ? "uniqueMember" : "member";
   const values = attrs.find((a) => a.name.toLowerCase() === attr.toLowerCase())?.values ?? [];
