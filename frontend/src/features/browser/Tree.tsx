@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 import { useBackend } from "@/api/backend";
 import { rdnParts } from "@/lib/dn";
 import { Button, Icon, Spinner, TypeTile, cx } from "@/ui";
+import { marks as marksOf, newChildren, useChanges, type Mark } from "./changes";
 import { dnKey, useBrowser, visibleRows, type TreeRow } from "./store";
 
 const ROW = 28; // --size-row
@@ -23,8 +24,11 @@ function rowId(key: string): string {
  */
 export function DirectoryTree() {
   const backend = useBackend();
-  const { nodes, roots, expanded, selected, select, toggle, expand, collapse, loadMore } = useBrowser();
-  const rows = useMemo(() => visibleRows(nodes, roots, expanded), [nodes, roots, expanded]);
+  const { nodes, roots, expanded, selected, select, toggle, expand, collapse, loadMore, session } = useBrowser();
+  const pending = useChanges((s) => (session ? s.byConnection[session.connectionId] : undefined));
+  const added = useMemo(() => newChildren(pending), [pending]);
+  const marks = useMemo(() => marksOf(pending), [pending]);
+  const rows = useMemo(() => visibleRows(nodes, roots, expanded, added), [nodes, roots, expanded, added]);
   const scroller = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ top: 0, height: 600 });
   const [active, setActive] = useState<string | null>(null);
@@ -140,6 +144,7 @@ export function DirectoryTree() {
             top={(first + i) * ROW}
             selected={row.key === selectedKey}
             active={row.key === activeRow?.key}
+            mark={marks[row.key]}
             onSelect={() => activate(row)}
             onToggle={() => row.kind === "node" && void toggle(backend, row.state.node.dn)}
             onMore={() => row.kind === "more" && void loadMore(backend, nodes[row.parent].node.dn)}
@@ -152,6 +157,7 @@ export function DirectoryTree() {
 
 interface RowProps {
   row: TreeRow;
+  mark?: Mark;
   top: number;
   selected: boolean;
   active: boolean;
@@ -160,7 +166,9 @@ interface RowProps {
   onMore: () => void;
 }
 
-function Row({ row, top, selected, active, onSelect, onToggle, onMore }: RowProps) {
+const MARKS: Record<Mark, string> = { new: "new", deleted: "delete", renamed: "rename" };
+
+function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore }: RowProps) {
   const style = { position: "absolute" as const, top, left: 0, right: 0, paddingLeft: `calc(var(--space-5) * ${row.depth} + var(--space-1))` };
   if (row.kind === "loading")
     return (
@@ -195,14 +203,14 @@ function Row({ row, top, selected, active, onSelect, onToggle, onMore }: RowProp
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the tree handles the keyboard for its rows
     <div
       id={rowId(row.key)}
-      className={cx("kn-tree__row", active && "is-active")}
+      className={cx("kn-tree__row", active && "is-active", mark && `is-${mark}`)}
       style={style}
       role="treeitem"
       tabIndex={-1}
       aria-level={row.depth + 1}
       aria-expanded={n.hasChildren ? row.open : undefined}
       aria-selected={selected}
-      aria-label={n.sub ? `${n.rdn}, ${n.sub}` : n.rdn}
+      aria-label={`${n.sub ? `${n.rdn}, ${n.sub}` : n.rdn}${mark ? `, pending ${MARKS[mark]}` : ""}`}
       title={n.dn}
       onClick={onSelect}
       onDoubleClick={() => n.hasChildren && onToggle()}
@@ -227,6 +235,7 @@ function Row({ row, top, selected, active, onSelect, onToggle, onMore }: RowProp
         {n.sub && <span className="kn-tree__sub">{n.sub}</span>}
       </span>
       {n.referral && <span className="kn-tree__badge">referral</span>}
+      {mark && <span className={cx("kn-tree__badge", `kn-tree__badge--${mark}`)}>{MARKS[mark]}</span>}
       {row.open && total !== undefined && <span className="kn-tree__count">{total.toLocaleString("en-US")}</span>}
     </div>
   );

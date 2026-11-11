@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { errorText, useBackend, type Failure, type SessionInfo } from "@/api/backend";
 import { hostOf } from "@/features/connections/url";
-import { splitDn } from "@/lib/dn";
+import { parentDn, sameDn, splitDn } from "@/lib/dn";
 import { detectPlatform, isMod } from "@/lib/platform";
 import { Banner, Button, ConfirmDialog, Kbd, useToasts } from "@/ui";
-import { summarize, toEntryChanges, useChanges } from "./changes";
+import { buildChanges, summarize, useChanges } from "./changes";
 import { useBrowser } from "./store";
 
 const changesText = (n: number) => `${n} ${n === 1 ? "change" : "changes"}`;
@@ -24,7 +24,7 @@ export function useApplyChanges(session: SessionInfo) {
   const backend = useBackend();
   const qc = useQueryClient();
   const toast = useToasts((s) => s.show);
-  const { connection, failed, patchNodes } = useBrowser();
+  const { connection, failed, patchNodes, refresh, select } = useBrowser();
   const id = session.connectionId;
   const set = useChanges((s) => s.byConnection[id]);
   const { applied, discard: drop } = useChanges();
@@ -38,16 +38,29 @@ export function useApplyChanges(session: SessionInfo) {
     setApplying(true);
     setFailure(null);
     try {
-      const sent = Object.values(set);
-      const r = await backend.apply(id, toEntryChanges(set));
+      const { changes, parts } = buildChanges(set);
+      const r = await backend.apply(id, changes);
       const ok = (r.results ?? []).filter((x) => x.ok);
-      const done = sent.filter((e) => ok.some((x) => x.dn === e.dn));
-      const count = done.reduce((n, e) => n + e.attrs.length, 0);
+      const done = ok.map((x) => parts[x.index]).filter(Boolean);
+      const count = done.reduce((n, p) => n + (p.part === "modify" ? p.attrs.length : 1), 0);
       applied(id, done);
       if (done.length) {
         patchNodes(ok.flatMap((x) => (x.node ? [x.node] : [])));
+        // An add, delete or rename changes its parent's list of children: read those again.
+        const parents = [...new Set(ok.filter((x) => x.op !== "modify").map((x) => parentDn(x.dn)))];
+        // oxlint-disable-next-line no-await-in-loop -- one paged search at a time on the connection
+        for (const p of parents) await refresh(backend, p);
+        // Follow a renamed entry; leave a deleted one for its parent.
+        const selected = useBrowser.getState().selected;
+        for (const x of ok) {
+          const from = changes[x.index].dn;
+          if (!selected || !sameDn(selected, from)) continue;
+          if (x.op === "rename") select(x.dn);
+          if (x.op === "delete") select(parentDn(from));
+        }
         await qc.invalidateQueries({ queryKey: ["entry", id] });
         await qc.invalidateQueries({ queryKey: ["memberOf", id] });
+        await qc.invalidateQueries({ queryKey: ["referrers", id] });
       }
       const refused = (r.results ?? []).find((x) => !x.ok);
       const f = r.failure ?? refused?.failure ?? null;

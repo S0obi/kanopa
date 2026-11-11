@@ -31,6 +31,14 @@ export function Entry(id: string, dn: string): $CancellablePromise<$models.Entry
 }
 
 /**
+ * Find searches the connection's base DN for a picker: kind "people" (inetOrgPerson by uid, cn
+ * or mail) or "groups" (groupOfNames and groupOfUniqueNames by cn). q needs 2 characters.
+ */
+export function Find(id: string, kind: string, q: string): $CancellablePromise<$models.FindResult> {
+    return $Call.ByID(3176954184, id, kind, q);
+}
+
+/**
  * MemberOf lists the groups that list dn as a member, searched from the connection's base DN.
  */
 export function MemberOf(id: string, dn: string): $CancellablePromise<$models.RelatedResult> {
@@ -38,10 +46,26 @@ export function MemberOf(id: string, dn: string): $CancellablePromise<$models.Re
 }
 
 /**
+ * ObjectClasses lists the structural and auxiliary object classes of the server's schema, with the
+ * attributes each requires and allows. Abstract and obsolete classes are left out.
+ */
+export function ObjectClasses(id: string): $CancellablePromise<$models.ClassesResult> {
+    return $Call.ByID(668382364, id);
+}
+
+/**
  * Ping checks that the connection still answers. It returns nil when it does.
  */
 export function Ping(id: string): $CancellablePromise<$models.Failure | null> {
     return $Call.ByID(2233849759, id);
+}
+
+/**
+ * Referrers lists the groups under the base DN whose member or uniqueMember holds dn, with the
+ * attribute that holds it: what a rename or a delete with cleanup updates.
+ */
+export function Referrers(id: string, dn: string): $CancellablePromise<$models.RelatedResult> {
+    return $Call.ByID(1657277225, id, dn);
 }
 
 /**

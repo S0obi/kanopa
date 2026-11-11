@@ -40,6 +40,8 @@ interface BrowserState {
   reveal(b: Backend, dn: string): Promise<void>;
   /** Replaces nodes the server sent again (after Apply), keeping what is known of their children. */
   patchNodes(list: TreeNode[]): void;
+  /** Reads the children of dn again from the first page, if the tree has read them. */
+  refresh(b: Backend, dn: string): Promise<void>;
   /** Reads the roots and every expanded entry again (Refresh, and after Reconnect). */
   reload(b: Backend): Promise<void>;
   /** Any read that failed: a lost connection switches the whole screen to "lost". */
@@ -155,6 +157,18 @@ export const useBrowser = create<BrowserState>((set, get) => {
     patchNodes(list) {
       if (list.length) set({ nodes: putNodes(list) });
     },
+    async refresh(b, dn) {
+      const k = dnKey(dn);
+      const n = get().nodes[k];
+      if (!n) return;
+      if (!n.children) {
+        // Never read, or read empty: it may have children now.
+        patch(k, { node: { ...n.node, hasChildren: true } });
+        if (!get().expanded[k]) return;
+      }
+      patch(k, { children: undefined, more: undefined });
+      await readPage(b, dn, "");
+    },
     async reload(b) {
       const s = get();
       if (!s.session) return;
@@ -191,17 +205,22 @@ export type TreeRow =
   | { kind: "loading"; key: string; depth: number }
   | { kind: "error"; key: string; depth: number; message: string };
 
-/** The rows the tree shows, in order: expanded nodes, their children, "Show N more" and loading lines. */
-export function visibleRows(nodes: Record<string, NodeState>, roots: string[], expanded: Record<string, true>): TreeRow[] {
+/**
+ * The rows the tree shows, in order: expanded nodes, their children, "Show N more" and loading
+ * lines. added are pending new entries, by their parent's key: they follow the parent's children.
+ */
+export function visibleRows(nodes: Record<string, NodeState>, roots: string[], expanded: Record<string, true>, added: Record<string, TreeNode[]> = {}): TreeRow[] {
   const rows: TreeRow[] = [];
   const walk = (keys: string[], depth: number, parent: string | null) => {
     for (const k of keys) {
-      const state = nodes[k];
+      const state = nodes[k] ?? pendingState(k);
       if (!state) continue;
-      const open = !!expanded[k] && state.node.hasChildren;
+      const extra = (added[k] ?? []).filter((n) => !nodes[k]?.children?.includes(dnKey(n.dn)));
+      const open = !!expanded[k] && (state.node.hasChildren || extra.length > 0);
       rows.push({ kind: "node", key: k, state, depth, open, parent });
       if (!open) continue;
       if (state.children) walk(state.children, depth + 1, k);
+      if (extra.length) walk(extra.map((n) => dnKey(n.dn)), depth + 1, k);
       if (state.error) rows.push({ kind: "error", key: `${k}#error`, depth: depth + 1, message: state.error });
       else if (state.loading && !state.children) rows.push({ kind: "loading", key: `${k}#loading`, depth: depth + 1 });
       else if (state.more) {
@@ -210,6 +229,9 @@ export function visibleRows(nodes: Record<string, NodeState>, roots: string[], e
       }
     }
   };
+  const pending: Record<string, NodeState> = {};
+  for (const list of Object.values(added)) for (const n of list) pending[dnKey(n.dn)] = { node: n, children: [] };
+  const pendingState = (k: string) => pending[k];
   walk(roots, 0, null);
   return rows;
 }
