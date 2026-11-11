@@ -53,7 +53,7 @@ section{margin-top:44px}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;padding:2px 10px;border-radius:999px;background:var(--sunken);color:var(--muted)}
 .pill.moss{background:var(--moss-soft);color:var(--moss-ink)}
 
-.timeline{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:22px}
+.timeline{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-top:22px}
 .tl{display:block;text-decoration:none;color:var(--ink);background:var(--raised);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 12px 14px;box-shadow:var(--shadow)}
 .tl:hover{background:var(--moss-soft)}
 .tl .n{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;margin-bottom:8px}
@@ -67,6 +67,7 @@ section{margin-top:44px}
 .c4{background:var(--heather);color:var(--heather-ink)}
 .c5{background:var(--moss-soft);color:var(--moss-ink)}
 .c6{background:var(--teal);color:var(--teal-ink)}
+.c7{background:var(--moss);color:var(--moss-ink)}
 
 table{width:100%;border-collapse:collapse;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;font-size:13.5px}
 th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line)}
@@ -147,7 +148,8 @@ pre.tree{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-
     <a href="#s3">S3 · Browse</a>
     <a href="#s4">S4 · Edit safely</a>
     <a href="#s5">S5 · Shape the tree</a>
-    <a href="#s6">S6 · v0.1.0</a>
+    <a href="#s6">S6 · Search and Night forest</a>
+    <a href="#s7">S7 · v0.1.0</a>
     <div class="over">After</div>
     <a href="#parked">Parked for later</a>
     <a href="#risks">Risks</a>
@@ -159,11 +161,11 @@ pre.tree{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-
 <header class="hero">
   <span class="pill moss">Implementation plan · drafted 6 November 2026</span>
   <h1 style="margin-top:12px">Kanopa: road to v0.1.0</h1>
-  <p class="lead">Kanopa is a desktop LDAP client for Windows and macOS. This plan takes the bootstrapped Wails project to a v0.1.0 MVP in six stages. Each stage ends at a checkpoint where we run the app together. Every stage ships something a directory admin can use, with automated tests and a human checklist.</p>
+  <p class="lead">Kanopa is a desktop LDAP client for Windows and macOS. This plan takes the bootstrapped Wails project to a v0.1.0 MVP in seven stages. Each stage ends at a checkpoint where we run the app together. Every stage ships something a directory admin can use, with automated tests and a human checklist.</p>
   <div class="meta">
-    <span class="pill">6 stages · about 1 week each</span>
+    <span class="pill">7 stages · about 1 week each</span>
     <span class="pill">Built by Thibault + Claude Code</span>
-    <span class="pill">Verified on Windows; macOS from S6</span>
+    <span class="pill">Verified on Windows; macOS from S7</span>
     <span class="pill">Design: <a href="https://claude.ai/artifact/5QDZfWkkwXxLmq3it8Ze3R">Kanopa application</a> · <a href="https://claude.ai/artifact/D2UQ5dAWyaZqzjnCokb3L6">Kanopa design system</a></span>
   </div>
 
@@ -173,7 +175,8 @@ pre.tree{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-
     <a class="tl" role="listitem" href="#s3"><span class="n c3">S3</span><div class="t">Browse</div><div class="v">Read the whole directory: tree, entries, LDIF, groups</div><div class="tag">v0.0.3</div></a>
     <a class="tl" role="listitem" href="#s4"><span class="n c4">S4</span><div class="t">Edit safely</div><div class="v">Change attributes with review before Apply</div><div class="tag">v0.0.4</div></a>
     <a class="tl" role="listitem" href="#s5"><span class="n c5">S5</span><div class="t">Shape the tree</div><div class="v">Create, rename and delete entries</div><div class="tag">v0.0.5</div></a>
-    <a class="tl" role="listitem" href="#s6"><span class="n c6">S6</span><div class="t">v0.1.0</div><div class="v">Hardened, checked on macOS, installers</div><div class="tag">v0.1.0</div></a>
+    <a class="tl" role="listitem" href="#s6"><span class="n c6">S6</span><div class="t">Search and Night forest</div><div class="v">Find entries with LDAP filters; a dark theme; servers without paging</div><div class="tag">v0.0.6</div></a>
+    <a class="tl" role="listitem" href="#s7"><span class="n c7">S7</span><div class="t">v0.1.0</div><div class="v">Hardened, checked on macOS, released publicly with installers</div><div class="tag">v0.1.0</div></a>
   </div>
 </header>
 
@@ -188,7 +191,7 @@ pre.tree{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-
       <tr><td>Frontend</td><td>React 19 + TypeScript + Vite, replacing the base project's Vue app</td><td>S1 rewrites <code>frontend/</code>; Vue, Pinia, Vue Router, VeeValidate and shadcn-vue are removed</td></tr>
       <tr><td>Design system</td><td>Port the Kanopa components to typed TSX in the repo, with <code>index.d.ts</code> as the API contract</td><td>Components arrive stage by stage, only when a screen needs them</td></tr>
       <tr><td>UI libraries</td><td>Tailwind 4 themed from <code>tokens.json</code>, Radix primitives under the ported components, TanStack Query, Zustand, React Hook Form + Zod, no router</td><td>One window; view state lives in a store</td></tr>
-      <tr><td>Theme</td><td>Light theme only for v0.1.0</td><td>Tokens keep their theme structure so Night forest can be added later</td></tr>
+      <tr><td>Theme</td><td>Clearing (light) and Night forest (dark), both from <code>tokens.json</code>. Follows the OS by default; a System / Clearing / Night forest switch on the welcome screen and in the window, remembered in settings</td><td>Every component reads tokens only, so the dark theme is a token swap. Changed after S5: Night forest moved from parked into S6</td></tr>
       <tr><td>Window chrome</td><td>Native OS title bar</td><td>WindowFrame draws only the app area; no custom caption buttons or drag regions</td></tr>
       <tr><td>LDAP</td><td><code>github.com/go-ldap/ldap/v3</code> in the Go backend behind a small interface</td><td>The frontend never speaks LDAP; UI tests run against a fake backend</td></tr>
       <tr><td>Secrets</td><td>Passwords in macOS Keychain / Windows Credential Manager</td><td>Never in the settings file, never in logs</td></tr>
@@ -197,10 +200,11 @@ pre.tree{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-
       <tr><td>Tests</td><td>Go unit + integration (testcontainers-go), Vitest + Testing Library, Playwright against Vite with a fake backend</td><td>No E2E on the packaged binary; the human checklist covers it</td></tr>
       <tr><td>Lint and SAST</td><td>golangci-lint with gosec; Oxlint (TypeScript, React hooks, jsx-a11y); govulncheck and npm audit; run by Lefthook git hooks</td><td>Pre-commit on staged files, vulnerability scans on dependency changes and every push; added during the S2 checkpoint</td></tr>
       <tr><td>CI</td><td>GitHub Actions on every PR and every push to <code>main</code>: lint and security scans, and Go unit + OpenLDAP integration tests, as two Linux jobs; a new push to a PR cancels its older run</td><td>Private repo on GitHub Free: about $0.035 a run out of the $12 of monthly compute. Vitest, Playwright and the Windows build stay local. No branch protection on Free: PRs are merged only on green, by convention. Actions pinned to commit SHAs of releases at least two weeks old. Added after S5</td></tr>
-      <tr><td>Delivery</td><td>Local <code>wails3 dev</code> / <code>wails3 build</code> at checkpoints; no CI builds</td><td>Unsigned NSIS installer and <code>.dmg</code> only in S6</td></tr>
-      <tr><td>Platforms</td><td>Checkpoints verified on Windows; macOS verified once in S6</td><td>Platform differences (⌘ vs Ctrl, dialog button order) are coded from S1 and checked on a Mac in S6</td></tr>
+      <tr><td>Delivery</td><td>Local <code>wails3 dev</code> / <code>wails3 build</code> at checkpoints. From S7, pushing a <code>v*</code> tag runs a release workflow: Windows NSIS installer (<code>.exe</code>) and a universal macOS <code>.dmg</code> (Apple Silicon + Intel), attached to a draft GitHub release whose notes are the tag's CHANGELOG section; you review and publish</td><td>Unsigned: the macOS app is signed ad hoc so it runs on Apple Silicon, and the README explains SmartScreen "Run anyway" and Gatekeeper "Open anyway". Code signing and notarization stay parked. Changed after S5</td></tr>
+      <tr><td>Platforms</td><td>Checkpoints verified on Windows; macOS verified once in S7</td><td>Platform differences (⌘ vs Ctrl, dialog button order) are coded from S1 and checked on a Mac in S7</td></tr>
+      <tr><td>Visibility and license</td><td>The repo goes public at v0.1.0, under the MIT license</td><td>Before the switch, a pre-public check (no secret in the history, license, README). You flip the visibility, then push <code>v0.1.0</code>. Public repos get Actions, macOS runners included, for free. Decided after S5</td></tr>
       <tr><td>Identity</td><td>Go module <code>github.com/S0obi/kanopa</code>, bundle id <code>app.kanopa.desktop</code></td><td>The module path follows the GitHub repo, as agreed once a remote existed</td></tr>
-      <tr><td>Source control</td><td>git, <a href="https://github.com/S0obi/kanopa">github.com/S0obi/kanopa</a>, one tag per checkpoint</td><td><code>v0.0.1</code> … <code>v0.0.5</code>, then <code>v0.1.0</code></td></tr>
+      <tr><td>Source control</td><td>git, <a href="https://github.com/S0obi/kanopa">github.com/S0obi/kanopa</a>, one tag per checkpoint</td><td><code>v0.0.1</code> … <code>v0.0.6</code>, then <code>v0.1.0</code></td></tr>
       <tr><td>Safety default</td><td>New connections are read-write, as designed</td><td>Every write goes through the pending-changes bar and an explicit Apply</td></tr>
       <tr><td>Diagnostics</td><td>Rotating local log file, no telemetry</td><td>Never logs passwords or attribute values</td></tr>
       <tr><td>Language</td><td>English UI, copy following the design system's voice rules</td><td>Strings kept in one place per feature so they can be extracted later</td></tr>
@@ -222,19 +226,22 @@ pre.tree{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-
         <li>Directory tree with paging ("Show 1,176 more")</li>
         <li>Entry view: Attributes, LDIF (read-only), Member of / Members</li>
         <li>Editing: value editor with diff, add attribute, pending changes, Review LDIF, Apply / Discard</li>
-        <li>New entry (Person, Group, Other), rename, delete</li>
+        <li>New entry (Person, Group, Other), rename, delete; a right-click menu on the tree</li>
+        <li>Search: base DN, scope, LDAP filter with a live syntax check, attributes, paged results</li>
+        <li>Night forest dark theme, following the OS or chosen</li>
+        <li>Servers without paging or child-count attributes, handled gracefully</li>
         <li>Lost connection and reconnect, keeping pending changes</li>
-        <li>Unsigned installers for Windows and macOS</li>
+        <li>Unsigned installers for Windows and macOS, built by CI and attached to a public GitHub release</li>
+        <li>README with screenshots, CHANGELOG, MIT license</li>
       </ul>
     </div>
     <div class="box">
       <h4>Not in v0.1.0</h4>
       <ul>
-        <li>Search screen (filter field, scope, results table)</li>
-        <li>Night forest dark theme</li>
+        <li>Export of search results (LDIF, CSV), saved searches</li>
         <li>SASL DIGEST-MD5 and SASL EXTERNAL (client certificate)</li>
         <li>LDIF import / export, schema browser, Access tab</li>
-        <li>Custom title bar, CI builds, code signing, notarization</li>
+        <li>Custom title bar, code signing, notarization</li>
         <li>Validation on Active Directory or 389-DS</li>
       </ul>
       <p class="note" style="margin-top:10px">Details in <a href="#parked">Parked for later</a>.</p>
@@ -335,7 +342,7 @@ services/
       <li>Accounts: <code>cn=admin,dc=example,dc=org</code> (read-write) and <code>uid=svc-kanopa,ou=services,dc=example,dc=org</code> (read-only through ACLs, to provoke "Insufficient access (50)")</li>
       <li>A <code>jpegPhoto</code> on Ada, hashed <code>userPassword</code> values, <code>manager</code> DNs, and a <code>groupOfNames</code> per team</li>
       <li>One referral entry, <code>ou=partners</code>, to test the referral settings</li>
-      <li>An optional large profile for S6 (<code>task ldap:up PROFILE=large</code>): an OU with 10,000 children and a group with 5,000 <code>member</code> values</li>
+      <li>An optional large profile for S7 (<code>task ldap:up PROFILE=large</code>): an OU with 10,000 children and a group with 5,000 <code>member</code> values</li>
       <li><code>task ldap:search DN=…</code> runs <code>ldapsearch</code> inside the container, so no LDAP tools are needed on Windows</li>
       <li>Test-only credentials live in <code>test/ldap/.env.example</code>; nothing real is ever used</li>
     </ul>
@@ -669,17 +676,74 @@ services/
 <!-- ============================================================ S6 -->
 <section id="s6">
   <div class="card">
-    <div class="stage-head"><span class="badge c6">Stage 6</span><h3>v0.1.0</h3><span class="status">Not started</span><span class="tagv">v0.1.0</span></div>
-    <div class="value"><strong>You can:</strong> install Kanopa on Windows or macOS from an installer and use everything above, with the rough edges found in S1–S5 fixed.</div>
+    <div class="stage-head"><span class="badge c6">Stage 6</span><h3>Search and Night forest</h3><span class="status">Not started</span><span class="tagv">v0.0.6</span></div>
+    <div class="value"><strong>You can:</strong> find entries anywhere with an LDAP filter and open them in the tree, work in the Night forest dark theme, and browse servers that don't page or don't say how many children an entry has.</div>
+    <div class="grid">
+      <div class="cell">
+        <h4>Backend</h4>
+        <ul>
+          <li>Server features from the root DSE: paging when <code>supportedControl</code> lists <code>1.2.840.113556.1.4.319</code>. Without it, searches run unpaged with Kanopa's limit as <code>sizeLimit</code>; on Size limit exceeded (4) the partial results are kept and marked as stopped by the server. The same path serves the tree, the pickers and Search</li>
+          <li>Child hints without <code>hasSubordinates</code> / <code>numSubordinates</code>: container classes (<code>organizationalUnit</code>, <code>organization</code>, <code>domain</code>, <code>dcObject</code>, <code>container</code>, …) are expandable, other entries are leaves. Expanding reads one level; an empty result clears the hint. No extra reads per row</li>
+          <li>Search service: base DN, scope (base, one level, subtree), filter, attributes to return. Paged at 100 per page, at most 500 entries; the result says when it stopped and why (Kanopa's limit, or the server's size limit)</li>
+          <li>Filter check on the Go side too: RFC 4515 parse with the error position, before anything is sent</li>
+          <li>Recent searches: the last 10 per connection, in the settings file. Settings also keep the theme choice</li>
+        </ul>
+      </div>
+      <div class="cell">
+        <h4>Frontend</h4>
+        <ul>
+          <li>Search button in the window header (Ctrl/⌘+F) swaps the entry pane for the search panel; the tree stays. Base DN starts at the selected entry</li>
+          <li>FilterInput: live syntax check with the error position, attribute-name completion from the schema, recent searches</li>
+          <li>ResultsTable: DN, type, name and the chosen attributes; Show more; "First 500 entries" or "The server stopped at N entries (size limit)" when it stops; Copy DNs</li>
+          <li>Opening a result selects it in the tree and shows the entry, with "Back to results"</li>
+          <li>Night forest: dark tokens generated from <code>tokens.json</code>; theme switch (System, Clearing, Night forest) on the welcome screen and in the window; follows the OS by default</li>
+          <li>Status bar says "No paging" on a server without the control</li>
+        </ul>
+      </div>
+      <div class="cell">
+        <h4>Automated tests</h4>
+        <ul>
+          <li>Go: an in-process fake LDAP server whose features switch off (paging, <code>hasSubordinates</code>, <code>numSubordinates</code>, a size limit), driving <code>ldapx</code> and the services: tree, pickers and Search on a server that doesn't page; partial results on code 4; child hints by class</li>
+          <li>Go IT on OpenLDAP: search with each scope, paging past 100, the 500 limit, an invalid filter refused before sending</li>
+          <li>Go unit: filter parsing with error positions; recent-search list</li>
+          <li>Vitest: FilterInput check and completion, results paging, Back to results, theme switch and OS following</li>
+          <li>Playwright: search people by filter and open one; switch to Night forest and back</li>
+        </ul>
+      </div>
+      <div class="cell">
+        <h4>Human checklist</h4>
+        <ul class="check">
+          <li>Search <code>(objectClass=inetOrgPerson)</code> over the subtree: the first 500, Show more pages by 100, and the limit is named</li>
+          <li>Type <code>(&amp;(uid=ada)</code>: the error points at the missing parenthesis, and nothing is sent</li>
+          <li>Search from <code>ou=groups</code> with scope one level; open a result, then Back to results</li>
+          <li>Recent searches list the last runs after a reconnect</li>
+          <li>Switch Night forest on, restart: the choice is kept. Set System and change the OS theme: Kanopa follows</li>
+          <li>Read every screen in Night forest: no light leftovers, contrast holds</li>
+        </ul>
+      </div>
+      <div class="cell wide">
+        <h4>Design references</h4>
+        <div class="refs"><span>Design system › FilterInput</span><span>ResultsTable</span><span>Night forest tokens</span><span>No Search screen on the canvas: built from the components</span></div>
+      </div>
+    </div>
+    <div class="exit"><b>Out of scope:</b> export of results, saved searches, search across several naming contexts at once. <b>Risk:</b> the OpenLDAP fixture pages and has <code>hasSubordinates</code>, so the fallbacks are proven only against the fake server; AD and 389-DS validation stays parked.</div>
+  </div>
+</section>
+
+<!-- ============================================================ S7 -->
+<section id="s7">
+  <div class="card">
+    <div class="stage-head"><span class="badge c7">Stage 7</span><h3>v0.1.0</h3><span class="status">Not started</span><span class="tagv">v0.1.0</span></div>
+    <div class="value"><strong>You can:</strong> download Kanopa for Windows or macOS from a public GitHub release, learn what it does from the README, and use everything above, with the rough edges found in S1–S6 fixed.</div>
     <div class="grid">
       <div class="cell">
         <h4>Hardening</h4>
         <ul>
           <li>macOS pass on a real Mac: Keychain, ⌘ shortcuts and glyphs, dialog button order, fonts, window behaviour</li>
           <li>Performance on the fixture's large profile: an OU with 10,000 children, a group with 5,000 <code>member</code> values</li>
-          <li>Accessibility: a keyboard-only run of every checklist, contrast, labels on icon-only buttons, reduced motion</li>
+          <li>Accessibility: a keyboard-only run of every checklist, contrast in both themes, labels on icon-only buttons, reduced motion</li>
           <li>Copy audit against the design's voice rules; every error carries its result code</li>
-          <li>About dialog with version and Open log folder</li>
+          <li>About dialog with version, license and Open log folder</li>
           <li>Fix list collected at earlier checkpoints</li>
         </ul>
       </div>
@@ -687,10 +751,11 @@ services/
         <h4>Release</h4>
         <ul>
           <li>Version 0.1.0 in <code>build/config.yml</code>, assets regenerated</li>
-          <li>Unsigned NSIS installer (<code>wails3 package</code>) and <code>.dmg</code> (<code>wails3 task darwin:package:dmg</code>)</li>
-          <li>Install notes for SmartScreen and Gatekeeper warnings on unsigned builds</li>
-          <li>README, CHANGELOG, known issues</li>
-          <li>Tag <code>v0.1.0</code> and a private GitHub release with both installers</li>
+          <li>Release workflow on <code>v*</code> tags: NSIS installer on a Windows runner, universal <code>.dmg</code> on a macOS runner (ad hoc signed), both attached to a draft release with the tag's CHANGELOG section as notes. Actions pinned to SHAs, like CI</li>
+          <li><code>CHANGELOG.md</code> in Keep a Changelog format, backfilled from v0.0.1, Unreleased at the top</li>
+          <li>README for users: what Kanopa is, light and Night forest screenshots, download links, install notes for SmartScreen and Gatekeeper, a short feature tour; the developer part moves below</li>
+          <li>Screenshots made by a Playwright script against the fake directory at a fixed size, in both themes, rerun with one command</li>
+          <li><code>LICENSE</code> (MIT); pre-public check of the history for secrets; you flip the repo to public, then push <code>v0.1.0</code> and publish the draft</li>
         </ul>
       </div>
       <div class="cell">
@@ -698,19 +763,21 @@ services/
         <ul>
           <li>Full suite on Windows and macOS: Go unit + IT, Vitest, Playwright</li>
           <li>Go IT for the performance cases above, with time limits</li>
+          <li>Release workflow dry run on a pre-release tag (<code>v0.1.0-rc.1</code>) before the real one</li>
         </ul>
       </div>
       <div class="cell">
         <h4>Human checklist</h4>
         <ul class="check">
-          <li>Install on a clean Windows machine; run checklists S1–S5</li>
-          <li>Install on a Mac; run checklists S1–S5</li>
+          <li>Download the draft release's installers; install on a clean Windows machine; run checklists S1–S6</li>
+          <li>Install the <code>.dmg</code> on a Mac (Apple Silicon); run checklists S1–S6</li>
           <li>Uninstall on both: the app goes, settings stay where documented</li>
           <li>Open log folder works; no secret in any log</li>
+          <li>README reads well on GitHub in light and dark mode; the screenshots match the app</li>
         </ul>
       </div>
     </div>
-    <div class="exit"><b>Exit:</b> both installers pass every checklist; we tag v0.1.0. <b>Risk:</b> the first macOS run may surface WKWebView or Keychain differences late; S6 holds a buffer for them.</div>
+    <div class="exit"><b>Exit:</b> both installers pass every checklist; the repo is public; we tag v0.1.0 and publish the release. <b>Risk:</b> the first macOS run may surface WKWebView or Keychain differences late; S7 holds a buffer for them.</div>
   </div>
 </section>
 
@@ -720,13 +787,12 @@ services/
   <div class="tablewrap"><table>
     <thead><tr><th>Item</th><th>Why it waits</th><th>Ready for it</th></tr></thead>
     <tbody>
-      <tr><td>Search</td><td>Kept out of the MVP; FilterInput and ResultsTable exist in the design system</td><td>Paged search, schema and entry view from S3</td></tr>
-      <tr><td>Night forest theme</td><td>Light only for v0.1.0</td><td>Tokens keep their theme structure</td></tr>
+      <tr><td>Search export (LDIF, CSV), saved searches</td><td>Search itself moved into S6; export needs a save dialog and formats</td><td>LDIF writer from S3, results from S6</td></tr>
       <tr><td>SASL DIGEST-MD5, SASL EXTERNAL</td><td>Extra auth and certificate handling risk</td><td>Bind method already a field in the saved connection</td></tr>
       <tr><td>LDIF import / export, schema browser, Access tab</td><td>Bulk work and new screens</td><td>LDIF writer from S3, change set from S4</td></tr>
       <tr><td>Following referrals</td><td>Needs a second server to test against</td><td>Ignore and Show as entries from S3; the option is already in the form</td></tr>
       <tr><td>Custom title bar</td><td>Native chrome chosen for v0.1.0</td><td>WindowFrame isolates the app area</td></tr>
-      <tr><td>CI builds, code signing, notarization</td><td>Local builds chosen; needs certificates</td><td>Packaging tasks from S6</td></tr>
+      <tr><td>Code signing, notarization</td><td>Needs an Apple Developer ID and a Windows certificate</td><td>Release workflow from S7; certificates go in as repo secrets</td></tr>
       <tr><td>Active Directory, 389-DS validation</td><td>OpenLDAP only for v0.1.0</td><td>Behaviour kept behind <code>ldapx</code></td></tr>
       <tr><td>E2E on the packaged app, Linux, translations</td><td>Not needed for the MVP</td><td>Strings grouped per feature</td></tr>
     </tbody>
@@ -741,8 +807,8 @@ services/
       <tr><td>React rewrite + component port</td><td>S1 feels slow</td><td>Port only what each screen needs; screens follow the design markup closely</td></tr>
       <tr><td>Docker on the Windows dev machine</td><td>No integration tests or human checks</td><td>Check Docker Desktop or Podman on day one of S1</td></tr>
       <tr><td>S3 is large</td><td>Checkpoint slips</td><td>Mid-stage check; Member of and referrals can move to S4</td></tr>
-      <tr><td>macOS seen only in S6</td><td>Late surprises</td><td>Platform differences coded from S1; buffer in S6</td></tr>
-      <tr><td>Servers without paging or <code>numSubordinates</code></td><td>Wrong counts or slow trees</td><td>Fallbacks in <code>ldapx</code>, covered by unit tests with a fake server</td></tr>
+      <tr><td>macOS seen only in S7</td><td>Late surprises</td><td>Platform differences coded from S1; buffer in S7; the release workflow builds on macOS from its first run</td></tr>
+      <tr><td>Servers without paging or <code>numSubordinates</code></td><td>Wrong counts or slow trees</td><td>Taken on in S6: paging detected from the root DSE, unpaged searches keep partial results on code 4, child hints by object class learned on expand; tested with an in-process fake server</td></tr>
       <tr><td>Password hashing depends on server config</td><td>Plain-text <code>userPassword</code> on some servers</td><td>Fixture hashes on write; the UI says what the server does</td></tr>
     </tbody>
   </table></div>
