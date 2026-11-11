@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useBackend, type EntryAttribute, type EntryView, type RelatedEntry, type SessionInfo } from "@/api/backend";
+import { useBackend, type EntryAttribute, type EntryView, type SessionInfo } from "@/api/backend";
 import { hostOf } from "@/features/connections/url";
-import { rdnParts, splitDn } from "@/lib/dn";
+import { parentDn, rdnParts, sameDn, splitDn } from "@/lib/dn";
 import { plural } from "@/lib/time";
-import { Badge, Banner, Button, DnBreadcrumb, EmptyState, LdifView, Skeleton, Tabs, Tooltip, TypeTile, cx, useToasts } from "@/ui";
-import { cells, pendingOf, toEntryChanges, useChanges, type ChangeSet, type PendingAttr } from "./changes";
+import { Badge, Banner, Button, DnBreadcrumb, EmptyState, LdifView, MenuButton, Skeleton, Tabs, Tooltip, TypeTile, cx, useToasts } from "@/ui";
+import { cells, dropEntry, pendingOf, pendingView, toEntryChanges, undoDelete, undoRename, useChanges, valuesAfter, type ChangeSet, type PendingAttr } from "./changes";
+import { DeleteDialog, MemberOfPanel, MembersPanel, NewEntryDialog, PendingState, RenameDialog } from "./shape";
 import { AddAttributeDialog, ValueEditor, targetOf, type EditTarget } from "./editors";
 import { dnKey, useBrowser } from "./store";
 
@@ -24,6 +25,9 @@ export function EntryPane() {
   const { session, selected, select, reveal, failed, connection } = useBrowser();
   const dn = useSettled(selected);
   const id = session?.connectionId ?? "";
+  // A new entry is not on the server yet: the view comes from the pending change.
+  const created = useChanges((s) => (dn ? s.byConnection[id]?.[dnKey(dn)] : undefined));
+  const isNew = created?.op === "add";
 
   const entry = useQuery({
     queryKey: ["entry", id, dn ? dnKey(dn) : ""],
@@ -32,7 +36,7 @@ export function EntryPane() {
       if (e.failure) failed(e.failure);
       return e;
     },
-    enabled: !!dn && !!session && connection === "connected",
+    enabled: !!dn && !!session && connection === "connected" && !isNew,
     staleTime: 30_000,
   });
 
@@ -41,6 +45,8 @@ export function EntryPane() {
     void reveal(backend, target);
   };
 
+  if (dn && isNew && session)
+    return <Entry key={`new:${dn}`} entry={pendingView(created!)} session={session} editable={false} isNew onOpen={open} />;
   if (!dn)
     return (
       <EmptyState icon="entry" title="No entry selected">
@@ -80,14 +86,40 @@ function withAdded(e: EntryView, set: ChangeSet | undefined): EntryAttribute[] {
   ];
 }
 
-function Entry({ entry: e, session, editable, onOpen }: { entry: EntryView; session: SessionInfo; editable: boolean; onOpen: (dn: string) => void }) {
+interface EntryProps {
+  entry: EntryView;
+  session: SessionInfo;
+  editable: boolean;
+  /** A new entry, not on the server yet. */
+  isNew?: boolean;
+  onOpen: (dn: string) => void;
+}
+
+function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryProps) {
   const backend = useBackend();
   const toast = useToasts((s) => s.show);
   const id = session.connectionId;
   const pendingSet = useChanges((s) => s.byConnection[id]);
+  const update = useChanges((s) => s.update);
+  const select = useBrowser((s) => s.select);
+  const expand = useBrowser((s) => s.expand);
+  const node = useBrowser((s) => s.nodes[dnKey(e.dn)]?.node);
+  const pendingEntry = pendingSet?.[dnKey(e.dn)];
+  const deleted = pendingEntry?.op === "delete";
+  // Attributes can't change on an entry marked for deletion.
+  const editable = canWrite && !deleted;
   const isGroup = e.type === "group";
-  const attrs = withAdded(e, pendingSet);
-  const members = attrs.filter((a) => /^(member|uniqueMember)$/i.test(a.name)).flatMap((a) => a.values ?? []);
+  // A new entry's view already holds its pending values.
+  const attrs = isNew ? (e.attributes ?? []) : withAdded(e, pendingSet);
+  const memberAttr = attrs.find((a) => /^(member|uniqueMember)$/i.test(a.name));
+  const members = valuesAfter(memberAttr?.values ?? [], memberAttr ? pendingOf(pendingSet, e.dn, memberAttr.name) : undefined);
+  const [dialog, setDialog] = useState<"new" | "rename" | "delete" | null>(null);
+  const root = sameDn(e.dn, session.baseDn) || (session.namingContexts ?? []).some((nc) => sameDn(nc, e.dn));
+  const container = e.type === "root" || e.type === "ou";
+  const multiRdn = (splitDn(e.dn)[0] ?? "").replace(/\\./g, "").includes("+");
+  const hasChildren = !!node?.hasChildren;
+  const renameOff = !canWrite || isNew || deleted || root || multiRdn || hasChildren || e.type === "server" && !node;
+  const deleteOff = !canWrite || isNew || deleted || root;
   const relTab = isGroup ? "members" : "memberOf";
   const storedTab = useBrowser((s) => s.tab);
   const setTab = useBrowser((s) => s.setTab);
@@ -125,11 +157,37 @@ function Entry({ entry: e, session, editable, onOpen }: { entry: EntryView; sess
             </div>
             {e.subtitle && <span className="text-ink-muted">{e.subtitle}</span>}
           </div>
-          <Button icon="copy" onClick={() => void copy(e.dn, "the DN")}>
-            Copy DN
-          </Button>
+          <div className="flex items-center gap-2">
+            {canWrite && container && !isNew && !deleted && (
+              <Button variant="primary" icon="plus" onClick={() => setDialog("new")}>
+                New entry
+              </Button>
+            )}
+            <Button icon="copy" onClick={() => void copy(e.dn, "the DN")}>
+              Copy DN
+            </Button>
+            {canWrite && !isNew && (
+              <MenuButton
+                label="More entry actions"
+                items={[
+                  { id: "rename", label: hasChildren ? "Rename… (entries below it)" : "Rename…", icon: "pencil", disabled: renameOff },
+                  { separator: true },
+                  { id: "delete", label: "Delete entry…", icon: "trash", danger: true, disabled: deleteOff },
+                ]}
+                // The menu gives focus back to its button as it closes: open the dialog after that.
+                onSelect={(item) => setTimeout(() => setDialog(item === "rename" ? "rename" : "delete"), 0)}
+              />
+            )}
+          </div>
         </div>
         <DnBreadcrumb dn={e.dn} onNavigate={onOpen} className="self-start rounded-sm border border-line bg-surface-raised p-[3px]" />
+        <PendingState
+          id={id}
+          dn={e.dn}
+          onUndo={(what) =>
+            update(id, (s) => (what === "add" ? dropEntry(s, e.dn) : what === "delete" ? undoDelete(s, e.dn) : undoRename(s, e.dn)))
+          }
+        />
         {e.referral && (
           <Banner tone="info" title="Referral.">
             This entry points to <code>{e.subtitle}</code>. Kanopa shows the referral itself and does not follow it.
@@ -143,7 +201,7 @@ function Entry({ entry: e, session, editable, onOpen }: { entry: EntryView; sess
           tabs={[
             { id: "attributes", label: "Attributes", count: attrs.filter((a) => !a.operational).length },
             { id: "ldif", label: "LDIF" },
-            isGroup ? { id: "members", label: "Members", count: members.length } : { id: "memberOf", label: "Member of" },
+            ...(isNew ? [] : [isGroup ? { id: "members", label: "Members", count: members.length } : { id: "memberOf", label: "Member of" }]),
           ]}
         />
       </div>
@@ -151,7 +209,7 @@ function Entry({ entry: e, session, editable, onOpen }: { entry: EntryView; sess
         {tab === "attributes" && (
           <Attributes
             attrs={attrs}
-            pending={(name) => pendingOf(pendingSet, e.dn, name)}
+            pending={(name) => (isNew ? undefined : pendingOf(pendingSet, e.dn, name))}
             canEdit={canEdit}
             onEdit={(a) => setEditing(targetOf(a))}
             onAdd={editable && (e.allowed ?? []).length > 0 && !e.referral ? () => setAdding(true) : undefined}
@@ -172,10 +230,25 @@ function Entry({ entry: e, session, editable, onOpen }: { entry: EntryView; sess
             <p className="m-0 text-[12px] leading-4 text-ink-muted">User attributes only, as the server holds them. Binary values are base64.</p>
           </div>
         )}
-        {tab === relTab && (isGroup ? <Members dns={members} onOpen={onOpen} /> : <MemberOf dn={e.dn} onOpen={onOpen} />)}
+        {tab === relTab && !isNew &&
+          (isGroup ? <MembersPanel id={id} group={e} editable={editable} onOpen={onOpen} /> : <MemberOfPanel id={id} entry={e} editable={editable} onOpen={onOpen} />)}
       </div>
       {editing && <ValueEditor connectionId={id} entry={e} target={editing} session={session} onClose={() => setEditing(null)} />}
       {adding && <AddAttributeDialog connectionId={id} entry={e} session={session} onClose={() => setAdding(false)} />}
+      {dialog === "new" && (
+        <NewEntryDialog
+          id={id}
+          session={session}
+          parent={e.dn}
+          onClose={() => setDialog(null)}
+          onCreated={(dn) => {
+            void expand(backend, parentDn(dn));
+            select(dn);
+          }}
+        />
+      )}
+      {dialog === "rename" && <RenameDialog id={id} entry={e} onClose={() => setDialog(null)} />}
+      {dialog === "delete" && <DeleteDialog id={id} entry={e} host={hostOf(session.url)} onClose={() => setDialog(null)} />}
     </div>
   );
 }
@@ -344,81 +417,6 @@ function Attributes({ attrs, pending, canEdit, onEdit, onAdd, onOpen, onCopy }: 
           <span className="type-label text-ink-muted">{plural(user.length, "attribute")}</span>
         </span>
       </div>
-    </div>
-  );
-}
-
-function RelatedList({ entries, onOpen }: { entries: RelatedEntry[]; onOpen: (dn: string) => void }) {
-  return (
-    <ul className="m-0 list-none overflow-hidden rounded-md border border-line bg-surface-raised p-0">
-      {entries.map((g, i) => (
-        <li key={g.dn} className={cx("flex min-h-10 items-center gap-2.5 px-3 py-1", i > 0 && "border-t border-line")}>
-          <TypeTile type={g.type} size={24} />
-          <span className="font-semibold">{g.name}</span>
-          {g.description && <span className="truncate text-ink-muted">{g.description}</span>}
-          <button type="button" className="kn-attrs__link ml-auto max-w-[50%] font-mono text-[12px]" title={`Open ${g.dn}`} onClick={() => onOpen(g.dn)}>
-            {g.dn}
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function MemberOf({ dn, onOpen }: { dn: string; onOpen: (dn: string) => void }) {
-  const backend = useBackend();
-  const { session, failed } = useBrowser();
-  const id = session?.connectionId ?? "";
-  const q = useQuery({
-    queryKey: ["memberOf", id, dnKey(dn)],
-    queryFn: async () => {
-      const r = await backend.memberOf(id, dn);
-      if (r.failure) failed(r.failure);
-      return r;
-    },
-    staleTime: 30_000,
-  });
-  if (q.isPending) return <Skeleton variant="table" rows={3} label="Finding groups" />;
-  const r = q.data!;
-  if (r.failure && !r.failure.lost)
-    return (
-      <Banner tone="danger" title={r.failure.title}>
-        {r.failure.message}
-      </Banner>
-    );
-  const entries = r.entries ?? [];
-  if (entries.length === 0)
-    return (
-      <EmptyState icon="users" tone="group" title="Not in any group">
-        No group under <code>{session?.baseDn}</code> lists this entry in member, uniqueMember or memberUid.
-      </EmptyState>
-    );
-  return (
-    <div className="flex flex-col gap-3">
-      <h3 className="type-heading m-0">
-        Member of {plural(entries.length, "group")}
-        {r.truncated && " (the first 1,000)"}
-      </h3>
-      <RelatedList entries={entries} onOpen={onOpen} />
-    </div>
-  );
-}
-
-function Members({ dns, onOpen }: { dns: string[]; onOpen: (dn: string) => void }) {
-  if (dns.length === 0)
-    return (
-      <EmptyState icon="users" tone="group" title="No members">
-        This group lists no member.
-      </EmptyState>
-    );
-  const entries: RelatedEntry[] = dns.map((dn) => {
-    const [, value] = rdnParts(splitDn(dn)[0] ?? dn);
-    return { dn, name: value, type: /^uid=/i.test(dn) ? "person" : "entry", description: "" };
-  });
-  return (
-    <div className="flex flex-col gap-3">
-      <h3 className="type-heading m-0">{plural(entries.length, "member")}</h3>
-      <RelatedList entries={entries} onOpen={onOpen} />
     </div>
   );
 }

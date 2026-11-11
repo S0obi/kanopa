@@ -85,3 +85,20 @@ func TestModify(t *testing.T) {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}
 }
+
+func TestAddDeleteModRDN(t *testing.T) {
+	add := Add("uid=zoe,ou=people,dc=example,dc=org", []string{"New entry"}, []Attribute{
+		{Name: "objectClass", Values: [][]byte{[]byte("inetOrgPerson")}},
+		{Name: "l", Values: [][]byte{[]byte("Zürich")}},
+	}, []string{"userPassword is set after the add; it is not shown."})
+	want := "# New entry\ndn: uid=zoe,ou=people,dc=example,dc=org\nchangetype: add\nobjectClass: inetOrgPerson\nl:: WsO8cmljaA==\n# userPassword is set after the add; it is not shown.\n"
+	if add != want {
+		t.Fatalf("add:\n%s", add)
+	}
+	if got := Delete("uid=zoe,dc=org", nil); got != "dn: uid=zoe,dc=org\nchangetype: delete\n" {
+		t.Fatalf("delete:\n%s", got)
+	}
+	if got := ModRDN("uid=zoe,dc=org", nil, "uid=zoe.z"); got != "dn: uid=zoe,dc=org\nchangetype: modrdn\nnewrdn: uid=zoe.z\ndeleteoldrdn: 1\n" {
+		t.Fatalf("modrdn:\n%s", got)
+	}
+}

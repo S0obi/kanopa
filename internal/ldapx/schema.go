@@ -2,6 +2,7 @@ package ldapx
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -45,8 +46,11 @@ type ObjectClass struct {
 	Names []string
 	Sup   []string
 	Kind  string // STRUCTURAL, AUXILIARY or ABSTRACT
+	Desc  string
 	Must  []string
 	May   []string
+	// Obsolete classes stay readable but are not offered for new entries.
+	Obsolete bool
 }
 
 // Schema is what the server publishes in its subschema subentry.
@@ -101,6 +105,30 @@ func (s *Schema) Required(classes []string) map[string]bool {
 		walk(c)
 	}
 	return out
+}
+
+// ClassList returns every object class once, sorted by first name.
+func (s *Schema) ClassList() []*ObjectClass {
+	if s == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []*ObjectClass
+	for _, c := range s.classes {
+		if !seen[c.OID] {
+			seen[c.OID] = true
+			out = append(out, c)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(nameOf(out[i])) < strings.ToLower(nameOf(out[j])) })
+	return out
+}
+
+func nameOf(c *ObjectClass) string {
+	if len(c.Names) > 0 {
+		return c.Names[0]
+	}
+	return c.OID
 }
 
 // Allowed lists the attributes the given object classes (and their superclasses) require or allow,
@@ -198,7 +226,8 @@ func ParseSchema(dn string, attributeTypes, objectClasses []string) *Schema {
 		case f.flag("ABSTRACT"):
 			kind = "ABSTRACT"
 		}
-		oc := &ObjectClass{OID: f.oid, Names: f.list("NAME"), Sup: f.list("SUP"), Kind: kind, Must: f.list("MUST"), May: f.list("MAY")}
+		oc := &ObjectClass{OID: f.oid, Names: f.list("NAME"), Sup: f.list("SUP"), Kind: kind, Desc: f.one("DESC"), Must: f.list("MUST"), May: f.list("MAY"),
+			Obsolete: f.flag("OBSOLETE")}
 		s.ClassCount++
 		s.classes[strings.ToLower(oc.OID)] = oc
 		for _, n := range oc.Names {

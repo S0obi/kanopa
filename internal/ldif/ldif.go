@@ -118,3 +118,48 @@ func Modify(dn string, comments []string, changes []Change) string {
 func comment(b *strings.Builder, text string) {
 	b.WriteString("# " + strings.NewReplacer("\r", " ", "\n", " ").Replace(text) + "\n")
 }
+
+// Add writes a changetype: add record: comments, "dn", then every value. notes are comment lines
+// written after the values, for values not shown.
+func Add(dn string, comments []string, attrs []Attribute, notes []string) string {
+	var b strings.Builder
+	for _, c := range comments {
+		comment(&b, c)
+	}
+	line(&b, "dn", []byte(dn))
+	b.WriteString("changetype: add\n")
+	for _, a := range attrs {
+		for _, v := range a.Values {
+			line(&b, a.Name, v)
+		}
+	}
+	for _, n := range notes {
+		comment(&b, n)
+	}
+	return b.String()
+}
+
+// Delete writes a changetype: delete record.
+func Delete(dn string, comments []string) string {
+	var b strings.Builder
+	for _, c := range comments {
+		comment(&b, c)
+	}
+	line(&b, "dn", []byte(dn))
+	b.WriteString("changetype: delete\n")
+	return b.String()
+}
+
+// ModRDN writes a changetype: modrdn record that replaces the old RDN value (deleteoldrdn: 1).
+// newRDN is already escaped (attr=value).
+func ModRDN(dn string, comments []string, newRDN string) string {
+	var b strings.Builder
+	for _, c := range comments {
+		comment(&b, c)
+	}
+	line(&b, "dn", []byte(dn))
+	b.WriteString("changetype: modrdn\n")
+	line(&b, "newrdn", []byte(newRDN))
+	b.WriteString("deleteoldrdn: 1\n")
+	return b.String()
+}

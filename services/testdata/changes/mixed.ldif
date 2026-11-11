@@ -1,0 +1,33 @@
+# Ada Lovelace
+dn: uid=ada,ou=people,dc=example,dc=org
+changetype: modrdn
+newrdn: uid=ada.lovelace
+deleteoldrdn: 1
+
+# New entry
+dn: uid=zoe,ou=people,dc=example,dc=org
+changetype: add
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: zoe
+cn:: Wm/DqyBaw7xyY2hlcg==
+sn:: WsO8cmNoZXI=
+manager: uid=ada.lovelace,ou=people,dc=example,dc=org
+# userPassword is set with the Password Modify operation (RFC 3062) after the add; it is not shown.
+
+# admins
+dn: cn=admins,ou=groups,dc=example,dc=org
+changetype: modify
+delete: member
+member: uid=ada,ou=people,dc=example,dc=org
+member: uid=old.account,ou=people,dc=example,dc=org
+-
+add: member
+member: uid=ada.lovelace,ou=people,dc=example,dc=org
+-
+
+# Old Account
+dn: uid=old.account,ou=people,dc=example,dc=org
+changetype: delete

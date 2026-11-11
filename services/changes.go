@@ -32,20 +32,30 @@ func NewChangeService(log *slog.Logger, cs *ConnectionService) *ChangeService {
 // EntryChange is every pending change to one entry.
 type EntryChange struct {
 	DN         string            `json:"dn"`
-	Title      string            `json:"title"` // shown as a comment in the LDIF
+	Title      string            `json:"title"`  // shown as a comment in the LDIF
+	Op         string            `json:"op"`     // modify (or empty) | add | delete | rename
+	NewRDN     string            `json:"newRdn"` // rename: the new value of the naming attribute, as typed
 	Attributes []AttributeChange `json:"attributes"`
 }
 
 // AttributeChange is one attribute before and after the person's edits. Text and DN values are
 // the values themselves; binary and password values are the ids the entry view gave them.
 // After empty removes the attribute. Password, when set, is the new password.
+//
+// A change can instead name values to add and remove (membership): Add and Remove, with Before
+// and After empty. Values to remove must still be there; values already there are not added again.
 type AttributeChange struct {
 	Name     string   `json:"name"`
 	Kind     string   `json:"kind"` // text | dn | binary | password
 	Before   []string `json:"before"`
 	After    []string `json:"after"`
 	Password string   `json:"password"`
+	Add      []string `json:"add"`
+	Remove   []string `json:"remove"`
 }
+
+// delta reports whether the change names values to add and remove rather than a whole new set.
+func (a AttributeChange) delta() bool { return len(a.Add)+len(a.Remove) > 0 }
 
 // PreviewResult is the change set as LDIF, as Kanopa will send it.
 type PreviewResult struct {
@@ -56,14 +66,16 @@ type PreviewResult struct {
 
 // EntryResult is how applying one entry's changes went.
 type EntryResult struct {
-	DN      string    `json:"dn"`
+	Index   int       `json:"index"` // the change's position in the set the UI sent
+	Op      string    `json:"op"`    // modify | add | delete | rename
+	DN      string    `json:"dn"`    // where it applied: for a rename, the new DN
 	OK      bool      `json:"ok"`
 	Node    *TreeNode `json:"node"` // the entry as the tree shows it now; nil when it could not be read again
 	Failure *Failure  `json:"failure"`
 }
 
-// ApplyResult lists the entries tried, in order. Apply stops at the first failure: the entries
-// after it are not tried and keep their changes.
+// ApplyResult lists the changes tried, in the order they were sent (see orderChanges). Apply
+// stops at the first failure: the changes after it are not tried and stay pending.
 type ApplyResult struct {
 	Results   []EntryResult `json:"results"`
 	Applied   int           `json:"applied"`
@@ -71,24 +83,79 @@ type ApplyResult struct {
 	Failure   *Failure      `json:"failure"` // the connection itself: closed, read-only, lost
 }
 
-// Preview writes the change set as changetype: modify records, without contacting the server.
+// Preview writes the change set as LDIF records in the order Apply sends them, without
+// contacting the server.
 func (c *ChangeService) Preview(id string, changes []EntryChange) PreviewResult {
 	l, f := c.dir.session(id)
 	if f != nil {
 		return PreviewResult{Failure: f}
 	}
+	steps, err := l.orderChanges(changes)
+	if err != nil {
+		return PreviewResult{Failure: &Failure{Title: "Change not valid.", Message: err.Error()}}
+	}
 	var parts []string
-	for _, ch := range changes {
-		p, err := planEntry(l, ch, nil)
+	for _, s := range steps {
+		text, err := previewStep(l, s)
 		if err != nil {
 			return PreviewResult{Failure: &Failure{Title: "Change not valid.", Message: err.Error()}}
 		}
-		if p.empty() {
-			continue
+		if text != "" {
+			parts = append(parts, text)
 		}
-		parts = append(parts, p.ldif(ch.Title))
 	}
 	return PreviewResult{LDIF: strings.Join(parts, "\n"), Entries: len(parts)}
+}
+
+// orderChanges orders the change set for this connection, refusing to rename or delete the
+// base DN or a naming context.
+func (l *liveSession) orderChanges(changes []EntryChange) ([]step, error) {
+	steps, err := orderChanges(changes)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range steps {
+		if (s.op == opRename || s.op == opDelete) && l.isRoot(s.dn) {
+			return nil, fmt.Errorf("%s is a naming context; Kanopa doesn't %s it", s.dn, s.op)
+		}
+	}
+	return steps, nil
+}
+
+func previewStep(l *liveSession, s step) (string, error) {
+	var comments []string
+	if s.ch.Title != "" {
+		comments = append(comments, s.ch.Title)
+	}
+	switch s.op {
+	case opDelete:
+		return ldif.Delete(s.dn, comments), nil
+	case opRename:
+		return ldif.ModRDN(s.dn, comments, s.newRDN), nil
+	case opAdd:
+		attrs, password, err := addAttributes(l, s.ch)
+		if err != nil {
+			return "", err
+		}
+		var notes []string
+		if password != "" {
+			notes = append(notes, "userPassword is set with the Password Modify operation (RFC 3062) after the add; it is not shown.")
+		}
+		shown := make([]ldif.Attribute, 0, len(attrs))
+		for _, a := range attrs {
+			if strings.Contains(strings.ToLower(a.Name), "password") {
+				notes = append(notes, a.Name+" is sent as typed; it is not shown.")
+				continue
+			}
+			shown = append(shown, ldif.Attribute{Name: a.Name, Values: a.Values})
+		}
+		return ldif.Add(s.dn, comments, shown, notes), nil
+	}
+	p, err := planEntry(l, s.ch, nil)
+	if err != nil || p.empty() {
+		return "", err
+	}
+	return p.ldif(s.ch.Title), nil
 }
 
 // Apply sends the changes, one modify request per entry, in order. Before each entry it reads
@@ -107,9 +174,14 @@ func (c *ChangeService) Apply(ctx context.Context, id string, changes []EntryCha
 			Message: "This connection is set to read-only, so Kanopa sends no changes over it. Edit the connection to allow changes."}
 		return out
 	}
-	for _, ch := range changes {
-		r := EntryResult{DN: ch.DN}
-		if err := c.applyEntry(ctx, l, ch); err != nil {
+	steps, err := l.orderChanges(changes)
+	if err != nil {
+		out.Failure = &Failure{Title: "Change not valid.", Message: err.Error()}
+		return out
+	}
+	for _, s := range steps {
+		r := EntryResult{Index: s.index, Op: s.op, DN: s.dn}
+		if err := c.applyStep(ctx, l, s); err != nil {
 			r.Failure = c.dir.fail(l, err)
 			if r.Failure.Title == "Read failed." {
 				r.Failure.Title = "Change not valid."
@@ -118,22 +190,111 @@ func (c *ChangeService) Apply(ctx context.Context, id string, changes []EntryCha
 			if r.Failure.Lost {
 				out.Failure = r.Failure
 			}
-			c.log.Info("change refused", "id", id, "code", r.Failure.Code)
+			c.log.Info("change refused", "id", id, "op", s.op, "code", r.Failure.Code)
 			break
 		}
 		r.OK = true
 		out.Applied++
+		if s.op == opRename {
+			r.DN = s.newDN
+		}
+		// The tree lists entries by parent: an add, delete or rename changes the parent's list.
+		if s.op != opModify {
+			l.forgetChildren(parentOf(s.dn))
+		}
 		// The tree shows a description or name that may have changed: read the entry once more.
-		if raw, err := l.ReadEntry(ctx, ch.DN, l.referrals); err == nil {
-			n := nodeOf(raw.Child())
-			l.updateChild(n)
-			r.Node = &n
+		if s.op != opDelete {
+			if raw, err := l.ReadEntry(ctx, r.DN, l.referrals); err == nil {
+				n := nodeOf(raw.Child())
+				l.updateChild(n)
+				r.Node = &n
+			}
 		}
 		out.Results = append(out.Results, r)
 	}
 	out.ElapsedMs = time.Since(start).Milliseconds()
 	c.log.Info("changes applied", "id", id, "entries", out.Applied, "of", len(changes), "elapsed_ms", out.ElapsedMs)
 	return out
+}
+
+func (c *ChangeService) applyStep(ctx context.Context, l *liveSession, s step) error {
+	switch s.op {
+	case opDelete:
+		return l.Delete(ctx, s.dn)
+	case opRename:
+		// Kanopa renames leaves only: an entry with entries below it would move them all, and every
+		// reference to them would need updating too.
+		if raw, err := l.ReadEntry(ctx, s.dn, l.referrals); err == nil {
+			if c := raw.Child(); (c.HasSubordinates != nil && *c.HasSubordinates) || c.NumSubordinates > 0 {
+				return &ldapx.Error{Code: 66, Name: ldapx.CodeName(66), Title: "Entry has children.", Lead: true,
+					Detail: "Kanopa renames only entries without entries below them."}
+			}
+		}
+		return l.Rename(ctx, s.dn, s.newRDN)
+	case opAdd:
+		attrs, password, err := addAttributes(l, s.ch)
+		if err != nil {
+			return err
+		}
+		if err := l.Add(ctx, s.dn, attrs); err != nil {
+			return err
+		}
+		if password != "" {
+			return l.PasswordModify(ctx, s.dn, password)
+		}
+		return nil
+	}
+	return c.applyEntry(ctx, l, s.ch)
+}
+
+// addAttributes lists a new entry's attributes as Add sends them. A password goes through
+// Password Modify after the add when the server offers it, so the server hashes it.
+func addAttributes(l *liveSession, ch EntryChange) (attrs []ldapx.RawAttribute, password string, err error) {
+	if _, _, _, err := ldapx.SplitDN(ch.DN); err != nil {
+		return nil, "", err
+	}
+	for _, a := range ch.Attributes {
+		if !attrName.MatchString(a.Name) {
+			return nil, "", fmt.Errorf("%q is not an attribute name", a.Name)
+		}
+		switch a.Kind {
+		case "binary":
+			return nil, "", fmt.Errorf("%s: Kanopa can't add binary values yet", a.Name)
+		case "password":
+			if a.Password == "" {
+				continue
+			}
+			if l.passwordModify && strings.EqualFold(canonical(a.Name, l.schema.Attr(a.Name)), "userPassword") {
+				password = a.Password
+				continue
+			}
+			attrs = append(attrs, ldapx.RawAttribute{Name: a.Name, Values: [][]byte{[]byte(a.Password)}})
+		default:
+			if vals := nonBlank(a.After); len(vals) > 0 {
+				attrs = append(attrs, ldapx.RawAttribute{Name: a.Name, Values: toBytes(vals)})
+			}
+		}
+	}
+	return attrs, password, nil
+}
+
+func nonBlank(vals []string) []string {
+	var out []string
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// parentOf is the DN of an entry's parent, as written.
+func parentOf(dn string) string {
+	parts := rdns(dn)
+	if len(parts) < 2 {
+		return ""
+	}
+	return strings.Join(parts[1:], ",")
 }
 
 func (c *ChangeService) applyEntry(ctx context.Context, l *liveSession, ch EntryChange) error {
@@ -172,11 +333,31 @@ func (c *ChangeService) applyEntry(ctx context.Context, l *liveSession, ch Entry
 func changedSince(ch EntryChange, current *ldapx.RawEntry) []string {
 	var out []string
 	for _, a := range ch.Attributes {
-		if !sameValues(a.Kind, a.Before, rawValues(current, a.Name)) {
+		now := rawValues(current, a.Name)
+		if a.delta() {
+			for _, v := range a.Remove {
+				if !holds(a.Kind, now, v) {
+					out = append(out, a.Name)
+					break
+				}
+			}
+			continue
+		}
+		if !sameValues(a.Kind, a.Before, now) {
 			out = append(out, a.Name)
 		}
 	}
 	return out
+}
+
+// holds reports whether the values include v; DNs compare as names, not as text.
+func holds(kind string, values [][]byte, v string) bool {
+	for _, have := range values {
+		if string(have) == v || (kind == "dn" && ldapx.SameDN(string(have), v)) {
+			return true
+		}
+	}
+	return false
 }
 
 // nameConflict turns the server's assertion failure (122) into one that names the attributes
@@ -248,8 +429,28 @@ func planEntry(l *liveSession, ch EntryChange, current *ldapx.RawEntry) (*entryP
 		if current != nil {
 			now = rawValues(current, a.Name) // applyEntry checked them against what was read
 		}
-		switch a.Kind {
-		case "binary", "password":
+		switch {
+		case a.delta():
+			if a.Kind == "binary" || a.Kind == "password" {
+				return nil, fmt.Errorf("%s: values to add or remove must be text or DNs", a.Name)
+			}
+			var add []string
+			for _, v := range a.Add {
+				// Already there (someone else added it): nothing to send for it.
+				if current == nil || !holds(a.Kind, now, v) {
+					add = append(add, v)
+				}
+			}
+			if len(a.Remove) > 0 {
+				p.mods = append(p.mods, plannedMod{Mod: ldapx.Mod{Op: ldapx.ModDelete, Attr: a.Name, Values: toBytes(a.Remove)}})
+				for _, v := range a.Remove {
+					asserts = append(asserts, "("+a.Name+"="+ldapx.EscapeFilter(v)+")")
+				}
+			}
+			if len(add) > 0 {
+				p.mods = append(p.mods, plannedMod{Mod: ldapx.Mod{Op: ldapx.ModAdd, Attr: a.Name, Values: toBytes(add)}})
+			}
+		case a.Kind == "binary" || a.Kind == "password":
 			mods, pw, err := planHidden(l, a, def, comparable, now, current != nil)
 			if err != nil {
 				return nil, err
