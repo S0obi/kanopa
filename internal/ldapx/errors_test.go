@@ -128,3 +128,13 @@ func TestConflictNamesTheAttributes(t *testing.T) {
 		}
 	}
 }
+
+// go-ldap's request timeout and Kanopa's deadline race on a silent server: whichever fires
+// first, the person reads "No answer".
+func TestGoLDAPTimeoutIsNoAnswer(t *testing.T) {
+	op := Op{Endpoint: Endpoint{Host: "127.0.0.1", Port: 33757}, Timeout: time.Second, Stage: StageBind}
+	e := Classify(ldap.NewError(ldap.ErrorNetwork, errors.New("ldap: connection timed out")), op)
+	if e.Code != CodeTimeout || e.Title != "No answer." {
+		t.Fatalf("got %+v", e)
+	}
+}
