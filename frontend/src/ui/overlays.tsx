@@ -24,11 +24,21 @@ export interface ModalProps {
 
 export function Modal({ onClose, labelledBy, describedBy, role = "dialog", className, children, initialFocus, style }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
+  // What had focus before the dialog opened, read on the first render: by the time effects run,
+  // a field with autoFocus inside the dialog already has it.
+  const [before] = useState(() => (typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null)));
   useEffect(() => {
-    const before = document.activeElement as HTMLElement | null;
     const panel = ref.current;
-    const first = initialFocus?.current ?? panel?.querySelector<HTMLElement>("[autofocus], [data-autofocus]") ?? panel?.querySelector<HTMLElement>(FOCUSABLE);
-    first?.focus();
+    // A field rendered with autoFocus already has focus (React sets it, without the attribute): keep it.
+    const now = document.activeElement;
+    const focused = !initialFocus && now && panel?.contains(now);
+    // An explicit choice, else the first field (where the person types), else the first control.
+    const first =
+      initialFocus?.current ??
+      panel?.querySelector<HTMLElement>("[autofocus], [data-autofocus]") ??
+      panel?.querySelector<HTMLElement>('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])') ??
+      panel?.querySelector<HTMLElement>(FOCUSABLE);
+    if (!focused) first?.focus();
     return () => before?.focus?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -137,10 +147,12 @@ export interface ConfirmDialogProps {
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
+  /** The action can't be taken (the dialog says why); Cancel stays. */
+  confirmDisabled?: boolean;
   platform?: Platform;
 }
 
-export function ConfirmDialog({ tone, title, children, confirmLabel, onConfirm, onCancel, busy, platform = detectPlatform() }: ConfirmDialogProps) {
+export function ConfirmDialog({ tone, title, children, confirmLabel, onConfirm, onCancel, busy, confirmDisabled, platform = detectPlatform() }: ConfirmDialogProps) {
   const titleId = useId();
   const bodyId = useId();
   const cancel = (
@@ -149,7 +161,7 @@ export function ConfirmDialog({ tone, title, children, confirmLabel, onConfirm, 
     </Button>
   );
   const confirm = (
-    <Button key="o" size="lg" variant={tone === "danger" ? "danger" : "primary"} onClick={onConfirm} busy={busy} data-autofocus={tone === "danger" ? undefined : true}>
+    <Button key="o" size="lg" variant={tone === "danger" ? "danger" : "primary"} onClick={onConfirm} busy={busy} disabled={confirmDisabled} data-autofocus={tone === "danger" ? undefined : true}>
       {confirmLabel}
     </Button>
   );

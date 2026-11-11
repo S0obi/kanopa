@@ -1,5 +1,6 @@
-import type { AllowedAttribute, EntryAttribute, EntryChange, EntryView, Failure, RelatedEntry, TreeNode } from "./backend";
-import { splitDn } from "@/lib/dn";
+import type { AllowedAttribute, ClassInfo, EntryAttribute, EntryChange, EntryView, Failure, FindResult, RelatedEntry, TreeNode } from "./backend";
+import type { AttributeChange, EntryResult } from "../../bindings/github.com/S0obi/kanopa/services/models";
+import { parentDn, rdnParts, splitDn } from "@/lib/dn";
 
 /**
  * The test server's sample directory (test/ldap/seedgen), for the fake backend:
@@ -197,14 +198,29 @@ function conflict(attrs: string[]): Failure {
   return refused(122, "Assertion failed", "Entry changed meanwhile.", `${what} Reload the entry, then make your changes again.`);
 }
 
+const valuesOf = (attrs: Attrs, name: string) => attrs[Object.keys(attrs).find((k) => k.toLowerCase() === name.toLowerCase()) ?? name] ?? [];
+const nameIn = (attrs: Attrs, name: string) => Object.keys(attrs).find((k) => k.toLowerCase() === name.toLowerCase()) ?? name;
+const isDelta = (a: AttributeChange) => (a.add?.length ?? 0) + (a.remove?.length ?? 0) > 0;
+const notFound = () => refused(32, "No such object", "Entry gone.", "this entry no longer exists: someone deleted or renamed it. Reload the tree.");
+const nonLeaf = () => refused(66, "Not allowed on non-leaf", "Entry has children.", "this entry has entries below it. Delete them first.");
+
+function missingRequired(type: string, attrs: Attrs): Failure | null {
+  for (const r of REQUIRED[type] ?? [])
+    if (!Object.keys(attrs).some((k) => k.toLowerCase() === r)) {
+      const attr = (ALLOWED[type] ?? []).find(([a]) => a.toLowerCase() === r)?.[0] ?? r;
+      return refused(65, "Object class violation", "Required attribute missing.", `${STRUCTURAL[type]} requires the attribute ${attr}.`);
+    }
+  return null;
+}
+
 /** Applies one entry's changes like OpenLDAP would, or says why it refuses them. */
 export function fakeModify(ch: EntryChange): Failure | null {
   const n = directory().get(key(ch.dn));
-  if (!n) return refused(32, "No such object", "Entry gone.", "this entry no longer exists: someone deleted or renamed it. Reload the tree.");
+  if (!n) return notFound();
   const type = typeOf(n.attrs.objectClass ?? [], ch.dn);
-  const valuesOf = (attrs: Attrs, name: string) => attrs[Object.keys(attrs).find((k) => k.toLowerCase() === name.toLowerCase()) ?? name] ?? [];
   const changed = (ch.attributes ?? []).filter((a) => {
     const now = valuesOf(n.attrs, a.name);
+    if (isDelta(a)) return (a.remove ?? []).some((v) => !now.some((x) => key(x) === key(v)));
     const ids = a.kind === "binary" || a.kind === "password" ? now.map(valueId) : now;
     const before = a.before ?? [];
     return ids.length !== before.length || !before.every((v) => ids.includes(v));
@@ -212,35 +228,174 @@ export function fakeModify(ch: EntryChange): Failure | null {
   if (changed.length) return conflict(changed.map((a) => a.name));
   const next: Attrs = { ...n.attrs };
   for (const a of ch.attributes ?? []) {
-    const name = Object.keys(next).find((k) => k.toLowerCase() === a.name.toLowerCase()) ?? a.name;
+    const name = nameIn(next, a.name);
     const now = next[name] ?? [];
     const hidden = a.kind === "binary" || a.kind === "password";
-    const after = a.after ?? [];
-    let values = hidden ? now.filter((v) => after.includes(valueId(v))) : after;
-    if (a.kind === "password" && a.password) values = [`{SSHA}${btoa(a.password).slice(0, 28)}`];
+    let values: string[];
+    if (isDelta(a)) {
+      values = now.filter((v) => !(a.remove ?? []).some((r) => key(r) === key(v)));
+      for (const v of a.add ?? []) if (!values.some((x) => key(x) === key(v))) values.push(v);
+    } else {
+      const after = a.after ?? [];
+      values = hidden ? now.filter((v) => after.includes(valueId(v))) : after;
+      if (a.kind === "password" && a.password) values = [`{SSHA}${btoa(a.password).slice(0, 28)}`];
+    }
     if (SINGLE.has(name.toLowerCase()) && values.length > 1)
       return refused(19, "Constraint violation", "Change refused.", `attribute '${name}' cannot have multiple values.`);
     if (values.length) next[name] = values;
     else delete next[name];
   }
-  for (const r of REQUIRED[type] ?? [])
-    if (!Object.keys(next).some((k) => k.toLowerCase() === r)) {
-      const attr = (ALLOWED[type] ?? []).find(([a]) => a.toLowerCase() === r)?.[0] ?? r;
-      return refused(65, "Object class violation", "Required attribute missing.", `${STRUCTURAL[type]} requires the attribute ${attr}.`);
-    }
+  const missing = missingRequired(type, next);
+  if (missing) return missing;
   n.attrs = next;
   return null;
 }
 
-/** The change set as Go's Preview writes it (text values only; hidden values become comments). */
+function fakeAdd(ch: EntryChange): Failure | null {
+  const d = directory();
+  if (d.has(key(ch.dn))) return refused(68, "Entry already exists", "Name taken.", "an entry with this DN already exists. Choose another name.");
+  const parent = parentDn(ch.dn);
+  if (!d.has(key(parent))) return notFound();
+  const attrs: Attrs = {};
+  for (const a of ch.attributes ?? []) {
+    if (a.kind === "password") {
+      if (a.password) attrs[a.name] = [`{SSHA}${btoa(a.password).slice(0, 28)}`];
+      continue;
+    }
+    const vals = (a.after ?? []).filter((v) => v.trim());
+    if (vals.length) attrs[a.name] = vals;
+  }
+  const missing = missingRequired(typeOf(attrs.objectClass ?? [], ch.dn), attrs);
+  if (missing) return missing;
+  d.set(key(ch.dn), { dn: ch.dn, attrs: { ...attrs, createTimestamp: ["20261111120000Z"], creatorsName: [`cn=admin,${BASE}`], entryUUID: [crypto.randomUUID()] }, children: [] });
+  d.get(key(parent))!.children.push(ch.dn);
+  return null;
+}
+
+function fakeDelete(dn: string): Failure | null {
+  const d = directory();
+  const n = d.get(key(dn));
+  if (!n) return notFound();
+  if (n.children.length) return nonLeaf();
+  d.delete(key(dn));
+  const p = d.get(key(parentDn(dn)));
+  if (p) p.children = p.children.filter((c) => key(c) !== key(dn));
+  return null;
+}
+
+function fakeRename(dn: string, to: string): Failure | null {
+  const d = directory();
+  const n = d.get(key(dn));
+  if (!n) return notFound();
+  if (n.children.length) return refused(66, "Not allowed on non-leaf", "Entry has children.", "Kanopa renames only entries without entries below them.");
+  if (d.has(key(to))) return refused(68, "Entry already exists", "Name taken.", "an entry with this DN already exists. Choose another name.");
+  const [attrEq, oldValue] = rdnParts(splitDn(dn)[0]);
+  const [, newValue] = rdnParts(splitDn(to)[0]);
+  const attr = nameIn(n.attrs, attrEq.slice(0, -1));
+  const unesc = (v: string) => v.replace(/\\(.)/g, "$1");
+  n.attrs[attr] = [...(n.attrs[attr] ?? []).filter((v) => v !== unesc(oldValue)), unesc(newValue)];
+  n.dn = to;
+  d.delete(key(dn));
+  d.set(key(to), n);
+  const p = d.get(key(parentDn(dn)));
+  if (p) p.children = p.children.map((c) => (key(c) === key(dn) ? to : c));
+  return null;
+}
+
+interface Step {
+  index: number;
+  op: string;
+  dn: string;
+  to?: string;
+  newRdn?: string;
+  ch: EntryChange;
+}
+
+const escapeRdn = (v: string) =>
+  [...v].map((c, i) => (`,+"\\<>;`.includes(c) || (i === 0 && (c === " " || c === "#")) || (i === v.length - 1 && c === " ") ? `\\${c}` : c)).join("");
+
+/** Go's orderChanges: renames, adds parents first, modifies, deletes children first; DNs follow renames. */
+function order(changes: EntryChange[]): Step[] {
+  const moves: Array<[string, string]> = [];
+  const steps: Step[] = changes.map((ch, index) => {
+    const op = ch.op || "modify";
+    if (op !== "rename") return { index, op, dn: ch.dn, ch };
+    const [attr] = rdnParts(splitDn(ch.dn)[0]);
+    const newRdn = `${attr}${escapeRdn(ch.newRdn)}`;
+    const to = `${newRdn},${parentDn(ch.dn)}`;
+    moves.push([ch.dn, to]);
+    return { index, op, dn: ch.dn, to, newRdn, ch };
+  });
+  const rewrite = (dn: string) => {
+    for (const [from, to] of moves) {
+      if (key(dn) === key(from)) return to;
+      if (key(dn).endsWith(`,${key(from)}`)) return `${splitDn(dn).slice(0, splitDn(dn).length - splitDn(from).length).join(",")},${to}`;
+    }
+    return dn;
+  };
+  for (const s of steps) {
+    if (s.op === "rename") continue;
+    s.dn = rewrite(s.dn);
+    s.ch = {
+      ...s.ch, dn: s.dn,
+      attributes: (s.ch.attributes ?? []).map((a) => (a.kind === "dn" ? { ...a, after: (a.after ?? []).map(rewrite), add: (a.add ?? []).map(rewrite) } : a)),
+    };
+  }
+  const rank: Record<string, number> = { rename: 0, add: 1, modify: 2, delete: 3 };
+  const depth = (dn: string) => splitDn(dn).length;
+  return [...steps].sort((a, b) => rank[a.op] - rank[b.op] || (a.op === "add" ? depth(a.dn) - depth(b.dn) : a.op === "delete" ? depth(b.dn) - depth(a.dn) : 0));
+}
+
+/** Applies a change set like Go's ChangeService.Apply: in order, stopping at the first refusal. */
+export function fakeApply(changes: EntryChange[], refuse?: () => Failure | null): EntryResult[] {
+  const out: EntryResult[] = [];
+  for (const s of order(changes)) {
+    const f =
+      refuse?.() ??
+      (s.op === "add" ? fakeAdd(s.ch) : s.op === "delete" ? fakeDelete(s.dn) : s.op === "rename" ? fakeRename(s.dn, s.to!) : fakeModify(s.ch));
+    const dn = s.op === "rename" && !f ? s.to! : s.dn;
+    out.push({ index: s.index, op: s.op, dn, ok: !f, node: f || s.op === "delete" ? null : fakeNode(dn), failure: f });
+    if (f) break;
+  }
+  return out;
+}
+
+/** The change set as Go's Preview writes it, in the order Apply sends it. */
 export function fakePreview(changes: EntryChange[]): string {
   const records: string[] = [];
-  for (const ch of changes) {
+  for (const s of order(changes)) {
+    const ch = s.ch;
     const lines: string[] = [];
     if (ch.title) lines.push(`# ${ch.title}`);
-    lines.push(ldifLine("dn", ch.dn), "changetype: modify");
+    if (s.op === "delete") {
+      records.push([...lines, ldifLine("dn", s.dn), "changetype: delete"].join("\n") + "\n");
+      continue;
+    }
+    if (s.op === "rename") {
+      records.push([...lines, ldifLine("dn", s.dn), "changetype: modrdn", ldifLine("newrdn", s.newRdn!), "deleteoldrdn: 1"].join("\n") + "\n");
+      continue;
+    }
+    if (s.op === "add") {
+      lines.push(ldifLine("dn", s.dn), "changetype: add");
+      for (const a of ch.attributes ?? []) {
+        if (a.kind === "password") continue;
+        for (const v of a.after ?? []) lines.push(ldifLine(a.name, v));
+      }
+      if ((ch.attributes ?? []).some((a) => a.kind === "password" && a.password))
+        lines.push("# userPassword is set with the Password Modify operation (RFC 3062) after the add; it is not shown.");
+      records.push(lines.join("\n") + "\n");
+      continue;
+    }
+    lines.push(ldifLine("dn", s.dn), "changetype: modify");
     let password = false;
+    let any = false;
     for (const a of ch.attributes ?? []) {
+      if (isDelta(a)) {
+        if (a.remove?.length) lines.push(`delete: ${a.name}`, ...a.remove.map((v) => ldifLine(a.name, v)), "-");
+        if (a.add?.length) lines.push(`add: ${a.name}`, ...a.add.map((v) => ldifLine(a.name, v)), "-");
+        any = true;
+        continue;
+      }
       const before = a.before ?? [];
       const after = a.after ?? [];
       const added = after.filter((v) => !before.includes(v));
@@ -250,6 +405,7 @@ export function fakePreview(changes: EntryChange[]): string {
         continue;
       }
       if (!added.length && !removed.length) continue;
+      any = true;
       if (a.kind === "binary" || a.kind === "password") {
         lines.push(`delete: ${a.name}`, `# ${removed.length} ${a.kind} value${removed.length === 1 ? "" : "s"} removed, not shown`, "-");
         continue;
@@ -259,7 +415,7 @@ export function fakePreview(changes: EntryChange[]): string {
       lines.push(`${op}: ${a.name}`, ...vals.map((v) => ldifLine(a.name, v)), "-");
     }
     if (password) lines.splice(ch.title ? 1 : 0, 0, "# The password is set with the Password Modify operation (RFC 3062); it is not shown.");
-    if (lines.length > (ch.title ? 3 : 2) + (password ? 1 : 0) || password) records.push(lines.join("\n") + "\n");
+    if (any || password) records.push(lines.join("\n") + "\n");
   }
   return records.join("\n");
 }
@@ -268,6 +424,56 @@ export function fakeMemberOf(dn: string): RelatedEntry[] {
   const out: RelatedEntry[] = [];
   for (const n of directory().values())
     if ((n.attrs.member ?? []).some((m) => key(m) === key(dn)))
-      out.push({ dn: n.dn, name: n.attrs.cn[0], type: "group", description: n.attrs.description?.[0] ?? "" });
+      out.push({ dn: n.dn, name: n.attrs.cn[0], type: "group", description: n.attrs.description?.[0] ?? "", memberAttr: "member" });
   return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Groups that list dn, as Go's Referrers finds them. */
+export function fakeReferrers(dn: string): RelatedEntry[] {
+  return fakeMemberOf(dn).map((g) => ({ ...g, description: "" }));
+}
+
+/** Picker search, as Go's DirectoryService.Find. */
+export function fakeFind(kind: "people" | "groups", q: string): FindResult {
+  const t = q.trim();
+  const filter =
+    kind === "people"
+      ? `(&(objectClass=inetOrgPerson)(|(uid=${t}*)(cn=*${t}*)(mail=${t}*)))`
+      : `(&(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames))(cn=*${t}*))`;
+  if ([...t].length < 2) return { entries: [], total: 0, more: false, filter, base: BASE, failure: null };
+  const l = t.toLowerCase();
+  const hits: RelatedEntry[] = [];
+  for (const n of directory().values()) {
+    const oc = n.attrs.objectClass ?? [];
+    const cn = n.attrs.cn?.[0] ?? "";
+    if (kind === "people") {
+      if (!has(oc, "inetOrgPerson")) continue;
+      const uid = n.attrs.uid?.[0] ?? "";
+      const mail = n.attrs.mail?.[0] ?? "";
+      if (!(uid.toLowerCase().startsWith(l) || cn.toLowerCase().includes(l) || mail.toLowerCase().startsWith(l))) continue;
+      hits.push({ dn: n.dn, name: cn, type: "person", description: mail, memberAttr: "" });
+    } else {
+      if (!has(oc, "groupOfNames", "groupOfUniqueNames") || !cn.toLowerCase().includes(l)) continue;
+      hits.push({ dn: n.dn, name: cn, type: "group", description: n.attrs.description?.[0] ?? "", memberAttr: has(oc, "groupOfNames") ? "member" : "uniqueMember" });
+    }
+  }
+  hits.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+  return { entries: hits.slice(0, 8), total: hits.length, more: false, filter, base: BASE, failure: null };
+}
+
+/** A sample of the fixture's schema, as Go's ObjectClasses lists it. */
+export function fakeClasses(): ClassInfo[] {
+  const a = (name: string, kind = "text", singleValue = false) => ({ name, kind, singleValue, required: false });
+  const must = (...names: string[]) => names.map((n) => ({ ...a(n), required: true }));
+  const personMay = [a("description"), a("seeAlso", "dn"), a("telephoneNumber"), a("userPassword", "password")];
+  return [
+    { name: "account", kind: "STRUCTURAL", desc: "RFC1274: account", must: must("uid"), may: [a("description"), a("host"), a("l"), a("o"), a("ou"), a("seeAlso", "dn")] },
+    { name: "device", kind: "STRUCTURAL", desc: "RFC2256: a device", must: must("cn"), may: [a("description"), a("l"), a("o"), a("ou"), a("owner", "dn"), a("serialNumber"), a("seeAlso", "dn")] },
+    { name: "groupOfNames", kind: "STRUCTURAL", desc: "RFC2256: a group of names (DNs)", must: [...must("cn"), { ...a("member", "dn"), required: true }], may: [a("businessCategory"), a("description"), a("o"), a("ou"), a("owner", "dn"), a("seeAlso", "dn")] },
+    { name: "inetOrgPerson", kind: "STRUCTURAL", desc: "RFC2798: Internet Organizational Person", must: must("sn", "cn"), may: [a("displayName", "text", true), a("givenName"), a("mail"), a("title"), a("uid"), ...personMay] },
+    { name: "ipHost", kind: "AUXILIARY", desc: "Abstraction of a host, an IP device", must: [...must("cn"), { ...a("ipHostNumber"), required: true }], may: [a("description"), a("l"), a("manager", "dn")] },
+    { name: "organizationalUnit", kind: "STRUCTURAL", desc: "RFC2256: an organizational unit", must: must("ou"), may: [a("description"), a("l"), a("postalCode"), a("seeAlso", "dn"), a("telephoneNumber")] },
+    { name: "person", kind: "STRUCTURAL", desc: "RFC2256: a person", must: must("sn", "cn"), may: personMay },
+    { name: "simpleSecurityObject", kind: "AUXILIARY", desc: "RFC1274: simple security object", must: [{ ...a("userPassword", "password"), required: true }], may: [] },
+  ];
 }

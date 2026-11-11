@@ -16,8 +16,8 @@ export interface AllowedAttribute {
 }
 
 /**
- * ApplyResult lists the entries tried, in order. Apply stops at the first failure: the entries
- * after it are not tried and keep their changes.
+ * ApplyResult lists the changes tried, in the order they were sent (see orderChanges). Apply
+ * stops at the first failure: the changes after it are not tried and stay pending.
  */
 export interface ApplyResult {
     "results": EntryResult[] | null;
@@ -34,6 +34,9 @@ export interface ApplyResult {
  * AttributeChange is one attribute before and after the person's edits. Text and DN values are
  * the values themselves; binary and password values are the ids the entry view gave them.
  * After empty removes the attribute. Password, when set, is the new password.
+ * 
+ * A change can instead name values to add and remove (membership): Add and Remove, with Before
+ * and After empty. Values to remove must still be there; values already there are not added again.
  */
 export interface AttributeChange {
     "name": string;
@@ -45,6 +48,36 @@ export interface AttributeChange {
     "before": string[] | null;
     "after": string[] | null;
     "password": string;
+    "add": string[] | null;
+    "remove": string[] | null;
+}
+
+/**
+ * ClassInfo is one object class of the server's schema, as the New entry form offers it: what it
+ * requires and allows, superclasses included.
+ */
+export interface ClassInfo {
+    "name": string;
+
+    /**
+     * STRUCTURAL | AUXILIARY | ABSTRACT
+     */
+    "kind": string;
+    "desc": string;
+
+    /**
+     * objectClass left out
+     */
+    "must": AllowedAttribute[] | null;
+    "may": AllowedAttribute[] | null;
+}
+
+/**
+ * ClassesResult lists the object classes Kanopa can create entries with.
+ */
+export interface ClassesResult {
+    "classes": ClassInfo[] | null;
+    "failure": Failure | null;
 }
 
 /**
@@ -86,6 +119,19 @@ export interface ConnectionParams {
 }
 
 /**
+ * CountResult is how many entries lie directly below an entry.
+ */
+export interface CountResult {
+    "count": number;
+
+    /**
+     * more than were counted
+     */
+    "more": boolean;
+    "failure": Failure | null;
+}
+
+/**
  * EntryAttribute is one attribute as the entry view shows it.
  */
 export interface EntryAttribute {
@@ -120,6 +166,16 @@ export interface EntryChange {
      * shown as a comment in the LDIF
      */
     "title": string;
+
+    /**
+     * modify (or empty) | add | delete | rename
+     */
+    "op": string;
+
+    /**
+     * rename: the new value of the naming attribute, as typed
+     */
+    "newRdn": string;
     "attributes": AttributeChange[] | null;
 }
 
@@ -127,6 +183,19 @@ export interface EntryChange {
  * EntryResult is how applying one entry's changes went.
  */
 export interface EntryResult {
+    /**
+     * the change's position in the set the UI sent
+     */
+    "index": number;
+
+    /**
+     * modify | add | delete | rename
+     */
+    "op": string;
+
+    /**
+     * where it applied: for a rename, the new DN
+     */
     "dn": string;
     "ok": boolean;
 
@@ -170,6 +239,22 @@ export interface Failure {
 }
 
 /**
+ * FindResult is one search for a picker: the first hits and how many match in all.
+ */
+export interface FindResult {
+    "entries": RelatedEntry[] | null;
+    "total": number;
+
+    /**
+     * more match than were counted
+     */
+    "more": boolean;
+    "filter": string;
+    "base": string;
+    "failure": Failure | null;
+}
+
+/**
  * ListResult is the saved connections, plus a one-time notice about the file.
  */
 export interface ListResult {
@@ -194,6 +279,12 @@ export interface RelatedEntry {
     "name": string;
     "type": string;
     "description": string;
+
+    /**
+     * MemberAttr is, for a group, the attribute that lists its members (member or uniqueMember);
+     * empty when Kanopa can't edit its membership (a posixGroup lists uids).
+     */
+    "memberAttr": string;
 }
 
 /**

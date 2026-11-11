@@ -51,6 +51,17 @@ func (l *liveSession) cacheChildren(dn string, c *childList) {
 	l.children[strings.ToLower(dn)] = c
 }
 
+// forgetChildren drops the cached child list of parent, so the next read asks the server.
+func (l *liveSession) forgetChildren(parent string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for k := range l.children {
+		if ldapx.SameDN(k, parent) {
+			delete(l.children, k)
+		}
+	}
+}
+
 // updateChild replaces the cached node of an entry that changed, wherever it is listed.
 func (l *liveSession) updateChild(n TreeNode) {
 	l.mu.Lock()

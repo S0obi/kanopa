@@ -142,7 +142,7 @@ export function LdifView({ value, label = "LDIF", className }: { value: string; 
           <div className="kn-ldif__hl">
             {lines.map((toks, i) => (
               <div key={i} className="kn-ldif__line">
-                {toks.length ? toks.map((t, j) => <span key={j} className={`kn-syn-${t[0]}`}>{t[1]}</span>) : "200b"}
+                {toks.length ? toks.map((t, j) => <span key={j} className={`kn-syn-${t[0]}`}>{t[1]}</span>) : "​"}
               </div>
             ))}
           </div>

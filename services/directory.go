@@ -104,6 +104,183 @@ type RelatedEntry struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
+	// MemberAttr is, for a group, the attribute that lists its members (member or uniqueMember);
+	// empty when Kanopa can't edit its membership (a posixGroup lists uids).
+	MemberAttr string `json:"memberAttr"`
+}
+
+// FindResult is one search for a picker: the first hits and how many match in all.
+type FindResult struct {
+	Entries []RelatedEntry `json:"entries"`
+	Total   int            `json:"total"`
+	More    bool           `json:"more"` // more match than were counted
+	Filter  string         `json:"filter"`
+	Base    string         `json:"base"`
+	Failure *Failure       `json:"failure"`
+}
+
+// Picker limits: hits shown, and matches counted for the total.
+const (
+	findHits  = 8
+	findCount = 1000
+)
+
+// memberAttrOf is the attribute a group lists its members in, by its object classes.
+func memberAttrOf(classes []string) string {
+	switch {
+	case hasClass(classes, "groupOfNames"), hasClass(classes, "groupOfMembers"):
+		return "member"
+	case hasClass(classes, "groupOfUniqueNames"):
+		return "uniqueMember"
+	}
+	return ""
+}
+
+// Find searches the connection's base DN for a picker: kind "people" (inetOrgPerson by uid, cn
+// or mail) or "groups" (groupOfNames and groupOfUniqueNames by cn). q needs 2 characters.
+func (d *DirectoryService) Find(ctx context.Context, id, kind, q string) FindResult {
+	l, f := d.session(id)
+	if f != nil {
+		return FindResult{Failure: f, Entries: []RelatedEntry{}}
+	}
+	q = strings.TrimSpace(q)
+	out := FindResult{Entries: []RelatedEntry{}, Base: l.baseDN}
+	e := ldapx.EscapeFilter(q)
+	switch kind {
+	case "people":
+		out.Filter = "(&(objectClass=inetOrgPerson)(|(uid=" + e + "*)(cn=*" + e + "*)(mail=" + e + "*)))"
+	case "groups":
+		out.Filter = "(&(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames))(cn=*" + e + "*))"
+	default:
+		out.Failure = &Failure{Title: "Search failed.", Message: fmt.Sprintf("Kanopa can't search for %q.", kind)}
+		return out
+	}
+	if len([]rune(q)) < 2 {
+		return out
+	}
+	l.paged.Lock()
+	hits, total, more, err := l.Find(ctx, l.baseDN, out.Filter, findHits, findCount)
+	l.paged.Unlock()
+	if err != nil {
+		out.Failure = d.fail(l, err)
+		return out
+	}
+	out.Total, out.More = total, more
+	for _, h := range hits {
+		name := h.CN
+		if name == "" {
+			name = firstRDN(h.DN)
+		}
+		desc := h.Mail
+		if kind == "groups" || desc == "" {
+			desc = h.Description
+		}
+		out.Entries = append(out.Entries, RelatedEntry{DN: h.DN, Name: name, Type: typeOf(h.ObjectClasses, false), Description: desc,
+			MemberAttr: memberAttrOf(h.ObjectClasses)})
+	}
+	return out
+}
+
+// CountResult is how many entries lie directly below an entry.
+type CountResult struct {
+	Count   int      `json:"count"`
+	More    bool     `json:"more"` // more than were counted
+	Failure *Failure `json:"failure"`
+}
+
+// childCountLimit bounds the count the Delete dialog asks for.
+const childCountLimit = childLimit
+
+// CountChildren counts the entries directly below dn, reading no attributes: what the Delete
+// dialog says when the tree has not read them.
+func (d *DirectoryService) CountChildren(ctx context.Context, id, dn string) CountResult {
+	l, f := d.session(id)
+	if f != nil {
+		return CountResult{Failure: f}
+	}
+	l.paged.Lock()
+	n, more, err := l.CountChildren(ctx, dn, childCountLimit)
+	l.paged.Unlock()
+	if err != nil {
+		return CountResult{Failure: d.fail(l, err)}
+	}
+	return CountResult{Count: n, More: more}
+}
+
+// ClassInfo is one object class of the server's schema, as the New entry form offers it: what it
+// requires and allows, superclasses included.
+type ClassInfo struct {
+	Name string             `json:"name"`
+	Kind string             `json:"kind"` // STRUCTURAL | AUXILIARY | ABSTRACT
+	Desc string             `json:"desc"`
+	Must []AllowedAttribute `json:"must"` // objectClass left out
+	May  []AllowedAttribute `json:"may"`
+}
+
+// ClassesResult lists the object classes Kanopa can create entries with.
+type ClassesResult struct {
+	Classes []ClassInfo `json:"classes"`
+	Failure *Failure    `json:"failure"`
+}
+
+// ObjectClasses lists the structural and auxiliary object classes of the server's schema, with the
+// attributes each requires and allows. Abstract and obsolete classes are left out.
+func (d *DirectoryService) ObjectClasses(id string) ClassesResult {
+	l, f := d.session(id)
+	if f != nil {
+		return ClassesResult{Failure: f, Classes: []ClassInfo{}}
+	}
+	out := ClassesResult{Classes: []ClassInfo{}}
+	if l.schema == nil {
+		out.Failure = &Failure{Title: "Schema not read.", Message: "The server did not share its schema, so Kanopa can't list its object classes."}
+		return out
+	}
+	info := func(names []string, required bool) []AllowedAttribute {
+		list := []AllowedAttribute{}
+		for _, n := range names {
+			if strings.EqualFold(n, "objectClass") {
+				continue
+			}
+			def := l.schema.Attr(n)
+			if def != nil && def.Operational() {
+				continue
+			}
+			list = append(list, AllowedAttribute{Name: n, Kind: kindOf(n, def), SingleValue: def != nil && def.SingleValue, Required: required})
+		}
+		return list
+	}
+	for _, c := range l.schema.ClassList() {
+		if c.Kind == "ABSTRACT" || c.Obsolete || len(c.Names) == 0 {
+			continue
+		}
+		must, may := l.schema.Allowed([]string{c.Names[0]})
+		out.Classes = append(out.Classes, ClassInfo{Name: c.Names[0], Kind: c.Kind, Desc: c.Desc, Must: info(must, true), May: info(may, false)})
+	}
+	return out
+}
+
+// Referrers lists the groups under the base DN whose member or uniqueMember holds dn, with the
+// attribute that holds it: what a rename or a delete with cleanup updates.
+func (d *DirectoryService) Referrers(ctx context.Context, id, dn string) RelatedResult {
+	l, f := d.session(id)
+	if f != nil {
+		return RelatedResult{Failure: f, Entries: []RelatedEntry{}}
+	}
+	l.paged.Lock()
+	refs, truncated, err := l.Referrers(ctx, l.baseDN, dn, memberOfLimit)
+	l.paged.Unlock()
+	if err != nil {
+		return RelatedResult{Failure: d.fail(l, err), Entries: []RelatedEntry{}}
+	}
+	out := RelatedResult{Entries: []RelatedEntry{}, Truncated: truncated}
+	for _, r := range refs {
+		name := r.CN
+		if name == "" {
+			name = firstRDN(r.DN)
+		}
+		out.Entries = append(out.Entries, RelatedEntry{DN: r.DN, Name: name, Type: typeOf(r.ObjectClasses, false), MemberAttr: r.Attr})
+	}
+	return out
 }
 
 // RelatedResult lists related entries.
@@ -543,7 +720,8 @@ func (d *DirectoryService) MemberOf(ctx context.Context, id, dn string) RelatedR
 		if name == "" {
 			name = firstRDN(g.DN)
 		}
-		out.Entries = append(out.Entries, RelatedEntry{DN: g.DN, Name: name, Type: typeOf(g.ObjectClasses, false), Description: g.Description})
+		out.Entries = append(out.Entries, RelatedEntry{DN: g.DN, Name: name, Type: typeOf(g.ObjectClasses, false), Description: g.Description,
+			MemberAttr: memberAttrOf(g.ObjectClasses)})
 	}
 	return out
 }
