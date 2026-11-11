@@ -9,6 +9,7 @@ import {
   addEntry, escapeRdnValue, isDelta, isDnSyntax, markDelete, membership, renameEntry, renamedDn, unescapeRdnValue, useChanges, valuesAfter,
   type ChangeSet, type Link, type PendingAttr, type ValueKind,
 } from "./changes";
+import { PasswordPair, passwordErrors, passwordHint } from "./editors";
 import { dnKey, useBrowser } from "./store";
 
 /* ---------- shared lookups ---------- */
@@ -489,6 +490,8 @@ interface Field {
   kind: ValueKind;
   required: boolean;
   value: string;
+  /** A password field's confirmation. */
+  confirm?: string;
 }
 
 /** NewEntryForm: Person, Group or Other (object classes from the schema), under a parent. */
@@ -501,7 +504,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
   const [parent, setParent] = useState(initialParent);
   const [tried, setTried] = useState(false);
   // Person
-  const [p, setP] = useState({ given: "", sn: "", uid: "", cn: "", mail: "", title: "", pw: "" });
+  const [p, setP] = useState({ given: "", sn: "", uid: "", cn: "", mail: "", title: "", pw: "", pw2: "" });
   const [edited, setEdited] = useState({ uid: false, cn: false });
   // Group
   const [g, setG] = useState({ cn: "", description: "" });
@@ -540,6 +543,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
     if (!p.sn.trim()) errors.push("Object class violation (65) — inetOrgPerson requires the attribute sn.");
     if (!p.uid.trim()) errors.push("Naming violation (64) — enter a uid: it names the entry.");
     if (!p.cn.trim()) errors.push("Object class violation (65) — inetOrgPerson requires the attribute cn.");
+    errors.push(...passwordErrors(p.pw, p.pw2, false));
   } else if (kind === "group") {
     if (!g.cn.trim()) errors.push("Naming violation (64) — enter a group name: cn names the entry.");
     if (members.length === 0) errors.push("Object class violation (65) — groupOfNames requires the attribute member. Add a member.");
@@ -548,6 +552,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
     for (const f of otherFields) if (f.required && !f.value.trim()) errors.push(`Object class violation (65) — ${structural?.name ?? "the entry"} requires the attribute ${f.name}.`);
     if (!rdnAttr) errors.push("Naming violation (64) — choose the naming attribute.");
     for (const f of otherFields) if (f.kind === "dn" && f.value.trim() && !isDnSyntax(f.value)) errors.push(`Invalid DN syntax (34) — ${f.name} needs a DN.`);
+    for (const f of otherFields) if (f.kind === "password") errors.push(...passwordErrors(f.value, f.confirm ?? "", false));
   }
   if (rdn.endsWith("=") === false && taken(dn)) errors.push(`Entry already exists (68) — ${dn} is taken.`);
 
@@ -660,13 +665,19 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
           />
           <TextField label={label("Mail", "mail")} type="email" mono value={p.mail} onChange={(e) => setPerson("mail", e.target.value)} />
           <TextField label={label("Title", "title")} value={p.title} onChange={(e) => setPerson("title", e.target.value)} />
-          <TextField
+          <PasswordPair
+            className="col-span-2"
             label={label("Initial password", "userPassword")}
-            type="password"
-            autoComplete="new-password"
             value={p.pw}
-            hint={/^(LDAPS|StartTLS)$/.test(session.security) ? `Optional. Sent over ${session.security}; the server stores it hashed.` : "Optional. This connection is not encrypted: the password crosses the network as plain text."}
-            onChange={(e) => setPerson("pw", e.target.value)}
+            confirm={p.pw2}
+            onChange={(v) => setPerson("pw", v)}
+            onConfirm={(v) => setPerson("pw2", v)}
+            invalid={tried && passwordErrors(p.pw, p.pw2, false).length > 0}
+            hint={
+              /^(LDAPS|StartTLS)$/.test(session.security)
+                ? `Optional. ${passwordHint(session.security)}`
+                : "Optional. This connection is not encrypted: the password crosses the network as plain text."
+            }
           />
         </div>
       )}
@@ -762,13 +773,24 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
             <div className="flex flex-col gap-3">
               <Select label="Naming attribute (RDN)" mono value={rdnAttr} onChange={(e) => setRdnAttr(e.target.value)} options={fields.filter((f) => f.kind !== "password").map((f) => f.name)} />
               <div className="grid grid-cols-2 gap-3">
-                {fields.map((f, i) => (
+                {fields.map((f, i) =>
+                  f.kind === "password" ? (
+                    <PasswordPair
+                      key={f.name}
+                      className="col-span-2"
+                      label={label("", f.name, f.required)}
+                      value={f.value}
+                      confirm={f.confirm ?? ""}
+                      onChange={(v) => setFields(fields.map((x, j) => (j === i ? { ...x, value: v } : x)))}
+                      onConfirm={(v) => setFields(fields.map((x, j) => (j === i ? { ...x, confirm: v } : x)))}
+                      invalid={tried && passwordErrors(f.value, f.confirm ?? "", f.required).length > 0}
+                      hint={passwordHint(session.security)}
+                    />
+                  ) : (
                   <TextField
                     key={f.name}
                     label={label("", f.name, f.required)}
-                    mono={f.kind !== "password"}
-                    type={f.kind === "password" ? "password" : "text"}
-                    autoComplete={f.kind === "password" ? "new-password" : "off"}
+                    mono
                     value={f.value}
                     placeholder={f.kind === "dn" ? `uid=…,${session.baseDn}` : undefined}
                     trailing={
@@ -776,7 +798,8 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
                     }
                     onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
                   />
-                ))}
+                  ),
+                )}
               </div>
               {mayOptions.length > 0 && (
                 <Select
