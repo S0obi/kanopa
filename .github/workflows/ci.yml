@@ -1,0 +1,109 @@
+# Checks every PR and every push to main. Private repo on GitHub Free: about $0.035 a run out of the
+# $12 of monthly compute, so Linux only; Vitest, Playwright and the Windows build stay local.
+# Actions are pinned to the commit SHA of a release at least two weeks old (the version is in the comment).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to a PR cancels its older run; runs on main always finish.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint and security scans
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod # the toolchain directive wins
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # The tool versions live in Taskfile.yml, as for `wails3 task tools`.
+      - name: Read the pinned tool versions
+        id: tools
+        run: |
+          for v in GOLANGCI_LINT_VERSION GOVULNCHECK_VERSION; do
+            echo "$v=$(sed -n "s/^ *$v: *//p" Taskfile.yml)" >> "$GITHUB_OUTPUT"
+          done
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: tools-cache
+        with:
+          path: bin/tools
+          key: tools-${{ runner.os }}-${{ hashFiles('go.mod') }}-${{ steps.tools.outputs.GOLANGCI_LINT_VERSION }}-${{ steps.tools.outputs.GOVULNCHECK_VERSION }}
+
+      - name: Install golangci-lint and govulncheck
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        env:
+          GOBIN: ${{ github.workspace }}/bin/tools
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ steps.tools.outputs.GOLANGCI_LINT_VERSION }}
+          go install golang.org/x/vuln/cmd/govulncheck@${{ steps.tools.outputs.GOVULNCHECK_VERSION }}
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # main.go embeds frontend/dist; lint does not need a real build.
+      - name: Stand in for the built frontend
+        run: mkdir -p frontend/dist && touch frontend/dist/.keep
+
+      # Kanopa ships for Windows (macOS from S6), and the git hooks lint there too. On Linux, Wails
+      # needs the GTK4 and WebKitGTK C headers just to type-check main.go; checking the Windows
+      # build needs none.
+      - name: golangci-lint (gosec, staticcheck, errorlint, gofmt, goimports)
+        env:
+          GOOS: windows
+        run: bin/tools/golangci-lint run ./internal/... ./services/... ./test/... .
+
+      - name: govulncheck
+        env:
+          GOOS: windows
+        run: bin/tools/govulncheck ./...
+
+      - name: oxlint
+        working-directory: frontend
+        run: npx oxlint --deny-warnings
+
+      - name: tsc
+        working-directory: frontend
+        run: npx tsc
+
+      - name: npm audit
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=moderate
+
+  test:
+    name: Go tests (unit + OpenLDAP)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # testcontainers builds the OpenLDAP fixture (test/ldap) with the runner's Docker.
+      - name: Go unit and integration tests
+        run: go test -tags integration -count=1 ./internal/... ./services/...
