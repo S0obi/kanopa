@@ -119,6 +119,19 @@ export interface ConnectionParams {
 }
 
 /**
+ * CountResult is how many entries lie directly below an entry.
+ */
+export interface CountResult {
+    "count": number;
+
+    /**
+     * more than were counted
+     */
+    "more": boolean;
+    "failure": Failure | null;
+}
+
+/**
  * EntryAttribute is one attribute as the entry view shows it.
  */
 export interface EntryAttribute {

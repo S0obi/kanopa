@@ -4,6 +4,7 @@ import type {
   ApplyResult,
   ClassInfo,
   ClassesResult,
+  CountResult,
   ConnectionParams,
   ConnectResult,
   EntryAttribute,
@@ -24,7 +25,7 @@ import type {
 } from "../../bindings/github.com/S0obi/kanopa/services/models";
 
 export type {
-  AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FindResult, ListResult, PreviewResult,
+  AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FindResult, ListResult, PreviewResult,
   RelatedEntry, RelatedResult, SavedConnection,
   SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
 };
@@ -57,6 +58,8 @@ export interface Backend {
   memberOf(id: string, dn: string): Promise<RelatedResult>;
   /** Picker search under the base DN: kind "people" or "groups", q of 2 characters or more. */
   find(id: string, kind: "people" | "groups", q: string): Promise<FindResult>;
+  /** How many entries lie directly below dn, reading none of them. */
+  countChildren(id: string, dn: string): Promise<CountResult>;
   /** Structural and auxiliary object classes of the server's schema, for the New entry form. */
   objectClasses(id: string): Promise<ClassesResult>;
   /** Groups whose member or uniqueMember lists dn, with the attribute that lists it. */

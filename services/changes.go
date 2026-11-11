@@ -223,12 +223,17 @@ func (c *ChangeService) applyStep(ctx context.Context, l *liveSession, s step) e
 		return l.Delete(ctx, s.dn)
 	case opRename:
 		// Kanopa renames leaves only: an entry with entries below it would move them all, and every
-		// reference to them would need updating too.
-		if raw, err := l.ReadEntry(ctx, s.dn, l.referrals); err == nil {
-			if c := raw.Child(); (c.HasSubordinates != nil && *c.HasSubordinates) || c.NumSubordinates > 0 {
-				return &ldapx.Error{Code: 66, Name: ldapx.CodeName(66), Title: "Entry has children.", Lead: true,
-					Detail: "Kanopa renames only entries without entries below them."}
-			}
+		// reference to them would need updating too. Ask the server rather than trust an attribute
+		// it may not publish.
+		l.paged.Lock()
+		n, _, err := l.CountChildren(ctx, s.dn, 1)
+		l.paged.Unlock()
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			return &ldapx.Error{Code: 66, Name: ldapx.CodeName(66), Title: "Entry has children.", Lead: true,
+				Detail: "Kanopa renames only entries without entries below them."}
 		}
 		return l.Rename(ctx, s.dn, s.newRDN)
 	case opAdd:
@@ -239,10 +244,25 @@ func (c *ChangeService) applyStep(ctx context.Context, l *liveSession, s step) e
 		if err := l.Add(ctx, s.dn, attrs); err != nil {
 			return err
 		}
-		if password != "" {
-			return l.PasswordModify(ctx, s.dn, password)
+		if password == "" {
+			return nil
 		}
-		return nil
+		perr := l.PasswordModify(ctx, s.dn, password)
+		if perr == nil {
+			return nil
+		}
+		// Take the entry back, so the add stays one change that either happened or didn't:
+		// left in place, the next Apply would try to add it again and get 68.
+		if derr := l.Delete(ctx, s.dn); derr != nil {
+			var le *ldapx.Error
+			if errors.As(perr, &le) {
+				kept := *le
+				kept.Detail += " The entry was created without its password, and Kanopa could not remove it again: delete it, or set its password, by hand."
+				return &kept
+			}
+			return fmt.Errorf("%w; the entry was created without its password and could not be removed again", perr)
+		}
+		return perr
 	}
 	return c.applyEntry(ctx, l, s.ch)
 }

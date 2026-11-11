@@ -39,6 +39,7 @@ async function menu(user: Awaited<ReturnType<typeof open>>["user"], action: RegE
 beforeEach(() => {
   FAKE.delayMs = 0;
   FAKE.lost = false;
+  FAKE.failReferrers = false;
   resetFakeDirectory();
   useChanges.setState({ byConnection: {} });
   useToasts.setState({ toasts: [] });
@@ -221,5 +222,62 @@ describe("shaping the tree", () => {
     await heading("people");
     expect(screen.queryByRole("button", { name: "New entry" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "More entry actions" })).not.toBeInTheDocument();
+  });
+
+  it("a deleted DN can be used again once applied", async () => {
+    const { user } = await open();
+    await openPerson(user, "alan", "Alan Turing");
+    await menu(user, /Delete entry/);
+    const ask = await screen.findByRole("alertdialog", { name: /Delete uid=alan/ });
+    await waitFor(() => expect(within(ask).getByRole("button", { name: "Delete entry" })).toBeEnabled());
+    await user.click(within(ask).getByRole("button", { name: "Delete entry" }));
+    await user.click(within(bar()).getByRole("button", { name: /Apply/ }));
+    await screen.findByText("Saved 3 changes to localhost.");
+    await heading("people");
+    await user.click(screen.getByRole("button", { name: "New entry" }));
+    const dialog = screen.getByRole("dialog", { name: "New entry" });
+    await user.type(within(dialog).getByLabelText(/Last name/), "Turing");
+    await user.type(within(dialog).getByLabelText(/User ID/), "alan");
+    await user.click(within(dialog).getByRole("button", { name: "Create entry" }));
+    expect(screen.queryByText(/Entry already exists/)).not.toBeInTheDocument();
+    expect(await heading("Turing")).toBeInTheDocument();
+  });
+
+  it("won't rename or delete when it can't find the groups to update", async () => {
+    FAKE.failReferrers = true;
+    const { user } = await open();
+    await openPerson(user, "ada", "Ada Lovelace");
+    await menu(user, /Rename/);
+    const rename = await screen.findByRole("dialog", { name: /Rename uid=ada/ });
+    expect(await within(rename).findByText(/could not find the groups that list this entry/)).toBeInTheDocument();
+    await user.type(within(rename).getByRole("textbox", { name: /New name/ }), "x{Enter}");
+    expect(screen.queryByText("Pending rename.")).not.toBeInTheDocument();
+    await user.click(within(rename).getByRole("button", { name: "Cancel" }));
+
+    await menu(user, /Delete entry/);
+    const ask = await screen.findByRole("alertdialog", { name: /Delete uid=ada/ });
+    expect(await within(ask).findByText(/Administrative limit exceeded \(11\)/)).toBeInTheDocument();
+    expect(within(ask).getByRole("button", { name: "Delete entry" })).toBeDisabled();
+  });
+
+  it("Member of shows a join made in the group's attribute editor", async () => {
+    const { user } = await open();
+    await user.click(await item(/^ou=groups/));
+    await user.keyboard("{ArrowRight}");
+    await user.click(await item(/^cn=admins/));
+    await heading("admins");
+    const table = screen.getByRole("table", { name: "Attributes" });
+    await user.click(within(table).getByRole("button", { name: "Edit member" }));
+    const editor = screen.getByRole("dialog", { name: /Edit member/ });
+    await user.click(within(editor).getByRole("button", { name: "Add value" }));
+    await user.type(within(editor).getByRole("textbox", { name: "member value 3" }), `uid=katherine,${people}{Enter}`);
+    await user.click(await item(/^ou=people/));
+    await user.keyboard("{ArrowRight}");
+    await user.click(await item(/^uid=katherine,/));
+    await heading("Katherine Johnson");
+    await user.click(screen.getByRole("tab", { name: /Member of/ }));
+    // Katherine is in research and support; admins joins them.
+    expect(await screen.findByText("Member of 3 groups")).toBeInTheDocument();
+    expect(screen.getByText("Added")).toBeInTheDocument();
   });
 });

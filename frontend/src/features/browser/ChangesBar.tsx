@@ -24,7 +24,7 @@ export function useApplyChanges(session: SessionInfo) {
   const backend = useBackend();
   const qc = useQueryClient();
   const toast = useToasts((s) => s.show);
-  const { connection, failed, patchNodes, refresh, select } = useBrowser();
+  const { connection, failed, patchNodes, refresh, select, forget } = useBrowser();
   const id = session.connectionId;
   const set = useChanges((s) => s.byConnection[id]);
   const { applied, discard: drop } = useChanges();
@@ -45,6 +45,8 @@ export function useApplyChanges(session: SessionInfo) {
       const count = done.reduce((n, p) => n + (p.part === "modify" ? p.attrs.length : 1), 0);
       applied(id, done);
       if (done.length) {
+        // Deleted entries, and renamed ones under their old DN, are gone from the tree.
+        forget(ok.filter((x) => x.op === "delete" || x.op === "rename").map((x) => changes[x.index].dn));
         patchNodes(ok.flatMap((x) => (x.node ? [x.node] : [])));
         // An add, delete or rename changes its parent's list of children: read those again.
         const parents = [...new Set(ok.filter((x) => x.op !== "modify").map((x) => parentDn(x.dn)))];
