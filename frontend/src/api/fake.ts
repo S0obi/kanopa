@@ -20,6 +20,8 @@ export const FAKE = {
   delayMs: 250,
   /** Simulates a server that stopped answering. */
   lost: false,
+  /** Makes the referring-groups search fail, as a server over its limits would. */
+  failReferrers: false,
   /** Set by the fake backend: pretends the person closed the window. */
   requestClose: () => {},
   /** Entries with unapplied changes, as the app last reported them; closed once the window would close. */
@@ -303,6 +305,10 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
       const lost = check(id);
       return lost ? { entries: [], total: 0, more: false, filter: "", base: "", failure: lost } : fakeFind(kind, q);
     },
+    async countChildren(id, dn) {
+      const lost = check(id);
+      return lost ? { count: 0, more: false, failure: lost } : { count: (fakeChildren(dn) ?? []).length, more: false, failure: null };
+    },
     async objectClasses(id) {
       const lost = check(id);
       return lost ? { classes: [], failure: lost } : { classes: fakeClasses(), failure: null };
@@ -310,7 +316,10 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     async referrers(id, dn) {
       await wait(FAKE.delayMs / 2);
       const lost = check(id);
-      return lost ? { entries: [], truncated: false, failure: lost } : { entries: fakeReferrers(dn), truncated: false, failure: null };
+      if (lost) return { entries: [], truncated: false, failure: lost };
+      if (FAKE.failReferrers)
+        return { entries: [], truncated: false, failure: { title: "Request refused.", message: "Administrative limit exceeded (11) — the server stopped the search.", code: 11, lost: false } };
+      return { entries: fakeReferrers(dn), truncated: false, failure: null };
     },
     async setPendingChanges(n) {
       FAKE.window.pending = n;

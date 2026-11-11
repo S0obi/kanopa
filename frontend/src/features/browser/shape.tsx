@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBackend, type ClassInfo, type EntryView, type RelatedEntry, type SessionInfo } from "@/api/backend";
+import { hostOf } from "@/features/connections/url";
 import { parentDn, rdnParts, sameDn, splitDn } from "@/lib/dn";
 import { plural } from "@/lib/time";
 import { Banner, Button, Checkbox, ConfirmDialog, Dialog, EmptyState, Select, Skeleton, TextField, TypeTile, cx } from "@/ui";
 import {
-  addEntry, escapeRdnValue, isDnSyntax, markDelete, membership, renameEntry, renamedDn, unescapeRdnValue, useChanges, valuesAfter,
+  addEntry, escapeRdnValue, isDelta, isDnSyntax, markDelete, membership, renameEntry, renamedDn, unescapeRdnValue, useChanges, valuesAfter,
   type ChangeSet, type Link, type PendingAttr, type ValueKind,
 } from "./changes";
 import { dnKey, useBrowser } from "./store";
@@ -57,8 +58,12 @@ export function RenameDialog({ id, entry, onClose }: { id: string; entry: EntryV
   const parent = parentDn(entry.dn);
   const to = renamedDn(entry.dn, value.trim());
   const groups = refs.data?.entries ?? [];
+  // Without the groups that list it, a rename would leave them pointing at the old DN.
+  const lookup = refs.data?.failure ? `Kanopa could not find the groups that list this entry, so it can't keep them in step. ${refs.data.failure.message}` : "";
 
-  const error = !value.trim()
+  const error = lookup
+    ? lookup
+    : !value.trim()
     ? `Naming violation (64) — enter a value for ${attr}.`
     : value.trim() === current
       ? "Enter a new name; this is the current one."
@@ -114,7 +119,7 @@ export function RenameDialog({ id, entry, onClose }: { id: string; entry: EntryV
       />
       <DnPreview rdn={rdnOf(to)} parent={parent} />
       <span className="text-[12px] leading-4 text-ink-muted">{hint}</span>
-      {tried && error && (
+      {(tried || lookup) && error && (
         <Banner tone="danger" title="Not renamed yet.">
           {error}
         </Banner>
@@ -147,16 +152,17 @@ export function DeleteDialog({ id, entry, host, onClose }: { id: string; entry: 
   const known = node?.children ? (node.total ?? node.children.length) : node && !node.node.hasChildren ? 0 : undefined;
   const count = useQuery({
     queryKey: ["childCount", id, dnKey(entry.dn)],
-    queryFn: async () => (await backend.children(id, entry.dn, "")).total,
+    queryFn: () => backend.countChildren(id, entry.dn),
     enabled: known === undefined,
   });
-  const below = known ?? count.data;
+  const below = known ?? (count.data && !count.data.failure ? count.data.count : undefined);
   const groups = refs.data?.entries ?? [];
+  const lookup = refs.data?.failure ?? (count.data?.failure || undefined);
   const rdn = rdnOf(entry.dn);
   const isGroup = entry.type === "group";
   const members = (entry.attributes ?? []).filter((a) => /^(member|uniqueMember)$/i.test(a.name)).flatMap((a) => a.values ?? []).length;
   const blocked = (below ?? 0) > 0;
-  const loading = below === undefined || refs.isPending;
+  const loading = !lookup && (below === undefined || refs.isPending);
 
   let body: string;
   if (blocked) body = `${rdn} still has ${plural(below!, "entry", "entries")} below it.`;
@@ -174,15 +180,19 @@ export function DeleteDialog({ id, entry, host, onClose }: { id: string; entry: 
         </>
       }
       confirmLabel="Delete entry"
-      confirmDisabled={blocked || loading}
+      confirmDisabled={blocked || loading || !!lookup}
       onCancel={onClose}
       onConfirm={() => {
-        if (blocked || loading) return;
+        if (blocked || loading || lookup) return;
         update(id, (set) => markDelete(set, entry, cleanup ? linksOf(groups) : []));
         onClose();
       }}
     >
-      {loading ? (
+      {lookup ? (
+        <Banner tone="danger" title="Can't tell what is lost.">
+          Kanopa could not count the entries below it or find the groups that list it, so it won't stage the delete. {lookup.message}
+        </Banner>
+      ) : loading ? (
         <Skeleton variant="text" rows={2} label="Counting what is lost" />
       ) : (
         <div className="flex flex-col gap-3">
@@ -457,7 +467,7 @@ function memberOfRows(groups: RelatedEntry[], set: ChangeSet | undefined, dn: st
   }
   for (const e of Object.values(set ?? {})) {
     if (groups.some((g) => sameDn(g.dn, e.dn))) continue;
-    const a = e.attrs.find((x) => holds(x.add));
+    const a = e.attrs.find((x) => holds(x.add) || (!isDelta(x) && x.kind === "dn" && holds(x.after) && !holds(x.before)));
     if (a) rows.push({ dn: e.dn, name: e.title || rdnValue(e.dn), type: "group", state: "added", canRemove: false, attr: a.name });
   }
   return rows;
@@ -598,7 +608,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
   return (
     <Dialog
       title="New entry"
-      description={`The entry joins your pending changes. Nothing is written to ${hostName(session.url)} until you apply.`}
+      description={`The entry joins your pending changes. Nothing is written to ${hostOf(session.url)} until you apply.`}
       onClose={onClose}
       width={660}
       footerStart={<code className="kn-new__ocs">objectClass: {ocs.join(", ")}</code>}
@@ -794,7 +804,6 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
   );
 }
 
-const hostName = (url: string) => url.replace(/^ldaps?:\/\//i, "").replace(/:\d+$/, "");
 
 function typeFor(ocs: string[]): string {
   const has = (...n: string[]) => ocs.some((o) => n.some((x) => x.toLowerCase() === o.toLowerCase()));

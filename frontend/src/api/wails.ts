@@ -27,6 +27,7 @@ export const wailsBackend: Backend = {
   find: (id, kind, q) => DirectoryService.Find(id, kind, q),
   referrers: (id, dn) => DirectoryService.Referrers(id, dn),
   objectClasses: (id) => DirectoryService.ObjectClasses(id),
+  countChildren: (id, dn) => DirectoryService.CountChildren(id, dn),
   ping: (id) => DirectoryService.Ping(id),
   copyText: async (text) => {
     await Clipboard.SetText(text);

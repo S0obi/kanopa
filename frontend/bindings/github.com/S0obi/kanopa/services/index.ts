@@ -20,6 +20,7 @@ export type {
     ClassesResult,
     ConnectResult,
     ConnectionParams,
+    CountResult,
     EntryAttribute,
     EntryChange,
     EntryResult,

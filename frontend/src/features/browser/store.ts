@@ -42,6 +42,8 @@ interface BrowserState {
   patchNodes(list: TreeNode[]): void;
   /** Reads the children of dn again from the first page, if the tree has read them. */
   refresh(b: Backend, dn: string): Promise<void>;
+  /** Forgets entries that no longer exist under these DNs (deleted, or renamed away). */
+  forget(dns: string[]): void;
   /** Reads the roots and every expanded entry again (Refresh, and after Reconnect). */
   reload(b: Backend): Promise<void>;
   /** Any read that failed: a lost connection switches the whole screen to "lost". */
@@ -156,6 +158,20 @@ export const useBrowser = create<BrowserState>((set, get) => {
 
     patchNodes(list) {
       if (list.length) set({ nodes: putNodes(list) });
+    },
+    forget(dns) {
+      if (!dns.length) return;
+      set((s) => {
+        const gone = new Set(dns.map(dnKey));
+        const nodes: Record<string, NodeState> = {};
+        for (const [k, n] of Object.entries(s.nodes)) {
+          if (gone.has(k)) continue;
+          nodes[k] = n.children?.some((c) => gone.has(c)) ? { ...n, children: n.children.filter((c) => !gone.has(c)) } : n;
+        }
+        const expanded = { ...s.expanded };
+        for (const k of gone) delete expanded[k];
+        return { nodes, expanded };
+      });
     },
     async refresh(b, dn) {
       const k = dnKey(dn);

@@ -91,4 +91,16 @@ describe("shaping the tree", () => {
     expect(Object.keys(left)).toEqual([`uid=ada.l,${people}`]);
     expect(left[`uid=ada.l,${people}`]).toMatchObject({ dn: `uid=ada.l,${people}`, rename: undefined, attrs: [{ name: "title" }] });
   });
+
+  it("an applied rename moves what is left, and DN values follow it", () => {
+    const grace = `uid=grace,${people}`;
+    let set: ChangeSet = renameEntry({}, ada, "ada.l", []);
+    set = { ...set, [grace]: { dn: grace, title: "Grace", attrs: [{ name: "manager", kind: "dn", before: [], after: [ada.dn] }] } };
+    const { parts } = buildChanges(set);
+    // Apply sent the rename; while it ran the person renamed Ada again.
+    set = renameEntry(set, ada, "ada.x", []);
+    const left = dropApplied(set, [parts.find((p) => p.part === "rename")!]);
+    expect(left[`uid=ada.l,${people}`]).toMatchObject({ dn: `uid=ada.l,${people}`, rename: "ada.x" });
+    expect(left[grace].attrs[0].after).toEqual([`uid=ada.l,${people}`]);
+  });
 });

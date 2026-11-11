@@ -229,6 +229,8 @@ export interface Part {
   key: string;
   part: "add" | "delete" | "rename" | "modify";
   attrs: PendingAttr[];
+  /** rename: the value sent, which the person may change again while Apply runs. */
+  rename?: string;
 }
 
 /**
@@ -244,7 +246,7 @@ export function buildChanges(set: ChangeSet, opts: { preview?: boolean } = {}): 
   const parts: Part[] = [];
   const push = (key: string, part: Part["part"], c: Partial<EntryChange> & { dn: string; title: string }, attrs: PendingAttr[] = []) => {
     changes.push({ op: part, newRdn: "", attributes: [], ...c });
-    parts.push({ key, part, attrs });
+    parts.push({ key, part, attrs, rename: part === "rename" ? c.newRdn : undefined });
   };
   for (const [key, e] of Object.entries(set)) {
     if (e.op === "add") push(key, "add", { dn: e.dn, title: e.title, attributes: e.attrs.map(attrOf) }, e.attrs);
@@ -278,10 +280,25 @@ export function dropApplied(set: ChangeSet, done: Part[]): ChangeSet {
       next = put(next, { ...e, attrs: e.attrs.filter((a) => !p.attrs.includes(a)) });
       continue;
     }
-    // rename
-    const to = renamedDn(e.dn, e.rename ?? "");
+    // rename: the server now has the entry at the DN the sent value gives.
+    const to = renamedDn(e.dn, p.rename ?? e.rename ?? "");
     delete next[p.key];
-    next = put(next, { ...e, dn: to, rename: undefined, links: undefined });
+    // Renamed again while Apply ran: that rename stays, from the new DN.
+    const again = e.rename !== undefined && e.rename !== p.rename && e.rename !== unescapeRdnValue(rdnParts(rdnOf(to))[1]) ? e.rename : undefined;
+    next = put(next, { ...e, dn: to, rename: again, links: undefined });
+    next = followRename(next, e.dn, to);
+  }
+  return next;
+}
+
+/** Pending DN values that name from now name to: the server renamed the entry. */
+function followRename(set: ChangeSet, from: string, to: string): ChangeSet {
+  const same = (v: string) => dnKey(v) === dnKey(from);
+  const swap = (vals: string[] | undefined) => (vals?.some(same) ? vals.map((v) => (same(v) ? to : v)) : vals);
+  const next: ChangeSet = {};
+  for (const [k, e] of Object.entries(set)) {
+    const attrs = e.attrs.map((a) => (a.kind === "dn" ? { ...a, after: swap(a.after) ?? [], add: swap(a.add) } : a));
+    next[k] = attrs.some((a, i) => a !== e.attrs[i]) ? { ...e, attrs } : e;
   }
   return next;
 }

@@ -133,6 +133,31 @@ func TestShapeTheTree(t *testing.T) {
 		}
 	})
 
+	t.Run("an add whose password can't be set is taken back", func(t *testing.T) {
+		// device allows no userPassword: the add succeeds, Password Modify is refused (65).
+		dev := "cn=locked01,ou=hosts," + testldap.BaseDN
+		r := c.Apply(ctx, admin, []EntryChange{{Op: opAdd, DN: dev, Attributes: []AttributeChange{
+			{Name: "objectClass", Kind: "text", After: []string{"device", "top"}},
+			{Name: "cn", Kind: "text", After: []string{"locked01"}},
+			{Name: "userPassword", Kind: "password", Password: "x-Passw0rd"},
+		}}})
+		if f := r.Results[0].Failure; f == nil || r.Applied != 0 {
+			t.Fatalf("want the add refused: %+v", r.Results)
+		}
+		if f := d.Entry(ctx, admin, dev).Failure; f == nil || f.Code != 32 {
+			t.Fatalf("the entry must be gone again, so the add can be retried: %+v", f)
+		}
+	})
+
+	t.Run("children are counted without reading them", func(t *testing.T) {
+		if n := d.CountChildren(ctx, admin, "ou=hosts,"+testldap.BaseDN); n.Failure != nil || n.Count != 71 || n.More {
+			t.Fatalf("hosts %+v", n)
+		}
+		if n := d.CountChildren(ctx, admin, newZoe); n.Count != 0 || n.Failure != nil {
+			t.Fatalf("a leaf %+v", n)
+		}
+	})
+
 	t.Run("rename and delete refuse entries with children", func(t *testing.T) {
 		r := c.Apply(ctx, admin, []EntryChange{{Op: opRename, DN: "ou=hosts," + testldap.BaseDN, NewRDN: "machines"}})
 		if f := r.Results[0].Failure; f == nil || f.Code != 66 {

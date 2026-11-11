@@ -121,20 +121,43 @@ type Found struct {
 
 // Find searches base's subtree with filter for pickers: the first limit hits sorted by name, and
 // how many match in all, counted up to countLimit (more is true beyond it).
+//
+// The count reads only names (cn, to sort by); the details are read for the hits returned.
 func (s *Session) Find(ctx context.Context, base, filter string, limit, countLimit int) (hits []Found, total int, more bool, err error) {
 	req := ldap.NewSearchRequest(base, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, s.secs(), false,
-		filter, []string{"cn", "uid", "mail", "description", "objectClass"}, nil)
+		filter, []string{"cn"}, nil)
 	entries, truncated, err := searchPagedCtx(ctx, s.Conn, req, 500, countLimit)
 	if err != nil {
 		return nil, 0, false, Classify(err, s.op())
 	}
-	all := make([]Found, 0, len(entries))
-	for _, e := range entries {
-		all = append(all, Found{DN: e.DN, CN: e.GetAttributeValue("cn"), UID: e.GetAttributeValue("uid"), Mail: e.GetAttributeValue("mail"),
-			Description: e.GetAttributeValue("description"), ObjectClasses: e.GetAttributeValues("objectClass")})
+	sort.SliceStable(entries, func(i, j int) bool {
+		return strings.ToLower(entries[i].GetAttributeValue("cn")) < strings.ToLower(entries[j].GetAttributeValue("cn"))
+	})
+	for _, e := range entries[:min(limit, len(entries))] {
+		one := ldap.NewSearchRequest(e.DN, ldap.ScopeBaseObject, ldap.NeverDerefAliases, 1, s.secs(), false,
+			"(objectClass=*)", []string{"cn", "uid", "mail", "description", "objectClass"}, nil)
+		res, err := keepSearch(ctx, s.Conn, one)
+		if err != nil || len(res.Entries) == 0 {
+			hits = append(hits, Found{DN: e.DN, CN: e.GetAttributeValue("cn")})
+			continue
+		}
+		d := res.Entries[0]
+		hits = append(hits, Found{DN: e.DN, CN: d.GetAttributeValue("cn"), UID: d.GetAttributeValue("uid"), Mail: d.GetAttributeValue("mail"),
+			Description: d.GetAttributeValue("description"), ObjectClasses: d.GetAttributeValues("objectClass")})
 	}
-	sort.SliceStable(all, func(i, j int) bool { return strings.ToLower(all[i].CN) < strings.ToLower(all[j].CN) })
-	return all[:min(limit, len(all))], len(all), truncated, nil
+	return hits, len(entries), truncated, nil
+}
+
+// CountChildren counts the entries directly below dn, up to limit (more is true beyond it).
+// It reads no attributes.
+func (s *Session) CountChildren(ctx context.Context, dn string, limit int) (count int, more bool, err error) {
+	req := ldap.NewSearchRequest(dn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, s.secs(), false,
+		"(objectClass=*)", []string{"1.1"}, nil)
+	entries, truncated, err := searchPagedCtx(ctx, s.Conn, req, min(max(limit, 1), 1000), limit)
+	if err != nil {
+		return 0, false, Classify(err, s.op())
+	}
+	return len(entries), truncated, nil
 }
 
 // Referrer is a group that lists a DN, and the attribute that lists it.

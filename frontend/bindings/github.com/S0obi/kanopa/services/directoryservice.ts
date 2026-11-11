@@ -24,6 +24,14 @@ export function Children(id: string, dn: string, more: string): $CancellableProm
 }
 
 /**
+ * CountChildren counts the entries directly below dn, reading no attributes: what the Delete
+ * dialog says when the tree has not read them.
+ */
+export function CountChildren(id: string, dn: string): $CancellablePromise<$models.CountResult> {
+    return $Call.ByID(4164310341, id, dn);
+}
+
+/**
  * Entry reads one entry and describes each attribute for display, with its LDIF.
  */
 export function Entry(id: string, dn: string): $CancellablePromise<$models.EntryView> {

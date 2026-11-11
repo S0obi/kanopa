@@ -181,6 +181,32 @@ func (d *DirectoryService) Find(ctx context.Context, id, kind, q string) FindRes
 	return out
 }
 
+// CountResult is how many entries lie directly below an entry.
+type CountResult struct {
+	Count   int      `json:"count"`
+	More    bool     `json:"more"` // more than were counted
+	Failure *Failure `json:"failure"`
+}
+
+// childCountLimit bounds the count the Delete dialog asks for.
+const childCountLimit = childLimit
+
+// CountChildren counts the entries directly below dn, reading no attributes: what the Delete
+// dialog says when the tree has not read them.
+func (d *DirectoryService) CountChildren(ctx context.Context, id, dn string) CountResult {
+	l, f := d.session(id)
+	if f != nil {
+		return CountResult{Failure: f}
+	}
+	l.paged.Lock()
+	n, more, err := l.CountChildren(ctx, dn, childCountLimit)
+	l.paged.Unlock()
+	if err != nil {
+		return CountResult{Failure: d.fail(l, err)}
+	}
+	return CountResult{Count: n, More: more}
+}
+
 // ClassInfo is one object class of the server's schema, as the New entry form offers it: what it
 // requires and allows, superclasses included.
 type ClassInfo struct {
