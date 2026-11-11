@@ -29,6 +29,7 @@ test("create a person, add them to a group, rename them, apply", async ({ page }
   await dialog.getByLabel(/Last name/).fill("Kanopa");
   await expect(dialog.getByLabel(/User ID/)).toHaveValue("zoe");
   await dialog.getByLabel(/Initial password/).fill("zoe-Passw0rd");
+  await dialog.getByLabel("Confirm password").fill("zoe-Passw0rd");
   await dialog.getByRole("button", { name: "Create entry" }).click();
   await expect(title(page, "Zoë Kanopa")).toBeVisible();
   await expect(page.getByText("Not on the server yet.")).toBeVisible();

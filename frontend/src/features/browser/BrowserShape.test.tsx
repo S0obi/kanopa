@@ -59,6 +59,10 @@ describe("shaping the tree", () => {
     expect(within(dialog).getByText(`,${people}`).closest("code")).toHaveTextContent(`uid=zoe,${people}`);
     await user.type(within(dialog).getByLabelText(/Initial password/), "zoe-Passw0rd");
     await user.click(within(dialog).getByRole("button", { name: "Create entry" }));
+    // The initial password is typed twice too.
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("The passwords don't match.");
+    await user.type(within(dialog).getByLabelText("Confirm password"), "zoe-Passw0rd");
+    await user.click(within(dialog).getByRole("button", { name: "Create entry" }));
 
     expect(await heading("Zoë Kanopa")).toBeInTheDocument();
     expect(screen.getByText("Not on the server yet.")).toBeInTheDocument();
