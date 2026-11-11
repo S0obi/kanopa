@@ -15,6 +15,12 @@ export interface NodeState {
   error?: string;
 }
 
+/** What the tree's menu opens in the entry view: a dialog, or the member picker. */
+export interface EntryRequest {
+  action: "new" | "rename" | "delete" | "addMember";
+  dn: string;
+}
+
 export type ConnectionState = "connected" | "lost" | "reconnecting";
 
 interface BrowserState {
@@ -29,6 +35,11 @@ interface BrowserState {
   /** The entry view's tab: attributes, ldif, members or memberOf. */
   tab: string;
   setTab(tab: string): void;
+  /** An action the tree's menu asked of the entry view, for the entry at dn. */
+  request: EntryRequest | null;
+  ask(action: EntryRequest["action"], dn: string): void;
+  /** The entry view took the request. */
+  took(): void;
 
   start(b: Backend, session: SessionInfo): Promise<void>;
   select(dn: string | null): void;
@@ -96,12 +107,15 @@ export const useBrowser = create<BrowserState>((set, get) => {
     selected: null,
     tab: "attributes",
     setTab: (tab) => set({ tab }),
+    request: null,
+    ask: (action, dn) => set({ request: { action, dn } }),
+    took: () => set({ request: null }),
     connection: "connected",
     lost: null,
     lastReadMs: null,
 
     async start(b, session) {
-      set({ session, nodes: {}, roots: [], expanded: {}, selected: null, connection: "connected", lost: null, lastReadMs: null, tab: "attributes" });
+      set({ session, nodes: {}, roots: [], expanded: {}, selected: null, connection: "connected", lost: null, lastReadMs: null, tab: "attributes", request: null });
       const r = await b.roots(session.connectionId);
       if (r.failure) return get().failed(r.failure);
       set({ nodes: putNodes((r.nodes ?? [])), roots: (r.nodes ?? []).map((n) => dnKey(n.dn)) });
@@ -114,7 +128,8 @@ export const useBrowser = create<BrowserState>((set, get) => {
     },
 
     select(dn) {
-      set({ selected: dn });
+      // A menu request is for the entry it was made on: moving on drops it.
+      set({ selected: dn, request: null });
     },
 
     async toggle(b, dn) {

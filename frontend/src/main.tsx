@@ -10,6 +10,7 @@ import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BackendContext, type Backend } from "@/api/backend";
 import { App } from "./App";
+import { blockBrowserMenu } from "@/lib/contextmenu";
 
 // `vite --mode fake` runs the UI in a plain browser against the fake backend.
 async function loadBackend(): Promise<Backend> {
@@ -22,6 +23,7 @@ async function loadBackend(): Promise<Backend> {
   return (await import("@/api/wails")).wailsBackend;
 }
 
+blockBrowserMenu();
 const backend = await loadBackend();
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
 

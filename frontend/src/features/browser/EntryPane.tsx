@@ -125,6 +125,21 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
   const setTab = useBrowser((s) => s.setTab);
   const tab = storedTab === "attributes" || storedTab === "ldif" || storedTab === relTab ? storedTab : "attributes";
   const [editing, setEditing] = useState<EditTarget | null>(null);
+  // The tree's menu asks for a dialog, or the member picker, on this entry.
+  const request = useBrowser((s) => s.request);
+  const took = useBrowser((s) => s.took);
+  const [picking, setPicking] = useState(0);
+  useEffect(() => {
+    if (!request || !sameDn(request.dn, e.dn)) return;
+    took();
+    // A one-shot request from the store (the tree's menu), taken once: not derivable in render.
+    if (request.action === "addMember") {
+      setTab("members");
+      // oxlint-disable-next-line react/set-state-in-effect -- see above
+      setPicking((n) => n + 1);
+      // oxlint-disable-next-line react/set-state-in-effect -- see above
+    } else setDialog(request.action);
+  }, [request, e.dn, took, setTab]);
   const [adding, setAdding] = useState(false);
   const rdnAttr = rdnParts(splitDn(e.dn)[0] ?? "")[0].replace(/=$/, "").toLowerCase();
   const canEdit = (a: EntryAttribute) =>
@@ -231,7 +246,7 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
           </div>
         )}
         {tab === relTab && !isNew &&
-          (isGroup ? <MembersPanel id={id} group={e} editable={editable} onOpen={onOpen} /> : <MemberOfPanel id={id} entry={e} editable={editable} onOpen={onOpen} />)}
+          (isGroup ? <MembersPanel id={id} group={e} editable={editable} onOpen={onOpen} picking={picking} /> : <MemberOfPanel id={id} entry={e} editable={editable} onOpen={onOpen} />)}
       </div>
       {editing && <ValueEditor connectionId={id} entry={e} target={editing} session={session} onClose={() => setEditing(null)} />}
       {adding && <AddAttributeDialog connectionId={id} entry={e} session={session} onClose={() => setAdding(false)} />}

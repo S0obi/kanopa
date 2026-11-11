@@ -131,3 +131,7 @@ hr.kn-menu__sep { border: 0; }
 .kn-new__type:focus-visible { box-shadow: var(--focus-ring); }
 .kn-new__type code { font-size: 11px; color: var(--ink-muted); }
 .kn-new__ocs { font-size: 11px; color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.kn-menu__hint { margin-left: var(--space-3); font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
+.kn-menu__item[aria-disabled="true"] .kn-menu__label { opacity: .45; }
+.kn-menu__item[aria-disabled="true"] { opacity: 1; }
+.kn-menu__item[aria-disabled="true"] .kn-menu__icon { opacity: .45; }
