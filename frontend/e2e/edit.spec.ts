@@ -66,7 +66,7 @@ test("a refused Apply keeps the changes and shows the code", async ({ page }) =>
   await page.getByRole("button", { name: "Add to changes" }).click();
   await bar(page).getByRole("button", { name: /Apply/ }).click();
   const alert = page.getByRole("alert");
-  await expect(alert).toContainText("Object class violation (65)");
+  await expect(alert).toContainText("Object class violation (65) — inetOrgPerson requires the attribute sn.");
   await expect(alert).toContainText("Your 1 pending change is kept.");
   await expect(bar(page)).toContainText("Pending change: sn on uid=ada");
 });

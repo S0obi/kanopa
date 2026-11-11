@@ -1,0 +1,8 @@
+dn: uid=ada,ou=people,dc=example,dc=org
+  replace title ["Fellow"]
+  assert (&(title=Principal engineer))
+dn: uid=alan,ou=people,dc=example,dc=org
+  (no change)
+dn: cn=admins,ou=groups,dc=example,dc=org
+  add member ["uid=grace,ou=people,dc=example,dc=org"]
+  assert (&(member=uid=ada,ou=people,dc=example,dc=org))

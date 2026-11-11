@@ -29,11 +29,18 @@ type Error struct {
 	Name   string `json:"name"`   // "Invalid credentials"
 	Title  string `json:"title"`  // "Bind refused."
 	Detail string `json:"detail"` // sentences ending with the fix
-	cause  error
+	// Lead puts the code first, as the design words refused changes:
+	// "Object class violation (65) — inetOrgPerson requires the attribute sn."
+	Lead  bool `json:"lead"`
+	cause error
 }
 
-// Text is the full sentence the UI shows: "<detail> <name> (<code>)".
+// Text is the full sentence the UI shows: "<detail> <name> (<code>)", or with Lead
+// "<name> (<code>) — <detail>".
 func (e *Error) Text() string {
+	if e.Lead {
+		return fmt.Sprintf("%s (%d) — %s", e.Name, e.Code, e.Detail)
+	}
 	return fmt.Sprintf("%s %s (%d)", e.Detail, e.Name, e.Code)
 }
 
@@ -58,8 +65,8 @@ var codeNames = map[int]string{
 	17:               "Undefined attribute type",
 	18:               "Inappropriate matching",
 	19:               "Constraint violation",
-	20:               "Attribute or value exists",
-	21:               "Invalid attribute syntax",
+	20:               "Type or value exists",
+	21:               "Invalid syntax",
 	32:               "No such object",
 	33:               "Alias problem",
 	34:               "Invalid DN syntax",
@@ -182,9 +189,13 @@ func classifyResult(code int, le *ldap.Error, op Op) *Error {
 	}
 	switch {
 	case op.Stage == StageWrite && writeErrors[code] != nil:
-		return writeErrors[code](diag, le)
-	case op.Stage == StageWrite && (code == 34 || code == 13 || code == 48 || code == 49):
-		return newErr(code, "Request refused.", said(diag, "The server refused the change."), le)
+		e := writeErrors[code](diag, le)
+		e.Lead = true
+		return e
+	case op.Stage == StageWrite:
+		e := newErr(code, "Change refused.", serverSaid(diag, "the server refused the change."), le)
+		e.Lead = true
+		return e
 	case code == 49:
 		return newErr(49, "Bind refused.",
 			fmt.Sprintf("The server refused the password for %s. Enter the current password, then try again.", op.BindDN), le)
@@ -286,50 +297,65 @@ func rootMessage(err error) string {
 }
 
 // writeErrors word the refusals of a change. diag is the server's own message, possibly empty.
+// writeErrors word the refusals of a change, in the design's form: "<name> (<code>) — <detail>".
+// diag is the server's own message, possibly empty.
 var writeErrors = map[int]func(diag string, le *ldap.Error) *Error{
 	16: func(_ string, le *ldap.Error) *Error {
 		return newErr(16, "Entry changed meanwhile.",
-			"A value you removed is no longer there: someone changed this entry since you read it. Reload it, then make your changes again.", le)
+			"a value you removed is no longer there. Reload the entry, then make your changes again.", le)
 	},
 	19: func(diag string, le *ldap.Error) *Error {
-		return newErr(19, "Change refused.", said(diag, "A value breaks a rule of the server, such as a single-value attribute or a password policy.")+" Correct it, then apply again.", le)
+		return newErr(19, "Change refused.", serverSaid(diag, "a value breaks a rule of the server, such as a single value or a password policy."), le)
 	},
 	20: func(diag string, le *ldap.Error) *Error {
-		return newErr(20, "Value already there.", said(diag, "A value you added is already in the entry.")+" Remove the duplicate, then apply again.", le)
+		return newErr(20, "Value already there.", serverSaid(diag, "a value you added is already in the entry."), le)
 	},
 	21: func(diag string, le *ldap.Error) *Error {
-		return newErr(21, "Invalid value.", said(diag, "A value does not match the syntax of its attribute.")+" Correct it, then apply again.", le)
+		return newErr(21, "Invalid value.", serverSaid(diag, "a value does not match the syntax of its attribute."), le)
 	},
 	32: func(_ string, le *ldap.Error) *Error {
-		return newErr(32, "Entry gone.", "This entry no longer exists: someone deleted or renamed it. Reload the tree.", le)
+		return newErr(32, "Entry gone.", "this entry no longer exists: someone deleted or renamed it. Reload the tree.", le)
 	},
 	50: func(_ string, le *ldap.Error) *Error {
-		return newErr(50, "Not allowed.", "The account you bound as may not change this entry. Connect as an account with write access, or ask its administrator.", le)
+		return newErr(50, "Not allowed.", "the account you bound as may not change this entry. Connect as an account with write access.", le)
 	},
 	53: func(diag string, le *ldap.Error) *Error {
-		return newErr(53, "Change refused.", said(diag, "The server will not make this change."), le)
+		return newErr(53, "Change refused.", serverSaid(diag, "the server will not make this change."), le)
 	},
 	65: func(diag string, le *ldap.Error) *Error {
 		if class, attr, ok := requiresAttr(diag); ok {
-			return newErr(65, "Required attribute missing.",
-				fmt.Sprintf("%s requires the attribute %s. Add a value for %s, then apply again.", class, attr, attr), le)
+			return newErr(65, "Required attribute missing.", fmt.Sprintf("%s requires the attribute %s.", class, attr), le)
 		}
-		return newErr(65, "Object class rules broken.", said(diag, "The entry would break the rules of its object classes.")+" Correct it, then apply again.", le)
+		return newErr(65, "Object class rules broken.", serverSaid(diag, "the entry would break the rules of its object classes."), le)
 	},
 	67: func(_ string, le *ldap.Error) *Error {
-		return newErr(67, "Value names the entry.", "You can't remove the value that names this entry (its RDN). Keep it, then apply again.", le)
+		return newErr(67, "Value names the entry.", "you can't remove the value that names this entry (its RDN).", le)
 	},
 	122: func(_ string, le *ldap.Error) *Error {
-		return newErr(122, "Entry changed meanwhile.", "Someone changed this entry since you read it. Reload it, then make your changes again.", le)
+		return newErr(122, "Entry changed meanwhile.", "someone changed this entry since you read it. Reload the entry, then make your changes again.", le)
 	},
 }
 
-// said quotes the server when it explained itself, else uses the fallback sentence.
-func said(diag, fallback string) string {
-	if diag == "" {
+// serverSaid is the server's own message when it gave one, else the fallback; one sentence.
+func serverSaid(diag, fallback string) string {
+	if diag = strings.TrimSpace(diag); diag == "" {
 		return fallback
 	}
-	return "The server said: " + strings.TrimSuffix(diag, ".") + "."
+	return strings.TrimSuffix(diag, ".") + "."
+}
+
+// Conflict is the refusal of a change to an entry whose edited attributes changed on the
+// server since they were read. attrs names them when known.
+func Conflict(attrs []string) *Error {
+	what := "someone changed this entry since you read it."
+	switch n := len(attrs); {
+	case n == 1:
+		what = attrs[0] + " changed on the server since you read it."
+	case n > 1:
+		what = strings.Join(attrs[:n-1], ", ") + " and " + attrs[n-1] + " changed on the server since you read them."
+	}
+	return &Error{Code: 122, Name: CodeName(122), Title: "Entry changed meanwhile.", Lead: true,
+		Detail: what + " Reload the entry, then make your changes again."}
 }
 
 // requiresAttr reads OpenLDAP's "object class 'inetOrgPerson' requires attribute 'sn'".

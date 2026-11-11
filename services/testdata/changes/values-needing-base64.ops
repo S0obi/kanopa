@@ -1,0 +1,4 @@
+dn: uid=zoe.zurcher,ou=people,dc=example,dc=org
+  add l ["Zürich"]
+  add description [" leading space" "a line that is long enough to be folded at seventy-six columns by the LDIF writer"]
+  assert (&(!(l=*))(!(description=*)))

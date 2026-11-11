@@ -81,10 +81,50 @@ func TestCodeName(t *testing.T) {
 func TestWriteRefusalsAreNotWordedAsBinds(t *testing.T) {
 	op := Op{Endpoint: Endpoint{Host: "ldap.example.org", Port: 636}, BindDN: "cn=admin,dc=example,dc=org", Stage: StageWrite}
 	e := Classify(ldap.NewError(34, errors.New("invalid DN")), op)
-	if e.Code != 34 || strings.Contains(e.Detail, "bind DN") || e.Detail != "The server said: invalid DN." {
+	if e.Code != 34 || strings.Contains(e.Detail, "bind DN") || e.Text() != "Invalid DN syntax (34) — invalid DN." {
 		t.Fatalf("write 34: %+v", e)
 	}
 	if e := Classify(ldap.NewError(122, errors.New("")), op); e.Title != "Entry changed meanwhile." {
 		t.Fatalf("write 122: %+v", e)
+	}
+}
+
+// Refused changes read as the design words them: "<name> (<code>) — <detail>".
+func TestWriteRefusalsInTheDesignsWording(t *testing.T) {
+	op := Op{Endpoint: Endpoint{Host: "ldap.example.org", Port: 636}, BindDN: "cn=admin,dc=example,dc=org", Stage: StageWrite}
+	cases := []struct {
+		code uint16
+		diag string
+		want string
+	}{
+		{65, "object class 'inetOrgPerson' requires attribute 'sn'", "Object class violation (65) — inetOrgPerson requires the attribute sn."},
+		{19, "attribute 'displayName' cannot have multiple values", "Constraint violation (19) — attribute 'displayName' cannot have multiple values."},
+		{20, "modify/add: telephoneNumber: value #0 already exists", "Type or value exists (20) — modify/add: telephoneNumber: value #0 already exists."},
+		{21, "", "Invalid syntax (21) — a value does not match the syntax of its attribute."},
+		{50, "no write access to parent", "Insufficient access (50) — the account you bound as may not change this entry. Connect as an account with write access."},
+	}
+	for _, c := range cases {
+		if got := Classify(ldap.NewError(c.code, errors.New(c.diag)), op).Text(); got != c.want {
+			t.Errorf("%d: got %q, want %q", c.code, got, c.want)
+		}
+	}
+	// Reads and binds keep the code at the end.
+	if got := Classify(ldap.NewError(50, errors.New("")), Op{Stage: StageRead}).Text(); !strings.HasSuffix(got, "Insufficient access (50)") {
+		t.Errorf("read 50: %q", got)
+	}
+}
+
+func TestConflictNamesTheAttributes(t *testing.T) {
+	for _, c := range []struct {
+		attrs []string
+		want  string
+	}{
+		{nil, "Assertion failed (122) — someone changed this entry since you read it. Reload the entry, then make your changes again."},
+		{[]string{"title"}, "Assertion failed (122) — title changed on the server since you read it. Reload the entry, then make your changes again."},
+		{[]string{"title", "mail", "cn"}, "Assertion failed (122) — title, mail and cn changed on the server since you read them. Reload the entry, then make your changes again."},
+	} {
+		if got := Conflict(c.attrs).Text(); got != c.want {
+			t.Errorf("%v: got %q", c.attrs, got)
+		}
 	}
 }
