@@ -66,10 +66,17 @@ jobs:
       - name: Stand in for the built frontend
         run: mkdir -p frontend/dist && touch frontend/dist/.keep
 
+      # Kanopa ships for Windows (macOS from S6), and the git hooks lint there too. On Linux, Wails
+      # needs the GTK4 and WebKitGTK C headers just to type-check main.go; checking the Windows
+      # build needs none.
       - name: golangci-lint (gosec, staticcheck, errorlint, gofmt, goimports)
+        env:
+          GOOS: windows
         run: bin/tools/golangci-lint run ./internal/... ./services/... ./test/... .
 
       - name: govulncheck
+        env:
+          GOOS: windows
         run: bin/tools/govulncheck ./...
 
       - name: oxlint
