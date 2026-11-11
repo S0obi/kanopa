@@ -186,7 +186,7 @@ export function ConfirmDialog({ tone, title, children, confirmLabel, onConfirm, 
 /* ---------- Menu and MenuButton ---------- */
 
 export type MenuItem =
-  | { id: string; label: string; icon?: IconName; shortcut?: string[]; danger?: boolean; disabled?: boolean }
+  | { id: string; label: string; icon?: IconName; shortcut?: string[]; danger?: boolean; disabled?: boolean; /** Why a disabled item is off. */ hint?: string }
   | { separator: true };
 
 export interface MenuProps {
@@ -247,7 +247,8 @@ export function Menu({ items, onSelect, onClose, platform, autoFocus, label, cla
           >
             <span className="kn-menu__icon">{it.icon && <Icon name={it.icon} size={14} />}</span>
             <span className="kn-menu__label">{it.label}</span>
-            {it.shortcut && <Kbd keys={it.shortcut} platform={platform} />}
+            {it.hint && <span className="kn-menu__hint">{it.hint}</span>}
+            {it.shortcut && !it.hint && <Kbd keys={it.shortcut} platform={platform} />}
           </div>
         ),
       )}
@@ -329,6 +330,54 @@ export function MenuButton({ label, items, onSelect, platform }: { label: string
           document.body,
         )}
     </div>
+  );
+}
+
+/**
+ * A menu at a point: a right-click, or beside a row for Shift+F10. It stays inside the window,
+ * and outside clicks, Esc, scrolling and resizing close it.
+ */
+export function ContextMenu({ x, y, items, label, onSelect, onClose, platform }: { x: number; y: number; items: MenuItem[]; label: string; onSelect: (id: string) => void; onClose: () => void; platform?: Platform }) {
+  const layer = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = layer.current;
+    const w = el?.offsetWidth ?? 0;
+    const h = el?.offsetHeight ?? 0;
+    const left = x + w > window.innerWidth - 8 ? Math.max(8, x - w) : x;
+    const top = y + h > window.innerHeight - 8 ? Math.max(8, y - h) : y;
+    setPlace({ left, top });
+  }, [x, y]);
+  useEffect(() => {
+    const away = (e: PointerEvent) => {
+      if (!layer.current?.contains(e.target as Node)) onClose();
+    };
+    const dismiss = (e: Event) => {
+      if (e.type === "scroll" && layer.current?.contains(e.target as Node)) return;
+      onClose();
+    };
+    window.addEventListener("pointerdown", away, true);
+    window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("resize", dismiss);
+    window.addEventListener("blur", dismiss);
+    return () => {
+      window.removeEventListener("pointerdown", away, true);
+      window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("resize", dismiss);
+      window.removeEventListener("blur", dismiss);
+    };
+  }, [onClose]);
+  return createPortal(
+    <div
+      ref={layer}
+      className="fixed z-40"
+      style={place ?? { left: x, top: y, visibility: "hidden" }}
+      // A right-click on the menu itself opens nothing else.
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <Menu items={items} label={label} platform={platform} autoFocus={!!place} onClose={onClose} onSelect={onSelect} className="min-w-[220px]" />
+    </div>,
+    document.body,
   );
 }
 
