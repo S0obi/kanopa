@@ -609,7 +609,7 @@ services/
 <!-- ============================================================ S5 -->
 <section id="s5">
   <div class="card">
-    <div class="stage-head"><span class="badge c5">Stage 5</span><h3>Shape the tree</h3><span class="status">In progress</span><span class="tagv">v0.0.5</span></div>
+    <div class="stage-head"><span class="badge c5">Stage 5</span><h3>Shape the tree</h3><span class="status done">Done · 11 Nov 2026</span><span class="tagv">v0.0.5</span></div>
     <div class="value"><strong>You can:</strong> create people, groups and any other entry the schema allows, rename and delete entries, and manage group members. All of it goes through the same pending changes as S4, and pending work survives a dropped connection.</div>
     <div class="grid">
       <div class="cell">
@@ -633,6 +633,7 @@ services/
           <li>Membership both ways: a group's Members tab adds and removes members; a person's Member of tab adds them to a group and removes them. Both stage the same change on the group</li>
           <li>Pending states in the entry view: "Not on the server yet", "Marked for deletion", "Pending rename", each with Undo</li>
           <li>Reconnect banner keeps pending changes ("2 pending changes are kept")</li>
+          <li>Added after the checkpoint: new passwords are typed twice everywhere (the server hashes them with its own scheme, so there is no scheme menu); a right-click menu on the tree (Copy DN, New child entry, Add member, Rename, Delete; Shift+F10; Ctrl/⌘+C, F2, Del) with disabled items saying why; the webview's own menu is blocked outside text fields</li>
         </ul>
       </div>
       <div class="cell">
