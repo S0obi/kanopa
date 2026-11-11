@@ -231,8 +231,12 @@ func isTimeout(err error) bool {
 		return true
 	}
 	var le *ldap.Error
-	if errors.As(err, &le) && le.Err != nil && strings.Contains(strings.ToLower(le.Err.Error()), "timeout") {
-		return true
+	// go-ldap's own request timeout reads "ldap: connection timed out"; when it fires before
+	// Kanopa's deadline (the two race), it is still the same "No answer".
+	if errors.As(err, &le) && le.Err != nil {
+		if s := strings.ToLower(le.Err.Error()); strings.Contains(s, "timeout") || strings.Contains(s, "timed out") {
+			return true
+		}
 	}
 	return false
 }
