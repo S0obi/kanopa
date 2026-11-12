@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildChanges, cells, diff, pendingEntries, pendingOf, stage, summarize, toEntryChanges, useChanges, valueErrors, type PendingAttr } from "./changes";
+import { buildChanges, cells, diff, isChange, pendingEntries, pendingOf, sameValues, stage, summarize, toEntryChanges, useChanges, valueErrors, type PendingAttr } from "./changes";
 
 const ada = { dn: "uid=ada,ou=people,dc=example,dc=org", title: "Ada Lovelace" };
 const title = (after: string[]): PendingAttr => ({ name: "title", kind: "text", before: ["Principal engineer"], after });
@@ -102,5 +102,30 @@ describe("store", () => {
     useChanges.getState().applied("prod", buildChanges(useChanges.getState().byConnection.prod).parts);
     useChanges.getState().discard("staging");
     expect(pendingEntries(useChanges.getState())).toBe(0);
+  });
+});
+
+describe("long attributes (a group of 5,000 members)", () => {
+  const members = Array.from({ length: 5000 }, (_, i) => `uid=arch${String(i).padStart(5, "0")},ou=archive,dc=example,dc=org`);
+  const reversed = [...members].reverse();
+
+  it("compares, diffs and checks thousands of values without comparing each with each", () => {
+    const start = performance.now();
+    expect(sameValues(members, reversed)).toBe(true);
+    expect(sameValues(members, [...members.slice(1), "uid=other,dc=example,dc=org"])).toBe(false);
+    const attr: PendingAttr = { name: "member", kind: "dn", before: members, after: [...members.slice(0, 4990), "uid=new,dc=example,dc=org"] };
+    expect(isChange(attr)).toBe(true);
+    const rows = diff(attr);
+    expect(rows.filter((r) => r.sign === "−")).toHaveLength(10);
+    expect(rows.filter((r) => r.sign === "+")).toHaveLength(1);
+    expect(cells(members, attr).filter((c) => c.state === "removed")).toHaveLength(10);
+    expect(valueErrors({ name: "member", kind: "dn", singleValue: false, baseDn: "dc=example,dc=org" }, members)).toEqual([]);
+    // Each of these was a quarter of a billion comparisons once; together they take a few milliseconds.
+    expect(performance.now() - start).toBeLessThan(600);
+  });
+
+  it("names a repeated value among thousands", () => {
+    const withDup = [...members, members[1234]!];
+    expect(valueErrors({ name: "member", kind: "dn", singleValue: false, baseDn: "dc=example,dc=org" }, withDup)[0]).toMatch(/Type or value exists \(20\)/);
   });
 });

@@ -215,7 +215,7 @@ func (s *ConnectionService) Save(r SaveRequest) (SavedConnection, error) {
 
 func (s *ConnectionService) secretErr(err error) error {
 	s.log.Error("credential store", "err", err)
-	return fmt.Errorf("Kanopa could not reach the %s: %w", storeName(), err)
+	return fmt.Errorf("Kanopa couldn't reach the %s: %w", storeName(), err)
 }
 
 // Duplicate copies a connection, its saved password included, right after the original.

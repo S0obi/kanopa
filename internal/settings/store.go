@@ -28,9 +28,32 @@ const (
 // ValidTheme reports whether t is one of the theme choices.
 func ValidTheme(t string) bool { return t == ThemeSystem || t == ThemeLight || t == ThemeDark }
 
+// Window is where the window was: its place and size in device-independent pixels, and whether it
+// was maximized.
+type Window struct {
+	X         int  `json:"x"`
+	Y         int  `json:"y"`
+	Width     int  `json:"width"`
+	Height    int  `json:"height"`
+	Maximized bool `json:"maximized"`
+}
+
+// Valid reports whether the saved size is one a window can have.
+func (w Window) Valid() bool {
+	return w.Width >= 200 && w.Height >= 200 && w.Width <= 20000 && w.Height <= 20000
+}
+
+// Layout is what the interface remembers between runs: the tree pane's width and the entry view's tab.
+type Layout struct {
+	SidebarWidth int    `json:"sidebarWidth"`
+	Tab          string `json:"tab"`
+}
+
 type file struct {
-	Version int    `json:"version"`
-	Theme   string `json:"theme"`
+	Version int     `json:"version"`
+	Theme   string  `json:"theme"`
+	Window  *Window `json:"window,omitempty"`
+	Layout  *Layout `json:"layout,omitempty"`
 }
 
 // Store is the settings file. Safe for concurrent use.
@@ -38,6 +61,8 @@ type Store struct {
 	path     string
 	mu       sync.Mutex
 	theme    string
+	window   *Window
+	layout   Layout
 	notice   string
 	readOnly bool
 }
@@ -66,9 +91,9 @@ func Open(path string) (*Store, error) {
 	if err := json.Unmarshal(data, &f); err != nil {
 		aside := fmt.Sprintf("%s.unreadable-%s", path, time.Now().Format("20060102-150405"))
 		if rerr := os.Rename(path, aside); rerr != nil {
-			return nil, fmt.Errorf("the settings file %s is damaged and could not be moved aside: %w", path, rerr)
+			return nil, fmt.Errorf("the settings file %s is damaged and couldn't be moved aside: %w", path, rerr)
 		}
-		s.notice = fmt.Sprintf("Kanopa could not read its settings, so it started with the defaults. The damaged file is kept as %s.", aside)
+		s.notice = fmt.Sprintf("Kanopa couldn't read its settings, so it started with the defaults. The damaged file is kept as %s.", aside)
 		return s, nil
 	}
 	if f.Version > Version {
@@ -77,13 +102,19 @@ func Open(path string) (*Store, error) {
 	if ValidTheme(f.Theme) {
 		s.theme = f.Theme
 	}
+	if f.Window != nil && f.Window.Valid() {
+		s.window = f.Window
+	}
+	if f.Layout != nil {
+		s.layout = *f.Layout
+	}
 	return s, nil
 }
 
 // Unavailable is a store that could not be opened: it holds the defaults and saves nothing.
 func Unavailable(path string, err error) *Store {
 	return &Store{path: path, theme: ThemeSystem, readOnly: true,
-		notice: fmt.Sprintf("Kanopa could not open its settings (%v). Check the permissions of %s, then restart Kanopa.", err, path)}
+		notice: fmt.Sprintf("Kanopa couldn't open its settings (%v). Check the permissions of %s, then restart Kanopa.", err, path)}
 }
 
 // Notice returns, then clears, the message about how the file was read.
@@ -114,32 +145,68 @@ func (s *Store) SetTheme(t string) error {
 	return s.save()
 }
 
+// Window is where the window was when Kanopa last closed; ok is false when nothing usable was saved.
+func (s *Store) Window() (w Window, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.window == nil {
+		return Window{}, false
+	}
+	return *s.window, true
+}
+
+// SetWindow keeps and saves where the window is. A size no window can have is refused.
+func (s *Store) SetWindow(w Window) error {
+	if !w.Valid() {
+		return fmt.Errorf("Kanopa can't remember a window of %d by %d.", w.Width, w.Height)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.window = &w
+	return s.save()
+}
+
+// Layout is the remembered layout; its zero value means nothing was saved.
+func (s *Store) Layout() Layout {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.layout
+}
+
+// SetLayout keeps and saves the layout.
+func (s *Store) SetLayout(l Layout) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.layout = l
+	return s.save()
+}
+
 // save writes the file (temp file + rename, so a crash never leaves half a file).
 func (s *Store) save() error {
 	if s.readOnly {
-		return errors.New("Your settings were saved by a newer Kanopa, so this one cannot change them. Update Kanopa to keep the theme between runs.")
+		return errors.New("Your settings were saved by a newer Kanopa, so this one can't change them. Update Kanopa to keep the theme between runs.")
 	}
-	data, err := json.MarshalIndent(file{Version: Version, Theme: s.theme}, "", "  ")
+	data, err := json.MarshalIndent(file{Version: Version, Theme: s.theme, Window: s.window, Layout: &s.layout}, "", "  ")
 	if err != nil {
 		return err
 	}
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("Kanopa could not create %s: %w", dir, err)
+		return fmt.Errorf("Kanopa couldn't create %s: %w", dir, err)
 	}
 	tmp, err := os.CreateTemp(dir, ".settings-*.json")
 	if err != nil {
-		return fmt.Errorf("Kanopa could not save its settings: %w", err)
+		return fmt.Errorf("Kanopa couldn't save its settings: %w", err)
 	}
 	_, werr := tmp.Write(append(data, '\n'))
 	cerr := tmp.Close()
 	if werr != nil || cerr != nil {
 		os.Remove(tmp.Name())
-		return fmt.Errorf("Kanopa could not save its settings: %w", errors.Join(werr, cerr))
+		return fmt.Errorf("Kanopa couldn't save its settings: %w", errors.Join(werr, cerr))
 	}
 	if err := os.Rename(tmp.Name(), s.path); err != nil {
 		os.Remove(tmp.Name())
-		return fmt.Errorf("Kanopa could not save its settings: %w", err)
+		return fmt.Errorf("Kanopa couldn't save its settings: %w", err)
 	}
 	return nil
 }

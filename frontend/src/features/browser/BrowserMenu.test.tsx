@@ -95,12 +95,12 @@ describe("the tree's right-click menu", () => {
 
     await user.click(await item(/^ou=people/));
     await user.keyboard("{ArrowRight}");
-    await rightClick(/^uid=ada,/);
+    await rightClick(/^uid=ada /);
     await user.click(within(await menuOf("uid=ada")).getByRole("menuitem", { name: /Rename/ }));
     expect(await screen.findByRole("dialog", { name: /Rename uid=ada/ })).toBeInTheDocument();
     await user.keyboard("{Escape}");
 
-    await rightClick(/^uid=alan,/);
+    await rightClick(/^uid=alan /);
     await user.click(within(await menuOf("uid=alan")).getByRole("menuitem", { name: /Delete/ }));
     expect(await screen.findByRole("alertdialog", { name: /Delete uid=alan/ })).toBeInTheDocument();
   });
@@ -109,7 +109,7 @@ describe("the tree's right-click menu", () => {
     const { user, backend } = await open();
     await user.click(await item(/^ou=people/));
     await user.keyboard("{ArrowRight}");
-    await user.click(await item(/^uid=ada,/));
+    await user.click(await item(/^uid=ada /));
     await heading("Ada Lovelace");
     await user.keyboard("{Control>}c{/Control}");
     expect(backend.clipboard.text).toBe(`uid=ada,${people}`);
@@ -125,12 +125,12 @@ describe("the tree's right-click menu", () => {
     const { user } = await open();
     await user.click(await item(/^ou=people/));
     await user.keyboard("{ArrowRight}");
-    await rightClick(/^uid=alan,/);
+    await rightClick(/^uid=alan /);
     await user.click(within(await menuOf("uid=alan")).getByRole("menuitem", { name: /Delete/ }));
     const ask = await screen.findByRole("alertdialog", { name: /Delete uid=alan/ });
     await waitFor(() => expect(within(ask).getByRole("button", { name: "Delete entry" })).toBeEnabled());
     await user.click(within(ask).getByRole("button", { name: "Delete entry" }));
-    await rightClick(/^uid=alan,.*pending delete/);
+    await rightClick(/^uid=alan .*delete/);
     const menu = await menuOf("uid=alan");
     expect(names(menu)).toEqual(["Copy DNCtrl+C", "Rename…Marked for deletion", "Delete…Marked for deletion"]);
     // A shortcut on it does nothing either.

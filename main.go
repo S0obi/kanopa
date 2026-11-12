@@ -2,9 +2,12 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -33,8 +36,9 @@ func main() {
 // run starts Kanopa and returns when the last window closes; deferred cleanup always runs.
 func run() error {
 	logger := slog.Default()
-	if dir, err := applog.Dir(); err == nil {
-		if l, closer, err := applog.New(dir, os.Stderr); err == nil {
+	logDir, _ := applog.Dir()
+	if logDir != "" {
+		if l, closer, err := applog.New(logDir, os.Stderr); err == nil {
 			logger = l
 			defer closer.Close()
 		}
@@ -54,13 +58,22 @@ func run() error {
 		win.SetBackgroundColour(surfaceColour(dark))
 		paintTitleBar(win, dark)
 	})
-	appSvc := services.NewAppService(func() {
-		if win != nil {
-			win.Close()
-		}
+	var app *application.App
+	appSvc := services.NewAppService(services.AppConfig{
+		Close: func() {
+			if win != nil {
+				win.Close()
+			}
+		},
+		Version:  version,
+		Webview:  func() string { return webviewText(app) },
+		LogDir:   logDir,
+		OpenPath: func(path string) error { return app.Env.OpenFileManager(path, false) },
+		OpenURL:  func(url string) error { return app.Browser.OpenURL(url) },
+		Log:      logger,
 	})
 
-	app := application.New(application.Options{
+	app = application.New(application.Options{
 		Name:        "Kanopa",
 		Description: "A calm, exact LDAP client",
 		Services: []application.Service{
@@ -76,25 +89,62 @@ func run() error {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		// A panic in a service call becomes a failed call (Wails recovers it); this puts it in the log with its stack.
+		PanicHandler: func(d *application.PanicDetails) {
+			logger.Error("panic", "error", fmt.Sprint(d.Error), "stack", d.StackTrace)
+		},
+		// Quitting (Cmd+Q on macOS) waits for the person's answer when changes are pending, like closing the window.
+		ShouldQuit: func() bool {
+			if appSvc.ShouldBlockClose() {
+				app.Event.Emit(services.EventCloseRequested)
+				return false
+			}
+			return true
+		},
+		// A second launch brings the open window forward instead of starting another.
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: "app.kanopa.desktop",
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
+				if win != nil {
+					win.Restore()
+					win.Focus()
+				}
+			},
+		},
 	})
+	setupMenu(app)
 
-	win = app.Window.NewWithOptions(application.WebviewWindowOptions{
+	saved, hadSaved := prefs.Window()
+	place, restored := placeWindow(saved, hadSaved, screenBounds(app))
+	opts := application.WebviewWindowOptions{
 		Title:     "Kanopa",
-		Width:     1280,
-		Height:    800,
-		MinWidth:  960,
-		MinHeight: 640,
+		Width:     place.Width,
+		Height:    place.Height,
+		MinWidth:  minWidth,
+		MinHeight: minHeight,
 		// The Kanopa surface color of the theme, so the window doesn't flash the wrong one on start.
 		BackgroundColour: surfaceColour(startsDark(prefs.Theme())),
 		URL:              "/",
 		Windows:          application.WindowsWindow{Theme: windowsTheme(prefs.Theme())},
 		Mac:              application.MacWindow{Appearance: macAppearance(prefs.Theme())},
-	})
-	// Closing with unapplied changes waits for the person's answer. (Cmd+Q on macOS: stage 6.)
+	}
+	if restored {
+		opts.InitialPosition, opts.X, opts.Y = application.WindowXY, place.X, place.Y
+		if place.Maximized {
+			opts.StartState = application.WindowStateMaximised //nolint:misspell // Wails spells it this way
+		}
+	}
+	win = app.Window.NewWithOptions(opts)
+	// Closing with unapplied changes waits for the person's answer; otherwise the window is remembered.
 	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		if appSvc.ShouldBlockClose() {
 			e.Cancel()
 			app.Event.Emit(services.EventCloseRequested)
+			return
+		}
+		before, had := prefs.Window()
+		if err := prefs.SetWindow(windowToSave(win.Bounds(), win.IsMaximised(), before, had)); err != nil { //nolint:misspell // Wails spells it this way
+			logger.Warn("remember window", "err", err)
 		}
 	})
 
@@ -167,4 +217,19 @@ func macAppearance(choice string) application.MacAppearanceType {
 		return application.NSAppearanceNameAqua
 	}
 	return application.DefaultAppearance
+}
+
+// webviewText names the web engine the window runs on, when the platform says (WebView2's version on Windows).
+func webviewText(app *application.App) string {
+	if app == nil {
+		return ""
+	}
+	var out []string
+	for k, v := range app.Env.Info().PlatformInfo {
+		if strings.Contains(strings.ToLower(k), "webview") {
+			out = append(out, fmt.Sprintf("%s %v", k, v))
+		}
+	}
+	sort.Strings(out)
+	return strings.Join(out, ", ")
 }

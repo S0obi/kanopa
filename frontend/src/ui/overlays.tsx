@@ -187,7 +187,9 @@ export function ConfirmDialog({ tone, title, children, confirmLabel, onConfirm, 
 
 export type MenuItem =
   | { id: string; label: string; icon?: IconName; shortcut?: string[]; danger?: boolean; disabled?: boolean; /** Why a disabled item is off. */ hint?: string }
-  | { separator: true };
+  | { separator: true }
+  /** A title over the items that follow, not something to pick. */
+  | { heading: string };
 
 export interface MenuProps {
   items: MenuItem[];
@@ -230,6 +232,10 @@ export function Menu({ items, onSelect, onClose, platform, autoFocus, label, cla
       {items.map((it, i) =>
         "separator" in it ? (
           <hr key={`s${i}`} className="kn-menu__sep" />
+        ) : "heading" in it ? (
+          <div key={`h${i}`} className="kn-menu__heading" role="presentation">
+            {it.heading}
+          </div>
         ) : (
           <div
             key={it.id}

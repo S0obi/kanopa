@@ -94,7 +94,7 @@ export function ConnectionDialog({ mode, connection, reason = "", platform = det
       setStatus({
         kind: "done",
         action,
-        result: { ok: false, title: "Kanopa could not run the test.", message: errorText(e), code: 0, elapsedMs: 0, namingContexts: null, baseDn: "", vendor: "" },
+        result: { ok: false, title: "Kanopa couldn't run the test.", message: errorText(e), code: 0, elapsedMs: 0, namingContexts: null, baseDn: "", vendor: "" },
       });
     }
   }
@@ -219,7 +219,7 @@ export function ConnectionDialog({ mode, connection, reason = "", platform = det
             </h3>
             <TextField
               label="Connection name"
-              placeholder="e.g. Production directory"
+              placeholder="Production directory"
               error={errors.name?.message}
               {...nameField}
               ref={(el) => {
@@ -410,7 +410,7 @@ function StatusBanner({ status }: { status: Status }) {
       </Banner>
     );
   return (
-    <Banner tone="danger" title={status.action === "fetch" ? "Could not read the base DN." : "Connection failed."}>
+    <Banner tone="danger" title={status.action === "fetch" ? "Couldn't read the base DN." : "Connection failed."}>
       {r.message}
     </Banner>
   );

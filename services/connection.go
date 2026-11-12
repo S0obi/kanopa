@@ -116,7 +116,7 @@ func (s *ConnectionService) FetchBaseDN(ctx context.Context, p ConnectionParams)
 	if res.OK && res.BaseDN == "" {
 		res.OK = false
 		res.Title = "No naming context."
-		res.Message = "The server does not publish a naming context. Enter the base DN yourself."
+		res.Message = "The server doesn't publish a naming context. Enter the base DN yourself."
 	}
 	if res.OK {
 		res.Message = res.BaseDN

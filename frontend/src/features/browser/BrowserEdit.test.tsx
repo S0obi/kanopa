@@ -15,7 +15,7 @@ async function openAda(id = "prod", patch: Record<string, unknown> = {}) {
   const out = renderWith(<BrowserScreen session={r.session!} />, backend);
   await out.user.click(await screen.findByRole("treeitem", { name: /^ou=people/ }));
   await out.user.keyboard("{ArrowRight}");
-  await out.user.click(await screen.findByRole("treeitem", { name: /^uid=ada,/ }));
+  await out.user.click(await screen.findByRole("treeitem", { name: /^uid=ada / }));
   await screen.findByRole("heading", { level: 1, name: "Ada Lovelace" });
   return { ...out, backend };
 }

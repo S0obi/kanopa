@@ -42,7 +42,7 @@ test("Ada: attributes, LDIF, member of, DN links, breadcrumb", async ({ page }) 
   await openProduction(page);
   await row(page, /^ou=people/).click();
   await page.keyboard.press("ArrowRight");
-  await row(page, /^uid=ada,/).click();
+  await row(page, /^uid=ada /).click();
   await expect(entryTitle(page, "Ada Lovelace")).toBeVisible();
   const table = page.getByRole("table", { name: "Attributes" });
   await expect(table).toContainText("JPEG image · 14,236 bytes");
@@ -58,7 +58,7 @@ test("Ada: attributes, LDIF, member of, DN links, breadcrumb", async ({ page }) 
   await page.getByRole("tab", { name: /Attributes/ }).click();
   await page.getByRole("button", { name: "uid=grace,ou=people,dc=example,dc=org" }).click();
   await expect(entryTitle(page, "Grace Hopper")).toBeVisible();
-  await expect(row(page, /^uid=grace,/)).toHaveAttribute("aria-selected", "true");
+  await expect(row(page, /^uid=grace /)).toHaveAttribute("aria-selected", "true");
 
   await page.getByRole("navigation", { name: "Distinguished name" }).getByRole("button", { name: "ou=people" }).click();
   await expect(entryTitle(page, "people")).toBeVisible();
@@ -69,7 +69,7 @@ test("the keyboard walks the tree", async ({ page }) => {
   await tree(page).focus();
   await page.keyboard.press("ArrowDown"); // ou=people
   await page.keyboard.press("ArrowRight"); // open it
-  await expect(row(page, /^uid=ada,/)).toBeVisible();
+  await expect(row(page, /^uid=ada /)).toBeVisible();
   await page.keyboard.press("ArrowRight"); // first child
   await expect(entryTitle(page, "Ada Lovelace")).toBeVisible();
   await page.keyboard.press("ArrowLeft"); // back to ou=people

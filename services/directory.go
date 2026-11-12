@@ -234,7 +234,7 @@ func (d *DirectoryService) ObjectClasses(id string) ClassesResult {
 	}
 	out := ClassesResult{Classes: []ClassInfo{}}
 	if l.schema == nil {
-		out.Failure = &Failure{Title: "Schema not read.", Message: "The server did not share its schema, so Kanopa can't list its object classes."}
+		out.Failure = &Failure{Title: "Schema not read.", Message: "The server didn't share its schema, so Kanopa can't list its object classes."}
 		return out
 	}
 	info := func(names []string, required bool) []AllowedAttribute {

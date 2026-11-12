@@ -3,6 +3,11 @@
 // 3 service accounts, 70 hosts and one referral). Output is deterministic.
 //
 //	go run ./test/ldap/seedgen > test/ldap/seed.ldif
+//
+// With -large it writes the large profile instead, to be loaded after the sample directory:
+// ou=archive with 10,000 people and cn=everyone, a group of 5,000 members.
+//
+//	go run ./test/ldap/seedgen -large > test/ldap/seed-large.ldif
 package main
 
 import (
@@ -10,6 +15,7 @@ import (
 	"bytes"
 	"crypto/sha1" //nolint:gosec // {SSHA} is what OpenLDAP stores by default
 	"encoding/base64"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
@@ -82,9 +88,39 @@ var namedMembers = map[string][]string{
 
 var rng = rand.New(rand.NewPCG(2026, 11))
 
+// The large profile.
+const (
+	largeChildren = 10_000
+	largeMembers  = 5_000
+)
+
+// writeLarge writes ou=archive and cn=everyone.
+func writeLarge(w *bufio.Writer) {
+	archive := "ou=archive," + base
+	entry(w, archive, "objectClass: organizationalUnit", "objectClass: top", "ou: archive", "description: Former employees and old accounts")
+	members := make([]string, 0, largeMembers)
+	for i := 1; i <= largeChildren; i++ {
+		uid := fmt.Sprintf("arch%05d", i)
+		dn := "uid=" + uid + "," + archive
+		if i <= largeMembers {
+			members = append(members, "member: "+dn)
+		}
+		entry(w, dn, "objectClass: inetOrgPerson", "objectClass: organizationalPerson", "objectClass: person", "objectClass: top",
+			"uid: "+uid, fmt.Sprintf("cn: Archive %d", i), fmt.Sprintf("sn: Archive%d", i), "givenName: Archive", "mail: "+uid+"@example.org")
+	}
+	lines := append([]string{"objectClass: groupOfNames", "objectClass: top", "cn: everyone", "description: Everyone in the archive"}, members...)
+	entry(w, "cn=everyone,ou=groups,"+base, lines...)
+}
+
 func main() {
+	large := flag.Bool("large", false, "write the large profile (ou=archive, cn=everyone) instead of the sample directory")
+	flag.Parse()
 	w := bufio.NewWriter(os.Stdout)
 	defer w.Flush()
+	if *large {
+		writeLarge(w)
+		return
+	}
 
 	entry(w, base, "objectClass: dcObject", "objectClass: organization", "objectClass: top", "dc: example", "o: Example Organization")
 	ou(w, "people", "People and their login accounts")

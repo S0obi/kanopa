@@ -30,9 +30,9 @@ describe("BrowserScreen", () => {
   it("opens on the base DN with its children", async () => {
     await connected();
     expect(item(/^dc=example,dc=org/)).toHaveAttribute("aria-expanded", "true");
-    expect(item(/^ou=people, People and their login accounts/)).toBeInTheDocument();
+    expect(item(/^ou=people People and their login accounts/)).toBeInTheDocument();
     expect(item(/^ou=partners/)).toHaveTextContent("referral");
-    expect(item(/^cn=Subschema, Schema/)).toBeInTheDocument();
+    expect(item(/^cn=Subschema Schema/)).toBeInTheDocument();
     expect(await screen.findByRole("heading", { level: 1, name: "example" })).toBeInTheDocument();
     expect(screen.getByText("Connected")).toBeInTheDocument();
     expect(screen.getByText("ldaps://localhost:636")).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe("BrowserScreen", () => {
     const { user, backend } = await connected();
     await user.click(item(/^ou=people/));
     await user.keyboard("{ArrowRight}");
-    await user.click(await screen.findByRole("treeitem", { name: /^uid=ada,/ }));
+    await user.click(await screen.findByRole("treeitem", { name: /^uid=ada / }));
     expect(await screen.findByRole("heading", { level: 1, name: "Ada Lovelace" })).toBeInTheDocument();
     const table = screen.getByRole("table", { name: "Attributes" });
     expect(within(table).getByText("JPEG image · 14,236 bytes")).toBeInTheDocument();

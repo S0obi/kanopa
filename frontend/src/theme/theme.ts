@@ -68,7 +68,7 @@ export const useTheme = create<ThemeState>((set, get) => {
       try {
         await b.setTheme(choice);
       } catch (e) {
-        useToasts.getState().show(`Kanopa could not save the theme. ${errorText(e)}`, "warning");
+        useToasts.getState().show(`Kanopa couldn't save the theme. ${errorText(e)}`, "warning");
       }
     },
   };

@@ -3,7 +3,7 @@ import { screen } from "@testing-library/react";
 import { FAKE, createFakeBackend } from "@/api/fake";
 import { renderWith } from "@/test/render";
 import { useToasts } from "@/ui";
-import { ThemeMenu } from "./ThemeMenu";
+import { AppMenu } from "@/features/app/AppMenu";
 import { resolveTheme, useTheme } from "./theme";
 
 /** A stand-in for the browser's dark-mode query, which the test can flip. */
@@ -84,7 +84,7 @@ describe("the theme store", () => {
     FAKE.failThemeSave = true;
     await useTheme.getState().choose(backend, "light");
     expect(page().theme).toBe("light");
-    expect(useToasts.getState().toasts[0]?.message).toMatch(/could not save the theme.*newer Kanopa/);
+    expect(useToasts.getState().toasts[0]?.message).toMatch(/couldn't save the theme.*newer Kanopa/);
   });
 
   it("starts as System when the saved choice can't be read", async () => {
@@ -97,23 +97,22 @@ describe("the theme store", () => {
   });
 });
 
-describe("ThemeMenu", () => {
+describe("the app menu", () => {
   it("lists the three themes, ticks the current one and switches", async () => {
     osTheme(false);
     const backend = createFakeBackend();
     await useTheme.getState().start(backend);
-    const { user } = renderWith(<ThemeMenu />, backend);
-    await user.click(screen.getByRole("button", { name: "Theme" }));
+    const { user } = renderWith(<AppMenu />, backend);
+    await user.click(screen.getByRole("button", { name: "Menu" }));
     const items = await screen.findAllByRole("menuitem");
-    expect(items.map((i) => i.textContent)).toEqual(["System", "Clearing", "Night forest"]);
+    expect(items.map((i) => i.textContent)).toEqual(["System", "Clearing", "Night forest", "About Kanopa…", "Open log folder"]);
     expect(items[0]?.querySelector("svg")).not.toBeNull();
     expect(items[2]?.querySelector("svg")).toBeNull();
 
     await user.click(items[2]!);
     expect(page().theme).toBe("dark");
     expect(FAKE.theme.choice).toBe("dark");
-    // The button shows the moon now.
-    await user.click(screen.getByRole("button", { name: "Theme" }));
+    await user.click(screen.getByRole("button", { name: "Menu" }));
     expect((await screen.findAllByRole("menuitem"))[2]?.querySelector("svg")).not.toBeNull();
   });
 });

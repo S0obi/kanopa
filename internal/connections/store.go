@@ -79,9 +79,9 @@ func Open(path string) (*Store, error) {
 	if err := json.Unmarshal(data, &f); err != nil {
 		aside := fmt.Sprintf("%s.unreadable-%s", path, time.Now().Format("20060102-150405"))
 		if rerr := os.Rename(path, aside); rerr != nil {
-			return nil, fmt.Errorf("the connections file %s is damaged and could not be moved aside: %w", path, rerr)
+			return nil, fmt.Errorf("the connections file %s is damaged and couldn't be moved aside: %w", path, rerr)
 		}
-		s.notice = fmt.Sprintf("Kanopa could not read your saved connections, so it started with none. The damaged file is kept as %s.", aside)
+		s.notice = fmt.Sprintf("Kanopa couldn't read your saved connections, so it started with none. The damaged file is kept as %s.", aside)
 		return s, nil
 	}
 	if f.Version > Version {
@@ -95,7 +95,7 @@ func Open(path string) (*Store, error) {
 // Unavailable is a store that could not be opened: it lists nothing, saves nothing, and says why once.
 func Unavailable(path string, err error) *Store {
 	return &Store{path: path, readOnly: true,
-		notice: fmt.Sprintf("Kanopa could not open your saved connections (%v). Check the permissions of %s, then restart Kanopa.", err, path)}
+		notice: fmt.Sprintf("Kanopa couldn't open your saved connections (%v). Check the permissions of %s, then restart Kanopa.", err, path)}
 }
 
 // migrate brings older files up to Version. Version 0 (no version field) is the same shape as 1.
@@ -195,28 +195,28 @@ func (s *Store) indexIn(list []Connection, id string) int {
 // commit writes next to disk (temp file + rename, so a crash never leaves half a file), then keeps it.
 func (s *Store) commit(next []Connection) error {
 	if s.readOnly {
-		return errors.New("Your connections were saved by a newer Kanopa, so this one cannot change them. Update Kanopa, then try again.")
+		return errors.New("Your connections were saved by a newer Kanopa, so this one can't change them. Update Kanopa, then try again.")
 	}
 	data, err := json.MarshalIndent(file{Version: Version, Connections: next}, "", "  ")
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
-		return fmt.Errorf("Kanopa could not create %s: %w", filepath.Dir(s.path), err)
+		return fmt.Errorf("Kanopa couldn't create %s: %w", filepath.Dir(s.path), err)
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(s.path), ".connections-*.json")
 	if err != nil {
-		return fmt.Errorf("Kanopa could not save your connections: %w", err)
+		return fmt.Errorf("Kanopa couldn't save your connections: %w", err)
 	}
 	_, werr := tmp.Write(append(data, '\n'))
 	cerr := tmp.Close()
 	if werr != nil || cerr != nil {
 		os.Remove(tmp.Name())
-		return fmt.Errorf("Kanopa could not save your connections: %w", errors.Join(werr, cerr))
+		return fmt.Errorf("Kanopa couldn't save your connections: %w", errors.Join(werr, cerr))
 	}
 	if err := os.Rename(tmp.Name(), s.path); err != nil {
 		os.Remove(tmp.Name())
-		return fmt.Errorf("Kanopa could not save your connections: %w", err)
+		return fmt.Errorf("Kanopa couldn't save your connections: %w", err)
 	}
 	s.conns = next
 	return nil

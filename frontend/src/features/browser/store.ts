@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Backend, Failure, SessionInfo, TreeNode } from "@/api/backend";
 import { lineage, splitDn } from "@/lib/dn";
+import { useLayout } from "@/stores/layout";
 
 /** DNs as keys: case-insensitive, no spaces after commas. */
 export const dnKey = (dn: string) => splitDn(dn).join(",").toLowerCase();
@@ -109,7 +110,10 @@ export const useBrowser = create<BrowserState>((set, get) => {
     expanded: {},
     selected: null,
     tab: "attributes",
-    setTab: (tab) => set({ tab }),
+    setTab: (tab) => {
+      set({ tab });
+      useLayout.getState().remember({ tab });
+    },
     request: null,
     ask: (action, dn) => set({ request: { action, dn } }),
     took: () => set({ request: null }),
@@ -118,7 +122,7 @@ export const useBrowser = create<BrowserState>((set, get) => {
     lastReadMs: null,
 
     async start(b, session) {
-      set({ session, nodes: {}, roots: [], expanded: {}, selected: null, connection: "connected", lost: null, lastReadMs: null, tab: "attributes", request: null });
+      set({ session, nodes: {}, roots: [], expanded: {}, selected: null, connection: "connected", lost: null, lastReadMs: null, tab: useLayout.getState().tab || "attributes", request: null });
       const r = await b.roots(session.connectionId);
       if (r.failure) return get().failed(r.failure);
       set({ nodes: putNodes((r.nodes ?? [])), roots: (r.nodes ?? []).map((n) => dnKey(n.dn)) });

@@ -171,14 +171,14 @@ func Classify(err error, op Op) *Error {
 	}
 	if isTLSMismatch(err) {
 		return newErr(CodeConnectError, "Not an LDAPS port.",
-			fmt.Sprintf("%s did not answer with TLS. Use ldap:// with StartTLS for this port, or check the port number.", hp), err)
+			fmt.Sprintf("%s didn't answer with TLS. Use ldap:// with StartTLS for this port, or check the port number.", hp), err)
 	}
 	if errors.Is(err, io.EOF) || isReset(err) {
 		return newErr(CodeServerDown, "Connection closed.",
 			fmt.Sprintf("%s closed the connection without answering. Check that the server is running, that the port speaks LDAP and that the encryption setting matches it, then try again.", hp), err)
 	}
 	return newErr(CodeConnectError, "Connection failed.",
-		fmt.Sprintf("Kanopa could not talk to %s: %s.", hp, rootMessage(err)), err)
+		fmt.Sprintf("Kanopa couldn't talk to %s: %s.", hp, rootMessage(err)), err)
 }
 
 func classifyResult(code int, le *ldap.Error, op Op) *Error {
@@ -201,13 +201,13 @@ func classifyResult(code int, le *ldap.Error, op Op) *Error {
 			fmt.Sprintf("The server refused the password for %s. Enter the current password, then try again.", op.BindDN), le)
 	case code == 48 && op.BindDN == "":
 		return newErr(48, "Anonymous bind refused.",
-			"The server does not accept anonymous binds. Choose Simple bind and enter a bind DN.", le)
+			"The server doesn't accept anonymous binds. Choose Simple bind and enter a bind DN.", le)
 	case code == 13:
 		return newErr(13, "Encryption required.",
 			fmt.Sprintf("%s only accepts encrypted connections. Choose LDAPS or StartTLS.", hp), le)
 	case code == 34:
 		return newErr(34, "Invalid DN.",
-			fmt.Sprintf("The server could not read the bind DN %s. A bind DN looks like cn=admin,dc=example,dc=org.", op.BindDN), le)
+			fmt.Sprintf("The server couldn't read the bind DN %s. A bind DN looks like cn=admin,dc=example,dc=org.", op.BindDN), le)
 	case op.Stage == StageStartTLS:
 		return newErr(code, "StartTLS refused.",
 			fmt.Sprintf("%s refused StartTLS. Use LDAPS, or choose None for a server on this computer.", hp), le)
@@ -315,7 +315,7 @@ var writeErrors = map[int]func(diag string, le *ldap.Error) *Error{
 		return newErr(20, "Value already there.", serverSaid(diag, "a value you added is already in the entry."), le)
 	},
 	21: func(diag string, le *ldap.Error) *Error {
-		return newErr(21, "Invalid value.", serverSaid(diag, "a value does not match the syntax of its attribute."), le)
+		return newErr(21, "Invalid value.", serverSaid(diag, "a value doesn't match the syntax of its attribute."), le)
 	},
 	32: func(_ string, le *ldap.Error) *Error {
 		return newErr(32, "Entry gone.", "this entry no longer exists: someone deleted or renamed it. Reload the tree.", le)
@@ -324,7 +324,7 @@ var writeErrors = map[int]func(diag string, le *ldap.Error) *Error{
 		return newErr(50, "Not allowed.", "the account you bound as may not change this entry. Connect as an account with write access.", le)
 	},
 	53: func(diag string, le *ldap.Error) *Error {
-		return newErr(53, "Change refused.", serverSaid(diag, "the server will not make this change."), le)
+		return newErr(53, "Change refused.", serverSaid(diag, "the server won't make this change."), le)
 	},
 	65: func(diag string, le *ldap.Error) *Error {
 		if class, attr, ok := requiresAttr(diag); ok {
@@ -333,7 +333,7 @@ var writeErrors = map[int]func(diag string, le *ldap.Error) *Error{
 		return newErr(65, "Object class rules broken.", serverSaid(diag, "the entry would break the rules of its object classes."), le)
 	},
 	64: func(diag string, le *ldap.Error) *Error {
-		return newErr(64, "Name refused.", serverSaid(diag, "the server does not accept this name for the entry here."), le)
+		return newErr(64, "Name refused.", serverSaid(diag, "the server doesn't accept this name for the entry here."), le)
 	},
 	66: func(_ string, le *ldap.Error) *Error {
 		return newErr(66, "Entry has children.", "this entry has entries below it. Delete them first.", le)
