@@ -70,6 +70,59 @@
   --focus-ring: 0 0 0 2px #fbfcf9, 0 0 0 4px #3b7448;
 }
 
+[data-theme="dark"] {
+  --surface: #131a15;
+  --surface-raised: #1a231d;
+  --surface-sunken: #0f1511;
+  --surface-hover: #232f27;
+  --surface-selected: #2b3f30;
+  --line: #29352d;
+  --line-strong: #647769;
+  --ink: #e3ebe1;
+  --ink-muted: #a3b3a6;
+  --ink-faint: #86968a;
+  --moss-hover: #b9d7af;
+  --moss-soft: #203226;
+  --moss-ink: #a8d39b;
+  --on-moss: #132017;
+  --fern: #a7c99c;
+  --pine: #6fb07e;
+  --focus: #9fd08f;
+  --link: #a8d39b;
+  --lichen: #3a4527;
+  --lichen-ink: #d6e3a6;
+  --sky: #203640;
+  --sky-ink: #a9d3e2;
+  --heather: #342c44;
+  --heather-ink: #cbbcec;
+  --bark: #3d3125;
+  --bark-ink: #e2c9a9;
+  --success-soft: #18332f;
+  --success-ink: #86d6cb;
+  --warning-soft: #3d3216;
+  --warning-ink: #f0cf78;
+  --danger-soft: #432123;
+  --danger-ink: #f5aaa9;
+  --danger-hover: #f2c1c2;
+  --on-danger: #3b0f13;
+  --info-soft: #203640;
+  --info-ink: #a9d3e2;
+  --syn-attr: #cbbcec;
+  --syn-dn: #a8d39b;
+  --syn-value: #e3ebe1;
+  --syn-keyword: #a9d3e2;
+  --syn-encoded: #e2c9a9;
+  --syn-operator: #f2b07c;
+  --syn-punct: #a3b3a6;
+  --syn-comment: #a3b3a6;
+  --syn-error: #f5aaa9;
+  --scrim: #05080699;
+  --shadow-sm: 0 1px 2px #00000066;
+  --shadow-md: 0 6px 16px #00000080, inset 0 1px 0 #ffffff0d;
+  --shadow-lg: 0 20px 48px -8px #000000b3, inset 0 1px 0 #ffffff0f;
+  --focus-ring: 0 0 0 2px #131a15, 0 0 0 4px #9fd08f;
+}
+
 @theme static {
   --color-*: initial;
   --radius-xs: 4px;
