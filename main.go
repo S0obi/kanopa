@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -114,38 +115,88 @@ func run() error {
 	})
 	setupMenu(app)
 
-	saved, hadSaved := prefs.Window()
-	place, restored := placeWindow(saved, hadSaved, screenBounds(app))
-	opts := application.WebviewWindowOptions{
-		Title:     "Kanopa",
-		Width:     place.Width,
-		Height:    place.Height,
-		MinWidth:  minWidth,
-		MinHeight: minHeight,
-		// The Kanopa surface color of the theme, so the window doesn't flash the wrong one on start.
-		BackgroundColour: surfaceColour(startsDark(prefs.Theme())),
-		URL:              "/",
-		Windows:          application.WindowsWindow{Theme: windowsTheme(prefs.Theme())},
-		Mac:              application.MacWindow{Appearance: macAppearance(prefs.Theme())},
-	}
-	if restored {
-		opts.InitialPosition, opts.X, opts.Y = application.WindowXY, place.X, place.Y
-		if place.Maximized {
-			opts.StartState = application.WindowStateMaximised //nolint:misspell // Wails spells it this way
+	// The window opens once the screens are known (Wails reads them when it starts), so a saved place can be checked.
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		saved, hadSaved := prefs.Window()
+		screens := screenBounds(app)
+		place, restored := placeWindow(saved, hadSaved, screens)
+		opts := application.WebviewWindowOptions{
+			Title:     "Kanopa",
+			Width:     place.Width,
+			Height:    place.Height,
+			MinWidth:  minWidth,
+			MinHeight: minHeight,
+			// The Kanopa surface color of the theme, so the window doesn't flash the wrong one on start.
+			BackgroundColour: surfaceColour(startsDark(prefs.Theme())),
+			URL:              "/",
+			Windows:          application.WindowsWindow{Theme: windowsTheme(prefs.Theme())},
+			Mac:              application.MacWindow{Appearance: macAppearance(prefs.Theme())},
 		}
-	}
-	win = app.Window.NewWithOptions(opts)
-	// Closing with unapplied changes waits for the person's answer; otherwise the window is remembered.
-	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
-		if appSvc.ShouldBlockClose() {
-			e.Cancel()
-			app.Event.Emit(services.EventCloseRequested)
-			return
+		if restored {
+			opts.InitialPosition, opts.X, opts.Y = application.WindowXY, place.X, place.Y
 		}
-		before, had := prefs.Window()
-		if err := prefs.SetWindow(windowToSave(win.Bounds(), win.IsMaximised(), before, had)); err != nil { //nolint:misspell // Wails spells it this way
-			logger.Warn("remember window", "err", err)
+		win = app.Window.NewWithOptions(opts)
+		if restored && place.Maximized {
+			// Not StartState: Wails moves the window to its position after maximizing it, which undoes it.
+			var once sync.Once
+			win.OnWindowEvent(events.Common.WindowShow, func(*application.WindowEvent) {
+				once.Do(func() { win.Maximise() }) //nolint:misspell // Wails spells it this way
+			})
 		}
+		// The window is followed as it moves, so closing doesn't depend on asking a window that is going away.
+		var remembered settings.Window
+		var wasMaximized bool
+		if hadSaved {
+			remembered, wasMaximized = saved, saved.Maximized
+		}
+		follow := func() {
+			if win.IsMinimised() { //nolint:misspell // Wails spells it this way
+				return
+			}
+			// Windows sends the resize before the window reports being maximized: those bounds are the screen's.
+			if b := win.Bounds(); !fillsAScreen(b, screens) {
+				remembered = settings.Window{X: b.X, Y: b.Y, Width: b.Width, Height: b.Height}
+			}
+		}
+		moved := func(*application.WindowEvent) {
+			// While maximized (or about to be), the bounds are the screen's: keep the earlier ones.
+			if !wasMaximized && !win.IsMaximised() { //nolint:misspell // Wails spells it this way
+				follow()
+			}
+		}
+		win.OnWindowEvent(events.Common.WindowDidMove, moved)
+		win.OnWindowEvent(events.Common.WindowDidResize, moved)
+		win.OnWindowEvent(events.Common.WindowMaximise, func(*application.WindowEvent) { wasMaximized = true })
+		win.OnWindowEvent(events.Common.WindowUnMaximise, func(*application.WindowEvent) {
+			if !win.IsMaximised() { //nolint:misspell // Wails spells it this way
+				wasMaximized = false
+				follow()
+			}
+		})
+		// Closing with unapplied changes waits for the person's answer; otherwise the window is remembered.
+		win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+			if appSvc.ShouldBlockClose() {
+				e.Cancel()
+				app.Event.Emit(services.EventCloseRequested)
+				return
+			}
+			if !remembered.Valid() {
+				remembered = settings.Window{X: place.X, Y: place.Y, Width: place.Width, Height: place.Height}
+				if b := win.Bounds(); b.Width > 0 {
+					remembered = settings.Window{X: b.X, Y: b.Y, Width: b.Width, Height: b.Height}
+				}
+			}
+			// What the window is at this moment decides whether it is maximized; the followed bounds are where it was.
+			out := remembered
+			if out.Maximized = win.IsMaximised(); !out.Maximized { //nolint:misspell // Wails spells it this way
+				follow()
+				out = remembered
+				out.Maximized = false
+			}
+			if err := prefs.SetWindow(out); err != nil {
+				logger.Warn("remember window", "err", err)
+			}
+		})
 	})
 
 	if err := app.Run(); err != nil {
