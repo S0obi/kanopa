@@ -255,9 +255,6 @@ func (s *ConnectionService) Delete(id string) error {
 	if err := s.secrets.Delete(id); err != nil {
 		s.log.Error("credential store: remove the password of a deleted connection", "id", id, "err", err)
 	}
-	if s.AfterDelete != nil {
-		s.AfterDelete(id)
-	}
 	s.log.Info("connection deleted", "id", id)
 	return nil
 }

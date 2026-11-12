@@ -1,5 +1,4 @@
-// Package settings keeps Kanopa's own preferences (not connections): the theme, and the recent
-// searches of each connection.
+// Package settings keeps Kanopa's own preferences (not connections): today the theme.
 //
 // It is a small versioned JSON file beside connections.json. A file that can't be read is
 // moved aside and Kanopa starts with defaults; a file from a newer Kanopa is read but never
@@ -12,8 +11,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"sync"
 	"time"
 )
@@ -31,25 +28,9 @@ const (
 // ValidTheme reports whether t is one of the theme choices.
 func ValidTheme(t string) bool { return t == ThemeSystem || t == ThemeLight || t == ThemeDark }
 
-// MaxRecent is how many recent searches are kept for each connection.
-const MaxRecent = 10
-
-// Recent is a search that was run: where, how deep, and the filter. Never its results.
-type Recent struct {
-	Base   string   `json:"base"`
-	Scope  string   `json:"scope"` // base | one | sub
-	Filter string   `json:"filter"`
-	Attrs  []string `json:"attrs"`
-}
-
-func (r Recent) same(o Recent) bool {
-	return strings.EqualFold(r.Base, o.Base) && r.Scope == o.Scope && r.Filter == o.Filter && strings.EqualFold(strings.Join(r.Attrs, ","), strings.Join(o.Attrs, ","))
-}
-
 type file struct {
-	Version int                 `json:"version"`
-	Theme   string              `json:"theme"`
-	Recent  map[string][]Recent `json:"recent,omitempty"`
+	Version int    `json:"version"`
+	Theme   string `json:"theme"`
 }
 
 // Store is the settings file. Safe for concurrent use.
@@ -57,7 +38,6 @@ type Store struct {
 	path     string
 	mu       sync.Mutex
 	theme    string
-	recent   map[string][]Recent // by connection ID
 	notice   string
 	readOnly bool
 }
@@ -97,7 +77,6 @@ func Open(path string) (*Store, error) {
 	if ValidTheme(f.Theme) {
 		s.theme = f.Theme
 	}
-	s.recent = f.Recent
 	return s, nil
 }
 
@@ -135,43 +114,12 @@ func (s *Store) SetTheme(t string) error {
 	return s.save()
 }
 
-// Recent returns the recent searches of a connection, newest first.
-func (s *Store) Recent(id string) []Recent {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.recent[id])
-}
-
-// AddRecent puts a search first in the connection's list, dropping an identical older one and
-// keeping MaxRecent. The list holds for this run even when the file can't be saved.
-func (s *Store) AddRecent(id string, r Recent) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.recent == nil {
-		s.recent = map[string][]Recent{}
-	}
-	list := slices.DeleteFunc(slices.Clone(s.recent[id]), func(o Recent) bool { return o.same(r) })
-	s.recent[id] = append([]Recent{r}, list...)[:min(len(list)+1, MaxRecent)]
-	return s.save()
-}
-
-// ClearRecent forgets a connection's recent searches.
-func (s *Store) ClearRecent(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.recent[id]; !ok {
-		return nil
-	}
-	delete(s.recent, id)
-	return s.save()
-}
-
 // save writes the file (temp file + rename, so a crash never leaves half a file).
 func (s *Store) save() error {
 	if s.readOnly {
 		return errors.New("Your settings were saved by a newer Kanopa, so this one cannot change them. Update Kanopa to keep the theme between runs.")
 	}
-	data, err := json.MarshalIndent(file{Version: Version, Theme: s.theme, Recent: s.recent}, "", "  ")
+	data, err := json.MarshalIndent(file{Version: Version, Theme: s.theme}, "", "  ")
 	if err != nil {
 		return err
 	}

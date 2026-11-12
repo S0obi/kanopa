@@ -2,7 +2,6 @@ package ldapx
 
 import (
 	"context"
-	"sort"
 	"strings"
 
 	"github.com/go-ldap/ldap/v3"
@@ -55,22 +54,4 @@ func containsFold(list []string, v string) bool {
 		}
 	}
 	return false
-}
-
-// AttributeNames lists the user attribute names of the schema, sorted, for completing a filter.
-func (s *Schema) AttributeNames() []string {
-	if s == nil {
-		return nil
-	}
-	seen := map[*AttributeType]bool{}
-	var out []string
-	for _, a := range s.attrs {
-		if seen[a] || a.Operational() || len(a.Names) == 0 {
-			continue
-		}
-		seen[a] = true
-		out = append(out, a.Names[0])
-	}
-	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i]) < strings.ToLower(out[j]) })
-	return out
 }

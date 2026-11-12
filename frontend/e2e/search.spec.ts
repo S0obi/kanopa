@@ -1,10 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// Search, in a browser against the fake directory.
+// The header search, in a browser against the fake directory.
 
 const tree = (page: Page) => page.getByRole("tree", { name: "Directory tree" });
 const row = (page: Page, name: RegExp) => tree(page).getByRole("treeitem", { name });
-const filter = (page: Page) => page.getByRole("combobox", { name: "Filter" });
+const field = (page: Page) => page.getByRole("combobox", { name: "Search entries" });
 const title = (page: Page, name: string) => page.locator("main h1", { hasText: name });
 
 async function connect(page: Page) {
@@ -13,70 +13,56 @@ async function connect(page: Page) {
   await expect(row(page, /^ou=people/)).toBeVisible();
 }
 
-test("find people by filter, open one in the tree, come back to the results", async ({ page }) => {
+test("type a name, click the result: the entry is selected in the tree and opens", async ({ page }) => {
   await connect(page);
   await page.keyboard.press("Control+f");
-  await expect(title(page, "Search")).toBeVisible();
-  await filter(page).fill("(&(objectClass=inetOrgPerson)(mail=ada*))");
-  await expect(page.getByLabel("The filter is valid")).toBeVisible();
-  await filter(page).press("Enter");
-
-  const table = page.getByRole("table", { name: "Search results" });
-  await expect(table.getByRole("row")).toHaveCount(2);
-  await expect(table).toContainText("Ada Lovelace");
-  await table.getByRole("button", { name: /^Open uid=ada,/ }).click();
+  await expect(field(page)).toBeFocused();
+  await page.keyboard.type("ada");
+  const list = page.getByRole("listbox", { name: "Matching entries" });
+  await expect(list.getByRole("option").first()).toContainText("Ada Lovelace");
+  await expect(list).toContainText("Names and mail");
+  await list.getByRole("option").first().click();
 
   await expect(title(page, "Ada Lovelace")).toBeVisible();
   await expect(row(page, /^uid=ada,/)).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("button", { name: "Back to results (1)" }).click();
-  await expect(table).toBeVisible();
-  await expect(filter(page)).toHaveValue("(&(objectClass=inetOrgPerson)(mail=ada*))");
+  await expect(list).toHaveCount(0);
+  await expect(field(page)).toHaveValue("ada");
 });
 
-test("a filter with a missing parenthesis is explained and nothing is sent; a bare filter is fixed in one click", async ({ page }) => {
+test("words, an LDAP filter, and a filter that is broken", async ({ page }) => {
   await connect(page);
-  await page.getByRole("button", { name: "Search the directory" }).click();
-  await filter(page).fill("(&(uid=ada)");
-  // Unfinished text is not flagged while it is being typed; Enter says what is missing.
-  await expect(page.getByText("Missing ) to close the ( at position 1.")).toHaveCount(0);
-  await filter(page).press("Enter");
+  await field(page).fill("ada lov");
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await expect(page.getByRole("option")).toContainText("Ada Lovelace");
+
+  await field(page).fill("(&(objectClass=inetOrgPerson)(mail=grace*))");
+  await expect(page.getByRole("listbox")).toContainText("LDAP filter");
+  await expect(page.getByRole("option")).toContainText("Grace Hopper");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(title(page, "Grace Hopper")).toBeVisible();
+
+  await field(page).fill("(&(uid=ada)");
   await expect(page.getByText("Missing ) to close the ( at position 1.")).toBeVisible();
   await expect(page.getByText(/▲ character 12/)).toBeVisible();
-  await expect(page.getByRole("table", { name: "Search results" })).toHaveCount(0);
 
-  await filter(page).fill("uid=ada");
-  await page.getByRole("button", { name: "Use (uid=ada)" }).click();
-  await expect(filter(page)).toHaveValue("(uid=ada)");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByRole("table", { name: "Search results" })).toContainText("Ada Lovelace");
+  await page.keyboard.press("Escape");
+  await expect(field(page)).toHaveValue("");
 });
 
-test("the first 500 of 1,182, 100 at a time", async ({ page }) => {
+test("ten of the matches, and the field in Night forest", async ({ page }) => {
   await connect(page);
-  await page.getByRole("button", { name: "Search the directory" }).click();
-  await filter(page).fill("(objectClass=inetOrgPerson)");
-  await filter(page).press("Enter");
-  const table = page.getByRole("table", { name: "Search results" });
-  await expect(table.getByRole("row")).toHaveCount(101);
-  await expect(page.getByText("These are the first 500 entries.")).toBeVisible();
-  await page.getByRole("button", { name: "Show 100 more" }).click();
-  await expect(table.getByRole("row")).toHaveCount(201);
-});
-
-test("Search below here starts at the row; Night forest search reads in dark", async ({ page }) => {
-  await connect(page);
-  await row(page, /^ou=groups/).click({ button: "right" });
-  await page.getByRole("menuitem", { name: /Search below here/ }).click();
-  await expect(page.getByLabel("Start at")).toHaveValue("ou=groups,dc=example,dc=org");
+  await field(page).fill("an");
+  await expect(page.getByRole("option")).toHaveCount(10);
+  await expect(page.getByRole("listbox")).toContainText("10 of 200+");
 
   await page.getByRole("button", { name: "Theme" }).click();
   await page.getByRole("menuitem", { name: "Night forest" }).click();
-  await filter(page).fill("(cn=a*)");
-  await filter(page).press("Enter");
-  await expect(page.getByRole("table", { name: "Search results" })).toContainText("admins");
+  await field(page).fill("ada");
+  await expect(page.getByRole("option").first()).toContainText("Ada Lovelace");
   const dark = await page.evaluate(() => {
     const bg = (sel: string) => getComputedStyle(document.querySelector(sel)!).backgroundColor;
-    return { input: bg(".kn-input"), table: bg(".kn-attrs"), page: getComputedStyle(document.body).backgroundColor };
+    return { field: bg(".kn-hsearch__field"), panel: bg(".kn-hsearch__panel"), page: getComputedStyle(document.body).backgroundColor };
   });
-  expect(dark).toEqual({ input: "rgb(26, 35, 29)", table: "rgb(26, 35, 29)", page: "rgb(19, 26, 21)" });
+  expect(dark).toEqual({ field: "rgb(26, 35, 29)", panel: "rgb(26, 35, 29)", page: "rgb(19, 26, 21)" });
 });

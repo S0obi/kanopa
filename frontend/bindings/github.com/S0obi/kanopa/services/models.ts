@@ -239,17 +239,15 @@ export interface Failure {
 }
 
 /**
- * FilterCheck is the verdict on a search filter, before anything is sent.
+ * FilterCheck says what is wrong with a search filter, and where.
  */
 export interface FilterCheck {
-    "ok": boolean;
     "message": string;
 
     /**
-     * Position is the 0-based character the message points at.
+     * Position is the 0-based character of the typed text the message points at.
      */
     "position": number;
-    "suggestion": string;
 }
 
 /**
@@ -286,14 +284,61 @@ export interface PreviewResult {
 }
 
 /**
- * RecentSearch is a search that was run on a connection: where, how deep, and the filter.
- * Never its results.
+ * QuickHit is one entry a quick find lists.
  */
-export interface RecentSearch {
-    "base": string;
-    "scope": string;
+export interface QuickHit {
+    "dn": string;
+    "name": string;
+
+    /**
+     * root | ou | person | group | server | entry
+     */
+    "type": string;
+
+    /**
+     * a person's mail, else the entry's description
+     */
+    "sub": string;
+}
+
+/**
+ * QuickResult is what a quick find found and how it ended.
+ */
+export interface QuickResult {
+    "mode": string;
+
+    /**
+     * as sent to the server
+     */
     "filter": string;
-    "attrs": string[] | null;
+
+    /**
+     * Hits are the best quickShow matches, best first (names) or in the server's order (filter).
+     */
+    "hits": QuickHit[] | null;
+
+    /**
+     * Total is how many matches were read, at most quickRead; More says there are others.
+     */
+    "total": number;
+    "more": boolean;
+
+    /**
+     * ServerLimit: the server's own size limit ended the search, not Kanopa's.
+     */
+    "serverLimit": boolean;
+
+    /**
+     * Paged is false on a server without the paged results control.
+     */
+    "paged": boolean;
+    "elapsedMs": number;
+
+    /**
+     * Invalid is set for an LDAP filter that can't be sent; nothing reached the server.
+     */
+    "invalid": FilterCheck | null;
+    "failure": Failure | null;
 }
 
 /**
@@ -371,84 +416,6 @@ export interface SavedConnection {
      */
     "lastUsed": string;
     "lastError": string;
-}
-
-/**
- * SearchRequest is one search from the Search panel.
- */
-export interface SearchRequest {
-    /**
-     * empty: the connection's base DN
-     */
-    "base": string;
-
-    /**
-     * base | one | sub
-     */
-    "scope": string;
-    "filter": string;
-
-    /**
-     * columns to show besides name, type and DN
-     */
-    "attributes": string[] | null;
-}
-
-/**
- * SearchResult is what a search found and how it ended.
- */
-export interface SearchResult {
-    "rows": SearchRow[] | null;
-    "columns": string[] | null;
-    "base": string;
-    "scope": string;
-
-    /**
-     * as sent
-     */
-    "filter": string;
-
-    /**
-     * the most entries Kanopa reads for one search
-     */
-    "limit": number;
-
-    /**
-     * Truncated: more entries match than were read. ServerLimit says the server's own size limit
-     * stopped the search, rather than Kanopa's.
-     */
-    "truncated": boolean;
-    "serverLimit": boolean;
-
-    /**
-     * Paged is false on a server without the paged results control.
-     */
-    "paged": boolean;
-    "elapsedMs": number;
-    "failure": Failure | null;
-}
-
-/**
- * SearchRow is one entry found.
- */
-export interface SearchRow {
-    "dn": string;
-    "name": string;
-
-    /**
-     * root | ou | person | group | server | entry
-     */
-    "type": string;
-
-    /**
-     * its description
-     */
-    "sub": string;
-
-    /**
-     * Cells holds the values of each requested attribute, in the order of SearchResult.Columns.
-     */
-    "cells": (string[] | null)[] | null;
 }
 
 /**

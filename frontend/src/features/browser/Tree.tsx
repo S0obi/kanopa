@@ -4,7 +4,6 @@ import { rdnParts } from "@/lib/dn";
 import { detectPlatform, isMod } from "@/lib/platform";
 import { Button, ContextMenu, Icon, Spinner, TypeTile, cx, useToasts } from "@/ui";
 import { marks as marksOf, newChildren, useChanges, type Mark } from "./changes";
-import { useSearch } from "@/features/search/store";
 import { dnKey, useBrowser, visibleRows, type TreeRow } from "./store";
 import { blockedReason, offered, treeMenu, type TreeAction, type TreeMenuContext } from "./treeMenu";
 
@@ -100,8 +99,7 @@ export function DirectoryTree() {
       return;
     }
     select(n.dn);
-    if (action === "search") useSearch.getState().show(n.dn);
-    else ask(action, n.dn);
+    ask(action, n.dn);
   }
 
   /** Opens the menu for a row: at the pointer, or below the row's label for the keyboard. */

@@ -143,10 +143,11 @@ function parse(text: string): { node: Node } | { failure: Failure; suggestion?: 
   return { node: n };
 }
 
-export function fakeCheckFilter(text: string): FilterCheck {
+/** The problem with a filter, and where; null when it is valid. */
+export function fakeCheckFilter(text: string): FilterCheck | null {
   const r = parse(text);
-  if ("node" in r) return { ok: true, message: "", position: 0, suggestion: "" };
-  return { ok: false, message: r.failure.msg, position: r.failure.pos, suggestion: r.suggestion ?? "" };
+  if ("node" in r) return null;
+  return { message: r.failure.msg, position: r.failure.pos };
 }
 
 /** Compiles a valid filter into a test over an entry's attributes (case-insensitive names and values); null when invalid. */

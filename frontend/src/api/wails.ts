@@ -29,12 +29,7 @@ export const wailsBackend: Backend = {
   objectClasses: (id) => DirectoryService.ObjectClasses(id),
   countChildren: (id, dn) => DirectoryService.CountChildren(id, dn),
   ping: (id) => DirectoryService.Ping(id),
-  search: (id, req, signal) => withSignal(DirectoryService.Search(id, req), signal),
-  checkFilter: (text) => DirectoryService.CheckFilter(text),
-  attributeNames: async (id) => (await DirectoryService.AttributeNames(id)) ?? [],
-  recentSearches: async (id) => (await SettingsService.RecentSearches(id)) ?? [],
-  addRecentSearch: (id, r) => SettingsService.AddRecentSearch(id, r),
-  clearRecentSearches: (id) => SettingsService.ClearRecentSearches(id),
+  quick: (id, text, signal) => withSignal(DirectoryService.Quick(id, text), signal),
   copyText: async (text) => {
     await Clipboard.SetText(text);
   },

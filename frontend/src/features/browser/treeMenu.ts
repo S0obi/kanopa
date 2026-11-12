@@ -4,7 +4,7 @@ import { sameDn, splitDn } from "@/lib/dn";
 import type { MenuItem } from "@/ui";
 import type { Mark } from "./changes";
 
-export type TreeAction = "copy" | "new" | "addMember" | "search" | "rename" | "delete";
+export type TreeAction = "copy" | "new" | "addMember" | "rename" | "delete";
 
 export interface TreeMenuContext {
   /** The connection can write: not read-only, and connected. */
@@ -21,8 +21,6 @@ export function shortcutOf(action: TreeAction, platform: Platform): string[] | u
   switch (action) {
     case "copy":
       return ["mod", "c"];
-    case "search":
-      return ["mod", "f"];
     case "rename":
       return ["F2"];
     case "delete":
@@ -35,8 +33,6 @@ export function shortcutOf(action: TreeAction, platform: Platform): string[] | u
 export function blockedReason(action: TreeAction, n: TreeNode, ctx: TreeMenuContext): string | undefined {
   if (action === "copy") return undefined;
   if (ctx.mark === "new") return "Not created yet";
-  // Searching only reads, so it works on an entry marked for deletion and on a read-only connection.
-  if (action === "search") return undefined;
   if (ctx.mark === "deleted") return "Marked for deletion";
   if (!ctx.canWrite) return "Read-only";
   if (action === "new" || action === "addMember") return undefined;
@@ -52,8 +48,6 @@ export function blockedReason(action: TreeAction, n: TreeNode, ctx: TreeMenuCont
 export function offered(action: TreeAction, n: TreeNode): boolean {
   if (action === "new") return n.type === "root" || n.type === "ou";
   if (action === "addMember") return n.type === "group";
-  // Entries that can hold others: containers, and anything the server says has children.
-  if (action === "search") return n.type === "root" || n.type === "ou" || n.hasChildren;
   return true;
 }
 
@@ -71,7 +65,6 @@ export function treeMenu(n: TreeNode, ctx: TreeMenuContext): MenuItem[] {
     ...item("copy", "Copy DN", "copy"),
     ...item("new", "New child entry…", "plus"),
     ...item("addMember", "Add member…", "users"),
-    ...item("search", "Search below here…", "search"),
     ...item("rename", "Rename…", "pencil"),
     { separator: true },
     ...item("delete", "Delete…", "trash", true),

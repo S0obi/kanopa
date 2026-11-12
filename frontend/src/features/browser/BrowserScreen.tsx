@@ -12,8 +12,7 @@ import { useChanges } from "./changes";
 import { EntryPane } from "./EntryPane";
 import { useBrowser } from "./store";
 import { DirectoryTree } from "./Tree";
-import { SearchPanel } from "@/features/search/SearchPanel";
-import { useSearch } from "@/features/search/store";
+import { HeaderSearch } from "@/features/search/HeaderSearch";
 import { ThemeMenu } from "@/theme/ThemeMenu";
 
 const PING_EVERY_MS = 30_000;
@@ -34,17 +33,6 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
   const changes = useApplyChanges(session);
   const dropChanges = useChanges((s) => s.discard);
   const setTab = useBrowser((s) => s.setTab);
-  const searchOpen = useSearch((s) => s.open);
-  // Search starts at the selected entry; with the panel already open nothing moves.
-  function openSearch() {
-    if (useSearch.getState().open) return;
-    useSearch.getState().show(useBrowser.getState().selected ?? undefined);
-  }
-  // A new connection starts with a fresh search.
-  useEffect(() => {
-    useSearch.getState().reset();
-    return () => useSearch.getState().reset();
-  }, []);
   useApplyShortcut(() => void changes.apply());
   const id = session.connectionId;
   const host = hostOf(session.url);
@@ -80,11 +68,6 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
   // F5 / Ctrl+R / ⌘R reads the tree and the entry again.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (isMod(e, platform) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        openSearch();
-        return;
-      }
       if (e.key === "F5" || (isMod(e, platform) && e.key.toLowerCase() === "r")) {
         e.preventDefault();
         if (connection === "connected") void refresh();
@@ -144,10 +127,9 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
             Read-only
           </Badge>
         )}
-        <span className="grow" />
-        <Tooltip content="Search the directory" shortcut={["mod", "f"]} placement="bottom">
-          <Button variant="ghost" size="sm" icon="search" label="Search the directory" aria-pressed={searchOpen} onClick={openSearch} />
-        </Tooltip>
+        <div className="flex min-w-0 grow justify-center px-4">
+          <HeaderSearch session={session} connection={connection} />
+        </div>
         <Tooltip content="Read the tree and the entry again" shortcut={platform === "mac" ? ["mod", "r"] : ["F5"]} placement="bottom">
           <Button variant="ghost" size="sm" icon="refresh" label="Refresh" busy={refreshing} disabled={connection !== "connected"} onClick={() => void refresh()} />
         </Tooltip>
@@ -200,17 +182,14 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
                 <ApplyFailureBanner f={changes.failure} pending={changes.summary.count} onDismiss={changes.dismissFailure} />
               </div>
             )}
-            {searchOpen ? <SearchPanel session={session} connection={connection} /> : <EntryPane />}
+            <EntryPane />
             {changes.summary.count > 0 && (
               <ChangesBar
                 count={changes.summary.count}
                 summary={changes.summary.text}
                 connected={connection === "connected"}
                 applying={changes.applying}
-                onReview={() => {
-                  useSearch.getState().hide();
-                  setTab("ldif");
-                }}
+                onReview={() => setTab("ldif")}
                 onDiscard={changes.discard}
                 onApply={() => void changes.apply()}
               />
