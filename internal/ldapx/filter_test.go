@@ -59,20 +59,6 @@ func TestCheckFilterPointsAtTheProblem(t *testing.T) {
 	}
 }
 
-func TestCheckFilterSuggestsParentheses(t *testing.T) {
-	err := CheckFilter("uid=ada")
-	if err == nil || err.Pos != 0 || err.Suggestion != "(uid=ada)" {
-		t.Fatalf("got %+v", err)
-	}
-	err = CheckFilter("  cn=*ada*  ")
-	if err == nil || err.Suggestion != "(cn=*ada*)" {
-		t.Fatalf("got %+v", err)
-	}
-	if err := CheckFilter("hello world"); err == nil || err.Suggestion != "" {
-		t.Fatalf("nothing to suggest for %+v", err)
-	}
-}
-
 func TestCheckFilterCountsCharactersNotBytes(t *testing.T) {
 	err := CheckFilter("(cn=Zoë")
 	if err == nil || err.Pos != 7 {

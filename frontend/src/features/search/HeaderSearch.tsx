@@ -1,11 +1,11 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useBackend, type QuickHit, type QuickResult, type SessionInfo } from "@/api/backend";
 import { detectPlatform, isMod } from "@/lib/platform";
 import { Button, Icon, Kbd, Spinner, TypeTile, asEntryType, cx } from "@/ui";
 import { useBrowser, type ConnectionState } from "@/features/browser/store";
-import { countText, highlight, searchable, wordsOf } from "./quick";
-import { useSettled } from "./useSettled";
+import { useSettled } from "@/lib/settled";
+import { MODE_LABEL, countText, highlight, searchable, wordsOf } from "./quick";
 
 /**
  * The search field in the header. A word or two finds entries by name and mail; text that starts
@@ -24,6 +24,8 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
   const [focused, setFocused] = useState(false);
   const [closed, setClosed] = useState(false);
   const [active, setActive] = useState(-1);
+  // Enter pressed before the results arrived: the first result opens once they do.
+  const [submit, setSubmit] = useState(false);
   const connected = connection === "connected";
 
   const settled = useSettled(text, 180);
@@ -46,6 +48,8 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
   // Ctrl/⌘+F and Ctrl/⌘+K go to the field and select what is in it.
   useEffect(() => {
     function onKey(e: globalThis.KeyboardEvent) {
+      // A dialog has the keyboard: the search is not behind it.
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
       const k = e.key.toLowerCase();
       if (isMod(e, platform) && !e.shiftKey && !e.altKey && (k === "f" || k === "k")) {
         e.preventDefault();
@@ -67,14 +71,25 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
     return () => window.removeEventListener("pointerdown", away);
   }, [focused]);
 
-  function pick(hit: QuickHit) {
-    select(hit.dn);
-    void reveal(backend, hit.dn);
-    // The text stays, so focusing the field again shows the same results; the keyboard goes back to the entry.
-    setClosed(true);
-    input.current?.blur();
-    setFocused(false);
-  }
+  const pick = useCallback(
+    (hit: QuickHit) => {
+      select(hit.dn);
+      void reveal(backend, hit.dn);
+      // The text stays, so focusing the field again shows the same results; the keyboard goes back to the entry.
+      setClosed(true);
+      input.current?.blur();
+      setFocused(false);
+    },
+    [backend, select, reveal],
+  );
+
+  // The Enter that came too early: once the results for the text have arrived, open the first one.
+  useEffect(() => {
+    if (!submit || stale || !result) return;
+    // oxlint-disable-next-line react/set-state-in-effect -- a one-shot, taken when the results arrive
+    setSubmit(false);
+    if (open && result.hits?.[0]) pick(result.hits[0]);
+  }, [submit, stale, result, open, pick]);
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -85,18 +100,27 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
       setActive((i) => (i + step + hits.length) % hits.length);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const hit = hits[current >= 0 ? current : 0];
-      if (open && hit && !stale) pick(hit);
+      if (!open) return;
+      if (stale || !result) setSubmit(true);
+      else if (hits.length) pick(hits[current >= 0 ? current : 0]!);
     } else if (e.key === "Escape") {
       e.preventDefault();
       setText("");
       setActive(-1);
+      setSubmit(false);
       input.current?.blur();
     }
   }
 
   return (
-    <div className="kn-hsearch" ref={root}>
+    <div
+      className="kn-hsearch"
+      ref={root}
+      // Leaving the field by keyboard (Tab, Esc) closes the list, as a click elsewhere does.
+      onBlur={(e) => {
+        if (!root.current?.contains(e.relatedTarget as Node | null)) setFocused(false);
+      }}
+    >
       <div className="kn-hsearch__field">
         <Icon name="search" size={14} />
         <input
@@ -117,6 +141,7 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
             setText(e.target.value);
             setClosed(false);
             setActive(-1);
+            setSubmit(false);
           }}
           onFocus={() => {
             setFocused(true);
@@ -127,7 +152,7 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
           onKeyDown={onKeyDown}
         />
         {text ? (
-          <Button variant="ghost" size="sm" icon="x" label="Clear search" className="!size-5 !min-w-0 !p-0" onMouseDown={(e) => e.preventDefault()} onClick={() => { setText(""); input.current?.focus(); }} />
+          <Button variant="ghost" size="sm" icon="x" label="Clear search" tabIndex={-1} className="!size-5 !min-w-0 !p-0" onMouseDown={(e) => e.preventDefault()} onClick={() => { setText(""); input.current?.focus(); }} />
         ) : (
           <span className="kn-hsearch__hint">
             <Kbd keys={["mod", "f"]} platform={platform} />
@@ -147,7 +172,7 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
       )}
       {open && (
         <div className="kn-hsearch__panel" id={listId} role="listbox" tabIndex={-1} aria-label="Matching entries" onMouseDown={(e) => e.preventDefault()}>
-          <Panel result={result} text={text} settledText={settled} loading={query.isFetching && !result} stale={stale} listId={listId} current={current} onPick={pick} onHover={setActive} baseDn={session.baseDn} />
+          <Panel result={result} text={text} settledText={settled} stale={stale} listId={listId} current={current} onPick={pick} onHover={setActive} baseDn={session.baseDn} />
         </div>
       )}
     </div>
@@ -181,7 +206,6 @@ interface PanelProps {
   result: QuickResult | undefined;
   text: string;
   settledText: string;
-  loading: boolean;
   stale: boolean;
   listId: string;
   current: number;
@@ -190,8 +214,8 @@ interface PanelProps {
   onHover: (i: number) => void;
 }
 
-function Panel({ result, text, settledText, loading, stale, listId, current, baseDn, onPick, onHover }: PanelProps) {
-  if (!result || (loading && !result.hits?.length && !result.invalid))
+function Panel({ result, text, settledText, stale, listId, current, baseDn, onPick, onHover }: PanelProps) {
+  if (!result)
     return (
       <div className="kn-hsearch__note" role="status">
         <Spinner size={14} /> Searching…
@@ -203,7 +227,7 @@ function Panel({ result, text, settledText, loading, stale, listId, current, bas
         <Icon name="error" size={14} /> {result.failure.message}
       </div>
     );
-  const mode = result.mode === "filter" ? "LDAP filter" : "Names and mail";
+  const mode = MODE_LABEL[result.mode] ?? MODE_LABEL.names;
   if (result.invalid) {
     const at = Math.min(result.invalid.position, Array.from(settledText.trim()).length);
     return (
@@ -237,6 +261,10 @@ function Panel({ result, text, settledText, loading, stale, listId, current, bas
           {result.mode === "filter" ? (
             <>
               No entry matches <code>{result.filter}</code> under <code>{baseDn}</code>.
+            </>
+          ) : result.mode === "dn" ? (
+            <>
+              No entry at <code>{result.filter}</code>.
             </>
           ) : (
             <>No entry matches “{text.trim()}”.</>

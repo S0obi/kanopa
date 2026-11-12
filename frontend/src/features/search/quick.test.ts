@@ -29,9 +29,11 @@ describe("marking what was typed", () => {
 });
 
 describe("what the field sends", () => {
-  it("needs two characters, or the start of a filter", () => {
+  it("needs a word of two characters, or the start of a filter", () => {
     expect(searchable("")).toBe(false);
     expect(searchable(" a ")).toBe(false);
+    expect(searchable("a b c")).toBe(false);
+    expect(searchable("ada l")).toBe(true);
     expect(searchable("ad")).toBe(true);
     expect(searchable("(")).toBe(true);
     expect(searchable("Zö")).toBe(true);

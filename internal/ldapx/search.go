@@ -7,11 +7,10 @@ import (
 	"github.com/go-ldap/ldap/v3"
 )
 
-// Search scopes.
+// Search scopes Kanopa uses.
 const (
-	ScopeBase     = ldap.ScopeBaseObject
-	ScopeOneLevel = ldap.ScopeSingleLevel
-	ScopeSubtree  = ldap.ScopeWholeSubtree
+	ScopeBase    = ldap.ScopeBaseObject
+	ScopeSubtree = ldap.ScopeWholeSubtree
 )
 
 // SearchParams is one search the person asked for.

@@ -11,17 +11,21 @@ const READ = 200;
 const SHOW = 10;
 const MIN_CHARS = 2;
 const WORDS = 6;
+// A distinguished name of two or more parts, such as one copied with Copy DN.
+const DN = /^[A-Za-z][A-Za-z0-9._;-]*=[^,]*(,\s*[A-Za-z][A-Za-z0-9._;-]*=[^,]*)+$/;
 const PREFIX = ["uid", "mail", "givenName"];
 const SUBSTRING = ["cn", "sn", "displayName", "ou"];
 const ASSERTION = /^[A-Za-z][A-Za-z0-9._;-]*[~<>]?=/;
 
 const escape = (w: string) => w.replace(/[\\*()\0]/g, (c) => `\\${c.charCodeAt(0).toString(16).padStart(2, "0")}`);
 
-export function quickFilter(text: string): { mode: "names" | "filter"; filter: string; words: string[] } {
+export function quickFilter(text: string): { mode: "names" | "filter" | "dn"; filter: string; words: string[] } {
   const t = text.trim();
   if (t.startsWith("(")) return { mode: "filter", filter: t, words: [] };
+  if (DN.test(t)) return { mode: "dn", filter: "(objectClass=*)", words: [] };
   if (ASSERTION.test(t)) return { mode: "filter", filter: `(${t})`, words: [] };
-  const words = t.split(/\s+/).filter(Boolean).slice(0, WORDS);
+  // A word needs two characters: the half-typed end of "ada l" is not a word yet.
+  const words = t.split(/\s+/).filter((w) => [...w].length >= MIN_CHARS).slice(0, WORDS);
   const one = (w: string) => `(|${PREFIX.map((a) => `(${a}=${escape(w)}*)`).join("")}${SUBSTRING.map((a) => `(${a}=*${escape(w)}*)`).join("")})`;
   return { mode: "names", filter: words.length === 1 ? one(words[0]!) : `(&${words.map(one).join("")})`, words };
 }
@@ -50,7 +54,7 @@ function tierOf(attrs: Attrs, words: string[]): number {
 export function fakeQuick(text: string, baseDn: string, opts: { serverLimit: number; paged: boolean }): QuickResult {
   const { mode, filter, words } = quickFilter(text);
   const out: QuickResult = { mode, filter, hits: [], total: 0, more: false, serverLimit: false, paged: opts.paged, elapsedMs: 0, invalid: null, failure: null };
-  if (mode === "names" && [...text.trim()].length < MIN_CHARS) return out;
+  if (mode === "names" && words.length === 0) return out;
   if (mode === "filter") {
     const bad = fakeCheckFilter(filter);
     if (bad) {
@@ -58,7 +62,8 @@ export function fakeQuick(text: string, baseDn: string, opts: { serverLimit: num
       return { ...out, invalid: { message: bad.message, position: bare && bad.position > 0 ? bad.position - 1 : bad.position } };
     }
   }
-  let found = fakeSearch(baseDn, "sub", fakeFilterMatcher(filter)!) ?? [];
+  if (mode === "dn") out.filter = text.trim();
+  let found = (mode === "dn" ? fakeSearch(text.trim(), "base", fakeFilterMatcher(filter)!) : fakeSearch(baseDn, "sub", fakeFilterMatcher(filter)!)) ?? [];
   let more = false;
   let serverLimit = false;
   if (opts.serverLimit > 0 && found.length > Math.min(opts.serverLimit, READ)) {

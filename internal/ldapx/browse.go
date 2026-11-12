@@ -275,11 +275,47 @@ func readPaged(ctx context.Context, c *ldap.Conn, req *ldap.SearchRequest, pageS
 	}
 }
 
-// keepSearch searches on a long-lived session. Unlike searchCtx it never closes the connection
-// when ctx ends: the connection's own timeout bounds the request, and the session stays usable.
+// keepSearch searches on a long-lived session. When ctx ends it stops waiting for the answer at once
+// and leaves the connection open for the next request; the server's late replies are dropped. A silent
+// server is bounded by the request's time limit (plus a short grace), as the connection's own timeout
+// used to: a search that gets no answer fails as a timeout instead of waiting for ever.
 func keepSearch(ctx context.Context, c *ldap.Conn, req *ldap.SearchRequest) (*ldap.SearchResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return c.Search(req)
+	if c.IsClosing() {
+		return nil, ldap.NewError(ldap.ErrorNetwork, errors.New("ldap: connection closed"))
+	}
+	wait := time.Duration(req.TimeLimit)*time.Second + 2*time.Second
+	if req.TimeLimit <= 0 {
+		wait = 30 * time.Second
+	}
+	sctx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+	r := c.SearchAsync(sctx, req, 256)
+	res := &ldap.SearchResult{}
+	for r.Next() {
+		if e := r.Entry(); e != nil {
+			res.Entries = append(res.Entries, e)
+		}
+		if ref := r.Referral(); ref != "" {
+			res.Referrals = append(res.Referrals, ref)
+		}
+		res.Controls = append(res.Controls, r.Controls()...)
+	}
+	// Cancellation is not reported by the response: say which of the two ended the wait.
+	if err := sctx.Err(); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, ldap.NewError(ldap.ErrorNetwork, errors.New("ldap: connection timed out"))
+	}
+	if err := r.Err(); err != nil {
+		return res, err
+	}
+	// A connection that dies mid-search ends the stream without an error of its own.
+	if c.IsClosing() {
+		return nil, ldap.NewError(ldap.ErrorNetwork, errors.New("ldap: connection closed"))
+	}
+	return res, nil
 }

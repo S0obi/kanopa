@@ -127,15 +127,11 @@ class Parser {
   }
 }
 
-function parse(text: string): { node: Node } | { failure: Failure; suggestion?: string } {
+function parse(text: string): { node: Node } | { failure: Failure } {
   const p = new Parser(Array.from(text));
   p.space();
   if (p.i >= p.r.length) return { failure: { pos: 0, msg: "Type a filter, such as (objectClass=*)." } };
-  if (p.peek() !== "(") {
-    const wrapped = `(${text.trim()})`;
-    const ok = !("failure" in parse(wrapped));
-    return { failure: { pos: p.i, msg: "A filter is wrapped in parentheses, like (uid=ada)." }, suggestion: ok ? wrapped : undefined };
-  }
+  if (p.peek() !== "(") return { failure: { pos: p.i, msg: "A filter is wrapped in parentheses, like (uid=ada)." } };
   const n = p.filter();
   if ("msg" in n) return { failure: n };
   p.space();

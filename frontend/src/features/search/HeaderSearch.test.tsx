@@ -75,6 +75,69 @@ describe("the header search", () => {
     expect(screen.queryByText("Try")).not.toBeInTheDocument();
   });
 
+  it("closes when the keyboard leaves the field: Esc and Tab", async () => {
+    const { user } = await open();
+    await user.click(field());
+    expect(await screen.findByText("Try")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByText("Try")).not.toBeInTheDocument();
+
+    await find(user, "ada");
+    await options();
+    await user.tab();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    // Coming back brings the same results.
+    await user.click(field());
+    expect((await options())[0]).toHaveTextContent("Ada Lovelace");
+  });
+
+  it("opens the first result when Enter comes before the results do", async () => {
+    FAKE.delayMs = 150;
+    const { user } = await open();
+    await user.click(field());
+    await user.keyboard("ada{Enter}");
+    expect(await screen.findByRole("heading", { level: 1, name: "Ada Lovelace" }, { timeout: 4000 })).toBeInTheDocument();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("finds an entry by a pasted DN, and says so when there is none", async () => {
+    const { user } = await open();
+    await find(user, "uid=ada,ou=people,dc=example,dc=org");
+    expect(await within(await list()).findByText("Distinguished name")).toBeInTheDocument();
+    expect((await options())[0]).toHaveTextContent("Ada Lovelace");
+    await find(user, "uid=nobody,ou=people,dc=example,dc=org");
+    expect(await screen.findByText(/No entry at/)).toHaveTextContent("uid=nobody,ou=people,dc=example,dc=org");
+  });
+
+  it("ignores the half-typed end of a search", async () => {
+    const { user } = await open();
+    await find(user, "ada l");
+    expect((await options())[0]).toHaveTextContent("Ada Lovelace");
+    await find(user, "a b");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("shows a result that sits beyond the tree's first page", async () => {
+    const { user } = await open();
+    // zoe.zurcher is about the 870th of 1,182 people: the tree lists 500 at first.
+    await find(user, "zoe.zurcher");
+    const rows = await options();
+    expect(rows[0]).toHaveTextContent("zoe.zurcher");
+    await user.click(rows[0]!);
+    expect(await within(tree()).findByRole("treeitem", { name: /^uid=zoe.zurcher,/ }, { timeout: 6000 })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("leaves Ctrl+F to an open dialog", async () => {
+    const { user } = await open();
+    await user.click(await within(tree()).findByRole("treeitem", { name: /^ou=people/ }));
+    await user.click(await screen.findByRole("button", { name: "New entry" }));
+    expect(await screen.findByRole("dialog", { name: "New entry" })).toBeInTheDocument();
+    const press = new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true, cancelable: true });
+    window.dispatchEvent(press);
+    expect(press.defaultPrevented).toBe(false);
+    expect(field()).not.toHaveFocus();
+  });
+
   it("is reached with Ctrl+F and Ctrl+K, and Esc clears it", async () => {
     const { user } = await open();
     fireEvent.keyDown(window, { key: "f", ctrlKey: true });

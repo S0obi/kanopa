@@ -24,11 +24,11 @@ export function highlight(text: string, words: string[]): Segment[] {
 /** The words of a plain search, for marking them in the results. */
 export const wordsOf = (text: string): string[] => text.trim().split(/\s+/).filter(Boolean);
 
-/** Whether the field has anything worth sending: two characters, or the start of a filter. */
-export const searchable = (text: string): boolean => {
-  const t = text.trim();
-  return [...t].length >= 2 || t.startsWith("(");
-};
+/** Whether the field has anything worth sending: a word of two characters, or the start of a filter. */
+export const searchable = (text: string): boolean => text.trim().startsWith("(") || wordsOf(text).some((w) => [...w].length >= 2);
+
+/** What the first line of the dropdown calls each way of searching. */
+export const MODE_LABEL: Record<string, string> = { names: "Names and mail", filter: "LDAP filter", dn: "Distinguished name" };
 
 /** "10 of 83", "10 of 200+", or just the number when everything is shown. */
 export function countText(r: Pick<QuickResult, "total" | "more" | "hits">): string {

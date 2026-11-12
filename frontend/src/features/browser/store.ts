@@ -166,11 +166,21 @@ export const useBrowser = create<BrowserState>((set, get) => {
     },
 
     async reveal(b, dn) {
-      // Open every ancestor that is in the tree; the entry itself may be beyond a "Show more".
-      for (const anc of lineage(dn).slice(0, -1)) {
+      // Open every ancestor that is in the tree.
+      const ancestors = lineage(dn).slice(0, -1);
+      for (const anc of ancestors) {
         if (!get().nodes[dnKey(anc)]) continue;
         // oxlint-disable-next-line no-await-in-loop -- parents first: a child is only in the tree once its parent is read
         await get().expand(b, anc);
+      }
+      // The entry may be beyond a "Show more": read the parent's next pages until it is listed.
+      const parent = ancestors[ancestors.length - 1];
+      // (At most 40 pages, the 20,000 children Kanopa reads; a failed read stops it.)
+      for (let more = !!parent, pages = 0; more && pages < 40 && !get().nodes[dnKey(dn)]; pages++) {
+        const p = get().nodes[dnKey(parent!)];
+        more = !!p?.more && !p.loading && !p.error;
+        // oxlint-disable-next-line no-await-in-loop -- one page at a time, in order
+        if (more) await get().loadMore(b, parent!);
       }
     },
 

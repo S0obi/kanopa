@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/S0obi/kanopa/internal/fakeldap"
 )
@@ -73,6 +74,9 @@ func TestQuickFilterTellsAnLDAPQueryFromWords(t *testing.T) {
 		{"mail=*@example.org", ModeFilter, "(mail=*@example.org)", 0},
 		{"+41 44 555", ModeNames, "", 3},
 		{"1=1", ModeNames, "", 1}, // an attribute name starts with a letter
+		{"uid=ada,ou=people,dc=example,dc=org", ModeDN, "(objectClass=*)", 0},
+		{"ada l", ModeNames, "", 1}, // the half-typed end is not a word yet
+		{"a b", ModeNames, "", 0},
 	} {
 		mode, filter, words := quickFilter(tc.text)
 		if mode != tc.mode || len(words) != tc.words || (tc.filter != "" && filter != tc.filter) {
@@ -289,5 +293,72 @@ func TestTreeOnAServerThatSaysNothingAboutChildren(t *testing.T) {
 		if g.HasChildren || g.Type != "group" {
 			t.Fatalf("a group is a leaf: %+v", g)
 		}
+	}
+}
+
+func TestQuickFindByDistinguishedName(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(0), fakeldap.Options{Paging: true})
+	d, id, _ := connectFake(t, srv)
+	ctx := context.Background()
+
+	r := d.Quick(ctx, id, "uid=ada,ou=people,dc=example,dc=org")
+	if r.Failure != nil || r.Mode != ModeDN || len(r.Hits) != 1 || r.Hits[0].DN != "uid=ada,"+fakePeople || r.Hits[0].Name != "Ada Lovelace" {
+		t.Fatalf("got %+v", r)
+	}
+	// Spacing and case don't matter to a DN.
+	if again := d.Quick(ctx, id, "  UID=ada, ou=People, dc=example, dc=org "); len(again.Hits) != 1 {
+		t.Fatalf("got %+v", again)
+	}
+	// A DN nobody has is an empty answer, not a failure.
+	none := d.Quick(ctx, id, "uid=nobody,ou=people,dc=example,dc=org")
+	if none.Failure != nil || none.Mode != ModeDN || len(none.Hits) != 0 || none.Filter != "uid=nobody,ou=people,dc=example,dc=org" {
+		t.Fatalf("got %+v", none)
+	}
+	last := srv.Requests()[len(srv.Requests())-2]
+	if last.Scope != 0 {
+		t.Fatalf("a DN is read with a base-object search, got scope %d", last.Scope)
+	}
+}
+
+func TestQuickFindIgnoresAHalfTypedWord(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(0), fakeldap.Options{Paging: true})
+	d, id, _ := connectFake(t, srv)
+	before := len(srv.Requests())
+	if r := d.Quick(context.Background(), id, "a b"); len(r.Hits) != 0 || r.Failure != nil {
+		t.Fatalf("one-letter words are not searched: %+v", r)
+	}
+	if len(srv.Requests()) != before {
+		t.Fatal("nothing should reach the server")
+	}
+	// "ada l" is "ada" until the second word has two characters.
+	r := d.Quick(context.Background(), id, "ada l")
+	if len(r.Hits) == 0 || r.Hits[0].Name != "Ada Lovelace" {
+		t.Fatalf("got %v", names(r))
+	}
+	if strings.Contains(r.Filter, "=l*") || strings.Contains(r.Filter, "=*l*") {
+		t.Fatalf("the half-typed word should not be in the filter: %s", r.Filter)
+	}
+}
+
+func TestQuickFindStopsWaitingWhenCanceledMidRequest(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(0), fakeldap.Options{Paging: true, Delay: 600 * time.Millisecond})
+	d, id, _ := connectFake(t, srv)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(80 * time.Millisecond)
+		cancel()
+	}()
+	start := time.Now()
+	r := d.Quick(ctx, id, "ada")
+	if took := time.Since(start); took > 400*time.Millisecond {
+		t.Fatalf("a canceled search should stop waiting at once, took %s", took)
+	}
+	if r.Failure == nil || r.Failure.Title != "Search stopped." {
+		t.Fatalf("got %+v", r.Failure)
+	}
+	// The connection and its lock are free again.
+	if again := d.Quick(context.Background(), id, "ada"); again.Failure != nil || len(again.Hits) == 0 {
+		t.Fatalf("after a cancel: %+v", again)
 	}
 }

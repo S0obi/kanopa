@@ -15,17 +15,19 @@ import (
 
 // Quick find reads up to quickRead matches to rank and count them, and shows quickShow.
 const (
-	quickRead     = 200
-	quickShow     = 10
+	quickRead = 200
+	quickShow = 10
+	// quickWords bounds how many words of a plain search are used; a word needs quickMinChars
+	// characters, so the half-typed end of "ada l" doesn't match most of the directory.
+	quickWords    = 6
 	quickMinChars = 2
-	// quickWords bounds how many words of a plain search are used.
-	quickWords = 6
 )
 
 // Modes of a quick find.
 const (
 	ModeNames  = "names"  // a plain word or words, matched against names and mail
 	ModeFilter = "filter" // an LDAP filter
+	ModeDN     = "dn"     // a distinguished name: the entry itself
 )
 
 // QuickHit is one entry a quick find lists.
@@ -72,20 +74,29 @@ var (
 	substringAttrs = []string{"cn", "sn", "displayName", "ou"}
 )
 
+// isDN reports whether text is a distinguished name of at least two parts, such as one copied with Copy DN.
+func isDN(text string) bool {
+	dn, err := ldap.ParseDN(text)
+	return err == nil && len(dn.RDNs) >= 2
+}
+
 // quickFilter decides what a quick find searches for. Text that starts with "(" is an LDAP filter,
-// and so is "attribute=value" (it gets its parentheses). Anything else is words, each of which
-// must match a name or a mail address.
+// and so is "attribute=value" (it gets its parentheses). A distinguished name finds that entry.
+// Anything else is words, each of which must match a name or a mail address.
 func quickFilter(text string) (mode, filter string, words []string) {
 	text = strings.TrimSpace(text)
 	switch {
 	case strings.HasPrefix(text, "("):
 		return ModeFilter, text, nil
+	case isDN(text):
+		return ModeDN, "(objectClass=*)", nil
 	case assertion.MatchString(text):
 		return ModeFilter, "(" + text + ")", nil
 	}
-	words = strings.Fields(text)
-	if len(words) > quickWords {
-		words = words[:quickWords]
+	for _, w := range strings.Fields(text) {
+		if len([]rune(w)) >= quickMinChars && len(words) < quickWords {
+			words = append(words, w)
+		}
 	}
 	var all strings.Builder
 	for _, w := range words {
@@ -107,8 +118,9 @@ func quickFilter(text string) (mode, filter string, words []string) {
 
 // Quick finds entries under the connection's base DN for the header search field. Plain words
 // match names and mail case-insensitively and come back best match first; an LDAP filter comes
-// back in the server's order. It reads up to 200 matches in one round trip and holds the
-// connection's paged-search lock meanwhile, so the tree waits its turn; canceling ctx stops it.
+// back in the server's order; a distinguished name finds that entry. It reads up to 200 matches in
+// one round trip and holds the connection's paged-search lock meanwhile, so the tree waits its turn.
+// Canceling ctx stops waiting for the answer at once and releases the lock.
 func (d *DirectoryService) Quick(ctx context.Context, id, text string) QuickResult {
 	l, f := d.session(id)
 	if f != nil {
@@ -116,7 +128,7 @@ func (d *DirectoryService) Quick(ctx context.Context, id, text string) QuickResu
 	}
 	mode, filter, words := quickFilter(text)
 	out := QuickResult{Mode: mode, Filter: filter, Hits: []QuickHit{}, Paged: !l.NoPaging}
-	if mode == ModeNames && len([]rune(strings.TrimSpace(text))) < quickMinChars {
+	if mode == ModeNames && len(words) == 0 {
 		return out
 	}
 	if mode == ModeFilter {
@@ -135,18 +147,27 @@ func (d *DirectoryService) Quick(ctx context.Context, id, text string) QuickResu
 		return out
 	}
 
+	params := ldapx.SearchParams{Base: l.baseDN, Scope: ldapx.ScopeSubtree, Filter: filter,
+		Attrs: []string{"mail", "sn", "givenName"}, PageSize: quickRead, Limit: quickRead, Mode: l.referrals}
+	if mode == ModeDN {
+		params.Base, params.Scope, params.Limit = strings.TrimSpace(text), ldapx.ScopeBase, 1
+		out.Filter = params.Base
+	}
 	start := time.Now()
 	l.paged.Lock()
-	r, err := l.Search(ctx, ldapx.SearchParams{Base: l.baseDN, Scope: ldapx.ScopeSubtree, Filter: filter,
-		Attrs: []string{"mail", "sn", "givenName"}, PageSize: quickRead, Limit: quickRead, Mode: l.referrals})
+	r, err := l.Search(ctx, params)
 	l.paged.Unlock()
 	out.ElapsedMs = time.Since(start).Milliseconds()
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		var le *ldapx.Error
+		switch {
+		case errors.Is(err, context.Canceled):
 			out.Failure = &Failure{Title: "Search stopped.", Message: "The search was stopped before it finished."}
-			return out
+		case mode == ModeDN && errors.As(err, &le) && le.Code == 32:
+			// No entry has that DN: an empty answer, not a failure.
+		default:
+			out.Failure = d.fail(l, err)
 		}
-		out.Failure = d.fail(l, err)
 		return out
 	}
 	out.Total, out.More, out.ServerLimit = len(r.Entries), r.Cut != ldapx.NotCut, r.Cut == ldapx.CutByServer
