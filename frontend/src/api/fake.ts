@@ -35,6 +35,11 @@ export const FAKE = {
   paging: true,
   /** A server-side size limit on searches (0: none); a search with more matches stops there. */
   serverLimit: 0,
+  /** What the fake "settings file" remembers of the layout. */
+  layout: { sidebarWidth: 0, tab: "" },
+  /** How many times the log folder and the home page were opened, and what the interface logged as errors. */
+  opened: { logFolder: 0, repo: 0 },
+  clientErrors: [] as Array<{ message: string; stack: string }>,
 };
 
 const URL_RE = /^(ldaps?):\/\/([A-Za-z0-9.-]+)(?::(\d{1,5}))?\/?$/i;
@@ -348,6 +353,27 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     },
     async closeAnyway() {
       FAKE.window.closed = true;
+    },
+    async about() {
+      return { name: "Kanopa", version: "0.0.0-fake", commit: "abc1234", system: "windows amd64", webview: "WebView2 150.0", go: "go1.27", license: "MIT", repo: "https://github.com/S0obi/kanopa", logDir: "" };
+    },
+    async diagnostics() {
+      return ["Kanopa 0.0.0-fake (abc1234)", "System: windows amd64", "Web engine: WebView2 150.0", "Go: go1.27", ""].join("\n");
+    },
+    async openLogFolder() {
+      FAKE.opened.logFolder++;
+    },
+    async openRepo() {
+      FAKE.opened.repo++;
+    },
+    async logClientError(message, stack) {
+      FAKE.clientErrors.push({ message, stack });
+    },
+    async layout() {
+      return { ...FAKE.layout };
+    },
+    async setLayout(layout) {
+      FAKE.layout = { ...layout };
     },
     async theme() {
       return FAKE.theme.choice;

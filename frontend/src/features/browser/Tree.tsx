@@ -1,11 +1,39 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import { useBackend, type TreeNode } from "@/api/backend";
 import { rdnParts } from "@/lib/dn";
 import { detectPlatform, isMod } from "@/lib/platform";
-import { Button, ContextMenu, Icon, Spinner, TypeTile, cx, useToasts } from "@/ui";
-import { marks as marksOf, newChildren, useChanges, type Mark } from "./changes";
+import {
+  Button,
+  ContextMenu,
+  Icon,
+  Spinner,
+  TypeTile,
+  cx,
+  useToasts,
+} from "@/ui";
+import {
+  marks as marksOf,
+  newChildren,
+  useChanges,
+  type Mark,
+} from "./changes";
 import { dnKey, useBrowser, visibleRows, type TreeRow } from "./store";
-import { blockedReason, offered, treeMenu, type TreeAction, type TreeMenuContext } from "./treeMenu";
+import {
+  blockedReason,
+  offered,
+  treeMenu,
+  type TreeAction,
+  type TreeMenuContext,
+} from "./treeMenu";
 
 const ROW = 28; // --size-row
 const OVERSCAN = 12;
@@ -16,7 +44,8 @@ const heightOf = (el: HTMLElement) => el.clientHeight || 600;
 /** A DOM id for a row, stable across renders. */
 function rowId(key: string): string {
   let h = 5381;
-  for (let i = 0; i < key.length; i++) h = ((h << 5) + h + key.charCodeAt(i)) | 0;
+  for (let i = 0; i < key.length; i++)
+    h = ((h << 5) + h + key.charCodeAt(i)) | 0;
   return `tree-${(h >>> 0).toString(36)}`;
 }
 
@@ -26,14 +55,36 @@ function rowId(key: string): string {
  */
 export function DirectoryTree() {
   const backend = useBackend();
-  const { nodes, roots, expanded, selected, select, toggle, expand, collapse, loadMore, session, connection, ask } = useBrowser();
+  const {
+    nodes,
+    roots,
+    expanded,
+    selected,
+    select,
+    toggle,
+    expand,
+    collapse,
+    loadMore,
+    session,
+    connection,
+    ask,
+  } = useBrowser();
   const toast = useToasts((s) => s.show);
   const platform = detectPlatform();
-  const [menu, setMenu] = useState<{ x: number; y: number; node: TreeNode } | null>(null);
-  const pending = useChanges((s) => (session ? s.byConnection[session.connectionId] : undefined));
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    node: TreeNode;
+  } | null>(null);
+  const pending = useChanges((s) =>
+    session ? s.byConnection[session.connectionId] : undefined,
+  );
   const added = useMemo(() => newChildren(pending), [pending]);
   const marks = useMemo(() => marksOf(pending), [pending]);
-  const rows = useMemo(() => visibleRows(nodes, roots, expanded, added), [nodes, roots, expanded, added]);
+  const rows = useMemo(
+    () => visibleRows(nodes, roots, expanded, added),
+    [nodes, roots, expanded, added],
+  );
   const scroller = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ top: 0, height: 600 });
   const [active, setActive] = useState<string | null>(null);
@@ -45,7 +96,10 @@ export function DirectoryTree() {
     setFollowed(selectedKey);
     setActive(selectedKey);
   }
-  const activeIndex = Math.max(0, rows.findIndex((r) => r.key === (active ?? selectedKey)));
+  const activeIndex = Math.max(
+    0,
+    rows.findIndex((r) => r.key === (active ?? selectedKey)),
+  );
 
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -70,11 +124,20 @@ export function DirectoryTree() {
   }, [activeIndex, rows.length]);
 
   const first = Math.max(0, Math.floor(view.top / ROW) - OVERSCAN);
-  const last = Math.min(rows.length, Math.ceil((view.top + view.height) / ROW) + OVERSCAN);
+  const last = Math.min(
+    rows.length,
+    Math.ceil((view.top + view.height) / ROW) + OVERSCAN,
+  );
 
   function activate(row: TreeRow | undefined) {
     // "Reading…" and error lines are not stops for the keyboard.
-    if (!row || row.kind === "loading" || row.kind === "error" || row.kind === "note") return;
+    if (
+      !row ||
+      row.kind === "loading" ||
+      row.kind === "error" ||
+      row.kind === "note"
+    )
+      return;
     setActive(row.key);
     if (row.kind === "node") select(row.state.node.dn);
   }
@@ -94,7 +157,7 @@ export function DirectoryTree() {
         await backend.copyText(n.dn);
         toast("Copied the DN.");
       } catch {
-        toast("Kanopa could not copy the DN.", "danger");
+        toast("Kanopa couldn't copy the DN.", "danger");
       }
       return;
     }
@@ -108,9 +171,13 @@ export function DirectoryTree() {
     activate(row);
     let p = at;
     if (!p) {
-      const r = document.getElementById(rowId(row.key))?.getBoundingClientRect();
+      const r = document
+        .getElementById(rowId(row.key))
+        ?.getBoundingClientRect();
       const box = scroller.current?.getBoundingClientRect();
-      p = r ? { x: r.left + 24 + row.depth * 16, y: r.bottom } : { x: box?.left ?? 0, y: box?.top ?? 0 };
+      p = r
+        ? { x: r.left + 24 + row.depth * 16, y: r.bottom }
+        : { x: box?.left ?? 0, y: box?.top ?? 0 };
     }
     setMenu({ ...p, node: row.state.node });
   }
@@ -131,11 +198,25 @@ export function DirectoryTree() {
     if (row.kind === "node") {
       const n = row.state.node;
       const shortcut: TreeAction | null =
-        isMod(e, platform) && e.key.toLowerCase() === "c" && !e.shiftKey && !e.altKey
+        isMod(e, platform) &&
+        e.key.toLowerCase() === "c" &&
+        !e.shiftKey &&
+        !e.altKey
           ? "copy"
-          : e.key === "F2" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey
+          : e.key === "F2" &&
+              !e.ctrlKey &&
+              !e.metaKey &&
+              !e.altKey &&
+              !e.shiftKey
             ? "rename"
-            : (platform === "mac" ? isMod(e, platform) && e.key === "Backspace" : e.key === "Delete" && !e.ctrlKey && !e.altKey && !e.shiftKey)
+            : (
+                  platform === "mac"
+                    ? isMod(e, platform) && e.key === "Backspace"
+                    : e.key === "Delete" &&
+                      !e.ctrlKey &&
+                      !e.altKey &&
+                      !e.shiftKey
+                )
               ? "delete"
               : null;
       if (shortcut) {
@@ -149,9 +230,19 @@ export function DirectoryTree() {
       let at = Math.max(0, Math.min(rows.length - 1, i));
       // A note about a cut-short list is not a stop: carry on past it, in the direction of travel.
       const dir = at >= activeIndex ? 1 : -1;
-      while (rows[at]?.kind === "note" && at + dir >= 0 && at + dir < rows.length) at += dir;
+      while (
+        rows[at]?.kind === "note" &&
+        at + dir >= 0 &&
+        at + dir < rows.length
+      )
+        at += dir;
       // A note at the very end: the last real row is the end.
-      while (rows[at]?.kind === "note" && at - dir >= 0 && at - dir < rows.length) at -= dir;
+      while (
+        rows[at]?.kind === "note" &&
+        at - dir >= 0 &&
+        at - dir < rows.length
+      )
+        at -= dir;
       activate(rows[at]);
     };
     switch (e.key) {
@@ -177,7 +268,12 @@ export function DirectoryTree() {
         e.preventDefault();
         if (row.kind === "node" && row.open) collapse(row.state.node.dn);
         else {
-          const parent = row.kind === "node" ? row.parent : row.kind === "more" ? row.parent : null;
+          const parent =
+            row.kind === "node"
+              ? row.parent
+              : row.kind === "more"
+                ? row.parent
+                : null;
           const i = rows.findIndex((r) => r.key === parent);
           if (i >= 0) activate(rows[i]);
         }
@@ -185,8 +281,10 @@ export function DirectoryTree() {
       case "Enter":
       case " ":
         e.preventDefault();
-        if (row.kind === "more") void loadMore(backend, nodes[row.parent].node.dn);
-        else if (row.kind === "node" && row.state.node.hasChildren) void toggle(backend, row.state.node.dn);
+        if (row.kind === "more")
+          void loadMore(backend, nodes[row.parent].node.dn);
+        else if (row.kind === "node" && row.state.node.hasChildren)
+          void toggle(backend, row.state.node.dn);
         return;
     }
   }
@@ -207,7 +305,12 @@ export function DirectoryTree() {
         e.preventDefault();
         scroller.current?.focus();
       }}
-      onScroll={(e) => setView({ top: e.currentTarget.scrollTop, height: heightOf(e.currentTarget) })}
+      onScroll={(e) =>
+        setView({
+          top: e.currentTarget.scrollTop,
+          height: heightOf(e.currentTarget),
+        })
+      }
       // The tree has its own menu; the browser's never shows here.
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -221,8 +324,13 @@ export function DirectoryTree() {
             active={row.key === activeRow?.key}
             mark={marks[row.key]}
             onSelect={() => activate(row)}
-            onToggle={() => row.kind === "node" && void toggle(backend, row.state.node.dn)}
-            onMore={() => row.kind === "more" && void loadMore(backend, nodes[row.parent].node.dn)}
+            onToggle={() =>
+              row.kind === "node" && void toggle(backend, row.state.node.dn)
+            }
+            onMore={() =>
+              row.kind === "more" &&
+              void loadMore(backend, nodes[row.parent].node.dn)
+            }
             onMenu={(e) => {
               e.preventDefault();
               scroller.current?.focus();
@@ -258,13 +366,37 @@ interface RowProps {
   onMenu: (e: MouseEvent) => void;
 }
 
-const MARKS: Record<Mark, string> = { new: "new", deleted: "delete", renamed: "rename" };
+const MARKS: Record<Mark, string> = {
+  new: "new",
+  deleted: "delete",
+  renamed: "rename",
+};
 
-function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore, onMenu }: RowProps) {
-  const style = { position: "absolute" as const, top, left: 0, right: 0, paddingLeft: `calc(var(--space-5) * ${row.depth} + var(--space-1))` };
+function Row({
+  row,
+  mark,
+  top,
+  selected,
+  active,
+  onSelect,
+  onToggle,
+  onMore,
+  onMenu,
+}: RowProps) {
+  const style = {
+    position: "absolute" as const,
+    top,
+    left: 0,
+    right: 0,
+    paddingLeft: `calc(var(--space-5) * ${row.depth} + var(--space-1))`,
+  };
   if (row.kind === "loading")
     return (
-      <div className="kn-tree__row kn-tree__row--note" style={style} role="none">
+      <div
+        className="kn-tree__row kn-tree__row--note"
+        style={style}
+        role="none"
+      >
         <span className="kn-tree__twisty" />
         <Spinner size={14} />
         <span className="kn-tree__label text-ink-muted">Reading…</span>
@@ -272,7 +404,11 @@ function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore, onM
     );
   if (row.kind === "note")
     return (
-      <div className="kn-tree__row kn-tree__row--note" style={style} role="none">
+      <div
+        className="kn-tree__row kn-tree__row--note"
+        style={style}
+        role="none"
+      >
         <span className="kn-tree__twisty" />
         <Icon name="info" size={14} className="text-ink-muted" />
         <span className="kn-tree__label text-ink-muted" title={row.message}>
@@ -282,7 +418,12 @@ function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore, onM
     );
   if (row.kind === "error")
     return (
-      <div className="kn-tree__row kn-tree__row--note" style={style} role="none" title={row.message}>
+      <div
+        className="kn-tree__row kn-tree__row--note"
+        style={style}
+        role="none"
+        title={row.message}
+      >
         <span className="kn-tree__twisty" />
         <Icon name="error" size={14} className="text-danger-ink" />
         <span className="kn-tree__label text-danger-ink">{row.message}</span>
@@ -290,10 +431,27 @@ function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore, onM
     );
   if (row.kind === "more")
     return (
-      <div id={rowId(row.key)} className={cx("kn-tree__row kn-tree__row--more", active && "is-active")} style={style} role="treeitem" tabIndex={-1} aria-level={row.depth + 1} aria-selected={false}>
+      <div
+        id={rowId(row.key)}
+        className={cx("kn-tree__row kn-tree__row--more", active && "is-active")}
+        style={style}
+        role="treeitem"
+        tabIndex={-1}
+        aria-level={row.depth + 1}
+        aria-selected={false}
+      >
         <span className="kn-tree__twisty" />
-        <Button variant="ghost" size="sm" tabIndex={-1} busy={row.loading} onClick={onMore} className="kn-tree__more">
-          {row.remaining !== null ? `Show ${row.remaining.toLocaleString("en-US")} more` : "Show more"}
+        <Button
+          variant="ghost"
+          size="sm"
+          tabIndex={-1}
+          busy={row.loading}
+          onClick={onMore}
+          className="kn-tree__more"
+        >
+          {row.remaining !== null
+            ? `Show ${row.remaining.toLocaleString("en-US")} more`
+            : "Show more"}
         </Button>
       </div>
     );
@@ -305,14 +463,19 @@ function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore, onM
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the tree handles the keyboard for its rows
     <div
       id={rowId(row.key)}
-      className={cx("kn-tree__row", active && "is-active", mark && `is-${mark}`)}
+      className={cx(
+        "kn-tree__row",
+        active && "is-active",
+        mark && `is-${mark}`,
+      )}
       style={style}
       role="treeitem"
       tabIndex={-1}
       aria-level={row.depth + 1}
       aria-expanded={n.hasChildren ? row.open : undefined}
       aria-selected={selected}
-      aria-label={`${n.sub ? `${n.rdn}, ${n.sub}` : n.rdn}${mark ? `, pending ${MARKS[mark]}` : ""}`}
+      // The name is what the row shows, in order (WCAG 2.5.3: the visible text is part of the accessible name).
+      aria-label={`${n.sub ? `${n.rdn} ${n.sub}` : n.rdn}${n.referral ? " referral" : ""}${mark ? ` ${MARKS[mark]}` : ""}${row.open && total !== undefined ? ` ${total.toLocaleString("en-US")}` : ""}`}
       title={n.dn}
       onClick={onSelect}
       onDoubleClick={() => n.hasChildren && onToggle()}
@@ -327,7 +490,13 @@ function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore, onM
           if (n.hasChildren) onToggle();
         }}
       >
-        {n.hasChildren && <Icon name={row.open ? "chevron-down" : "chevron-right"} size={12} strokeWidth={1.75} />}
+        {n.hasChildren && (
+          <Icon
+            name={row.open ? "chevron-down" : "chevron-right"}
+            size={12}
+            strokeWidth={1.75}
+          />
+        )}
       </span>
       <TypeTile type={n.type} />
       <span className="kn-tree__label">
@@ -335,11 +504,36 @@ function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore, onM
           <span className="kn-tree__attr">{attr}</span>
           {value}
         </code>
-        {n.sub && <span className="kn-tree__sub">{n.sub}</span>}
+        {n.sub && (
+          <>
+            {" "}
+            <span className="kn-tree__sub">{n.sub}</span>
+          </>
+        )}
       </span>
-      {n.referral && <span className="kn-tree__badge">referral</span>}
-      {mark && <span className={cx("kn-tree__badge", `kn-tree__badge--${mark}`)}>{MARKS[mark]}</span>}
-      {row.open && total !== undefined && <span className="kn-tree__count">{total.toLocaleString("en-US")}</span>}
+      {/* The spaces are for the accessible name: the visible text joins with them (flex ignores them in the layout). */}
+      {n.referral && (
+        <>
+          {" "}
+          <span className="kn-tree__badge">referral</span>
+        </>
+      )}
+      {mark && (
+        <>
+          {" "}
+          <span className={cx("kn-tree__badge", `kn-tree__badge--${mark}`)}>
+            {MARKS[mark]}
+          </span>
+        </>
+      )}
+      {row.open && total !== undefined && (
+        <>
+          {" "}
+          <span className="kn-tree__count">
+            {total.toLocaleString("en-US")}
+          </span>
+        </>
+      )}
     </div>
   );
 }

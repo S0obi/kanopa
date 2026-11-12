@@ -15,6 +15,7 @@ export {
 };
 
 export type {
+    About,
     AllowedAttribute,
     ApplyResult,
     AttributeChange,
@@ -30,6 +31,7 @@ export type {
     Failure,
     FilterCheck,
     FindResult,
+    Layout,
     ListResult,
     PreviewResult,
     QuickHit,

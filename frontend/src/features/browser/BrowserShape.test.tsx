@@ -27,7 +27,7 @@ const heading = (name: string) => screen.findByRole("heading", { level: 1, name 
 async function openPerson(user: Awaited<ReturnType<typeof open>>["user"], uid: string, name: string) {
   await user.click(await item(/^ou=people/));
   await user.keyboard("{ArrowRight}");
-  await user.click(await item(new RegExp(`^uid=${uid},`)));
+  await user.click(await item(new RegExp(`^uid=${uid} `)));
   await heading(name);
 }
 
@@ -66,7 +66,7 @@ describe("shaping the tree", () => {
 
     expect(await heading("Zoë Kanopa")).toBeInTheDocument();
     expect(screen.getByText("Not on the server yet.")).toBeInTheDocument();
-    expect(await item(/^uid=zoe, Zoë Kanopa, pending new/)).toBeInTheDocument();
+    expect(await item(/^uid=zoe Zoë Kanopa new/)).toBeInTheDocument();
     expect(bar()).toHaveTextContent("Pending change: new entry uid=zoe");
 
     await user.click(within(bar()).getByRole("button", { name: "Review LDIF" }));
@@ -253,7 +253,7 @@ describe("shaping the tree", () => {
     await openPerson(user, "ada", "Ada Lovelace");
     await menu(user, /Rename/);
     const rename = await screen.findByRole("dialog", { name: /Rename uid=ada/ });
-    expect(await within(rename).findByText(/could not find the groups that list this entry/)).toBeInTheDocument();
+    expect(await within(rename).findByText(/couldn't find the groups that list this entry/)).toBeInTheDocument();
     await user.type(within(rename).getByRole("textbox", { name: /New name/ }), "x{Enter}");
     expect(screen.queryByText("Pending rename.")).not.toBeInTheDocument();
     await user.click(within(rename).getByRole("button", { name: "Cancel" }));
@@ -277,7 +277,7 @@ describe("shaping the tree", () => {
     await user.type(within(editor).getByRole("textbox", { name: "member value 3" }), `uid=katherine,${people}{Enter}`);
     await user.click(await item(/^ou=people/));
     await user.keyboard("{ArrowRight}");
-    await user.click(await item(/^uid=katherine,/));
+    await user.click(await item(/^uid=katherine /));
     await heading("Katherine Johnson");
     await user.click(screen.getByRole("tab", { name: /Member of/ }));
     // Katherine is in research and support; admins joins them.

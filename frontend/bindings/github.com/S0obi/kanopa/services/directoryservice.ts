@@ -71,8 +71,9 @@ export function Ping(id: string): $CancellablePromise<$models.Failure | null> {
 /**
  * Quick finds entries under the connection's base DN for the header search field. Plain words
  * match names and mail case-insensitively and come back best match first; an LDAP filter comes
- * back in the server's order. It reads up to 200 matches in one round trip and holds the
- * connection's paged-search lock meanwhile, so the tree waits its turn; canceling ctx stops it.
+ * back in the server's order; a distinguished name finds that entry. It reads up to 200 matches in
+ * one round trip and holds the connection's paged-search lock meanwhile, so the tree waits its turn.
+ * Canceling ctx stops waiting for the answer at once and releases the lock.
  */
 export function Quick(id: string, text: string): $CancellablePromise<$models.QuickResult> {
     return $Call.ByID(915470174, id, text);

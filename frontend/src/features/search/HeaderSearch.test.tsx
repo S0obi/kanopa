@@ -54,7 +54,7 @@ describe("the header search", () => {
 
     await user.click(rows[0]!);
     expect(await screen.findByRole("heading", { level: 1, name: "Ada Lovelace" })).toBeInTheDocument();
-    expect(await within(tree()).findByRole("treeitem", { name: /^uid=ada,/ })).toHaveAttribute("aria-selected", "true");
+    expect(await within(tree()).findByRole("treeitem", { name: /^uid=ada / })).toHaveAttribute("aria-selected", "true");
     // The list closes and the text stays; focusing the field brings the same results back.
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(field()).toHaveValue("ada");
@@ -124,7 +124,7 @@ describe("the header search", () => {
     const rows = await options();
     expect(rows[0]).toHaveTextContent("zoe.zurcher");
     await user.click(rows[0]!);
-    expect(await within(tree()).findByRole("treeitem", { name: /^uid=zoe.zurcher,/ }, { timeout: 6000 })).toHaveAttribute("aria-selected", "true");
+    expect(await within(tree()).findByRole("treeitem", { name: /^uid=zoe.zurcher / }, { timeout: 6000 })).toHaveAttribute("aria-selected", "true");
   });
 
   it("leaves Ctrl+F to an open dialog", async () => {

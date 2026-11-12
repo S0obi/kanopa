@@ -1,0 +1,35 @@
+# The large-directory checks, run by hand (Actions > Large directory > Run workflow) and by the release
+# dry run: an OU of 10,000 children and a group of 5,000 members on the OpenLDAP fixture, each step against
+# a time limit. Normal CI does not load the large profile, so it stays fast.
+# Actions are pinned to the commit SHA of a release at least two weeks old (the version is in the comment).
+name: Large directory
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  large:
+    name: Large profile (10,000 children, 5,000 members)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Write the large profile
+        run: go run ./test/ldap/seedgen -large > test/ldap/seed-large.ldif
+
+      # testcontainers builds the fixture with PROFILE=large and the tests time each step.
+      - name: Large directory tests
+        env:
+          KANOPA_LDAP_PROFILE: large
+        run: go test -tags integration -count=1 -v -run TestLarge ./services/...

@@ -4,6 +4,7 @@ import { useBackend, type ClassInfo, type EntryView, type RelatedEntry, type Ses
 import { hostOf } from "@/features/connections/url";
 import { parentDn, rdnParts, sameDn, splitDn } from "@/lib/dn";
 import { plural } from "@/lib/time";
+import { useWindow } from "@/lib/useWindow";
 import { Banner, Button, Checkbox, ConfirmDialog, Dialog, EmptyState, Select, Skeleton, TextField, TypeTile, cx } from "@/ui";
 import {
   addEntry, escapeRdnValue, isDelta, isDnSyntax, markDelete, membership, renameEntry, renamedDn, unescapeRdnValue, useChanges, valuesAfter,
@@ -60,7 +61,7 @@ export function RenameDialog({ id, entry, onClose }: { id: string; entry: EntryV
   const to = renamedDn(entry.dn, value.trim());
   const groups = refs.data?.entries ?? [];
   // Without the groups that list it, a rename would leave them pointing at the old DN.
-  const lookup = refs.data?.failure ? `Kanopa could not find the groups that list this entry, so it can't keep them in step. ${refs.data.failure.message}` : "";
+  const lookup = refs.data?.failure ? `Kanopa couldn't find the groups that list this entry, so it can't keep them in step. ${refs.data.failure.message}` : "";
 
   const error = lookup
     ? lookup
@@ -191,7 +192,7 @@ export function DeleteDialog({ id, entry, host, onClose }: { id: string; entry: 
     >
       {lookup ? (
         <Banner tone="danger" title="Can't tell what is lost.">
-          Kanopa could not count the entries below it or find the groups that list it, so it won't stage the delete. {lookup.message}
+          Kanopa couldn't count the entries below it or find the groups that list it, so it won't stage the delete. {lookup.message}
         </Banner>
       ) : loading ? (
         <Skeleton variant="text" rows={2} label="Counting what is lost" />
@@ -306,15 +307,19 @@ interface RelRow {
   canRemove: boolean;
 }
 
+/** One row of a members list is this tall, so a long list can draw only the rows in view. */
+const REL_ROW = 40;
+
 function RelList({ rows, onOpen, onRemove, onUndo, editable }: { rows: RelRow[]; onOpen: (dn: string) => void; onRemove: (dn: string) => void; onUndo: (r: RelRow) => void; editable: boolean }) {
+  const { attach, start, end, before, after, windowed } = useWindow<HTMLUListElement>(rows.length, REL_ROW);
   return (
-    <ul className="m-0 list-none overflow-hidden rounded-md border border-line bg-surface-raised p-0">
-      {rows.map((g, i) => (
-        <li key={g.dn} className={cx("flex min-h-10 items-center gap-2.5 px-3 py-1", i > 0 && "border-t border-line", g.state === "added" && "bg-moss-soft")}>
+    <ul ref={attach} className="m-0 list-none overflow-hidden rounded-md border border-line bg-surface-raised p-0" style={windowed ? { paddingTop: before, paddingBottom: after } : undefined}>
+      {rows.slice(start, end).map((g, k) => (
+        <li key={g.dn} aria-posinset={start + k + 1} aria-setsize={rows.length} className={cx("box-border flex h-10 items-center gap-2.5 px-3", start + k > 0 && "border-t border-line", g.state === "added" && "bg-moss-soft")}>
           <TypeTile type={g.type} size={24} />
-          <span className={cx("font-semibold", g.state === "removed" && "kn-attrs__removed")}>{g.name}</span>
+          <span className={cx("truncate font-semibold", g.state === "removed" && "kn-attrs__removed")}>{g.name}</span>
           {g.state !== "same" && <span className={cx("kn-attrs__mark", g.state === "removed" && "is-removed")}>{g.state === "added" ? "Added" : "Removed"}</span>}
-          <button type="button" className="kn-attrs__link ml-auto max-w-[50%] font-mono text-[12px]" title={`Open ${g.dn}`} onClick={() => onOpen(g.dn)}>
+          <button type="button" className="kn-attrs__link ml-auto min-w-0 max-w-[50%] shrink-0 font-mono text-[12px]" title={`Open ${g.dn}`} onClick={() => onOpen(g.dn)}>
             {g.dn}
           </button>
           {editable &&
@@ -391,9 +396,13 @@ export function MembersPanel({ id, group, editable, onOpen, picking = 0 }: { id:
 function cellsToRows(values: string[], pending: PendingAttr | undefined): RelRow[] {
   const kept = valuesAfter(values, pending);
   const rows: RelRow[] = [];
-  const isAdded = (v: string) => (pending?.add ?? []).some((x) => sameDn(x, v)) || (pending && !pending.add && !values.some((x) => sameDn(x, v)));
+  // Sets of DN keys: a group can list thousands of members, and comparing each with each would be quadratic.
+  const keptKeys = new Set(kept.map(dnKey));
+  const valueKeys = new Set(values.map(dnKey));
+  const addKeys = new Set((pending?.add ?? []).map(dnKey));
+  const isAdded = (v: string) => addKeys.has(dnKey(v)) || (pending && !pending.add && !valueKeys.has(dnKey(v)));
   for (const v of kept) rows.push({ dn: v, name: nameOfDn(v), type: /^uid=/i.test(v) ? "person" : "entry", state: isAdded(v) ? "added" : "same", canRemove: true });
-  for (const v of values) if (!kept.some((x) => sameDn(x, v))) rows.push({ dn: v, name: nameOfDn(v), type: /^uid=/i.test(v) ? "person" : "entry", state: "removed", canRemove: false });
+  for (const v of values) if (!keptKeys.has(dnKey(v))) rows.push({ dn: v, name: nameOfDn(v), type: /^uid=/i.test(v) ? "person" : "entry", state: "removed", canRemove: false });
   return rows;
 }
 
@@ -748,7 +757,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
                 ))}
               </div>
             )}
-            <TextField icon="search" type="search" mono aria-label="Find an object class in the server schema" placeholder="Find an object class, e.g. organizationalUnit or device" value={ocq} onChange={(e) => setOcq(e.target.value)} />
+            <TextField icon="search" type="search" mono aria-label="Find an object class in the server schema" placeholder="organizationalUnit or device" value={ocq} onChange={(e) => setOcq(e.target.value)} />
             {classes.isPending ? (
               <Skeleton variant="text" rows={2} label="Reading the schema" />
             ) : classes.data?.failure ? (

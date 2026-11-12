@@ -739,12 +739,15 @@ services/
       <div class="cell">
         <h4>Hardening</h4>
         <ul>
-          <li>macOS pass on a real Mac: Keychain, ⌘ shortcuts and glyphs, dialog button order, fonts, window behaviour</li>
-          <li>Performance on the fixture's large profile: an OU with 10,000 children, a group with 5,000 <code>member</code> values</li>
-          <li>Accessibility: a keyboard-only run of every checklist, contrast in both themes, labels on icon-only buttons, reduced motion</li>
-          <li>Copy audit against the design's voice rules; every error carries its result code</li>
-          <li>About dialog with version, license and Open log folder</li>
-          <li>Fix list collected at earlier checkpoints</li>
+          <li>macOS pass on a real Mac: Keychain, ⌘ shortcuts and glyphs, dialog button order, fonts, window behaviour. Prepared in code before the Mac run: an app menu (About, Copy, Paste, Select all, Hide, Window, Quit) so the shortcuts work in the webview, and ⌘Q asks before dropping pending changes, like closing the window does</li>
+          <li>Performance on the fixture's large profile (opt-in: <code>task ldap:up PROFILE=large</code>): an OU with 10,000 children, a group with 5,000 <code>member</code> values. Time limits set generously above what is measured (several times over, so slow CI runners pass), in Go integration tests and in Playwright against the fake backend; a manually triggered CI workflow and the release dry run load the large profile, normal CI does not. The measured numbers go in the CHANGELOG as known performance</li>
+          <li>Long lists: Members, Member of and the value editor draw only the visible rows. In the entry view an attribute with many values shows the first 25 and "Show all 5,000", which expands into a windowed list; the LDIF tab windows its lines too</li>
+          <li>Accessibility, WCAG 2.2 AA: <code>axe-core</code> in the Playwright suite checks every screen and dialog in both themes on each run; a keyboard-only and screen-reader pass of every checklist; labels on icon-only buttons; reduced motion everywhere; 200% zoom without clipping. Token contrast already passes in both themes</li>
+          <li>Copy audit against the design's voice rules (sentence case, no "please" or "successfully", no exclamation marks, contractions, Name (code) wording). A Vitest copy test scans the UI source for the banned patterns, and a Go test checks that errors name their result code</li>
+          <li>Crash safety: a render error shows a screen with "Try again" (pending changes kept), then "Reload window" (warns that pending changes are lost), Copy details and Open log folder. Go panics are recovered per call, logged with a stack, and shown as a normal error</li>
+          <li>The window remembers its size, position and maximized state (kept on screen if a monitor went away), and the tree pane's width and the entry view's last tab survive a restart, in <code>settings.json</code>. A second launch focuses the open window instead of starting another</li>
+          <li>The theme menu becomes a small app menu (gear) on the connected and Welcome screens: Theme, About Kanopa, Open log folder. About shows the version and commit, OS and webview, the MIT license and links, and Copy diagnostics (versions and the server's vendor; no hostnames, DNs or secrets)</li>
+          <li>Fix list: an audit of every screen in the browser pane and with the keyboard alone, written up in the PR; UI zoom and a keyboard shortcut sheet are parked</li>
         </ul>
       </div>
       <div class="cell">
@@ -792,6 +795,7 @@ services/
       <tr><td>LDIF import / export, schema browser, Access tab</td><td>Bulk work and new screens</td><td>LDIF writer from S3, change set from S4</td></tr>
       <tr><td>Following referrals</td><td>Needs a second server to test against</td><td>Ignore and Show as entries from S3; the option is already in the form</td></tr>
       <tr><td>Custom title bar</td><td>Native chrome chosen for v0.1.0</td><td>WindowFrame isolates the app area</td></tr>
+      <tr><td>UI zoom, keyboard shortcut sheet</td><td>Nice to have; not needed for a first release</td><td>Settings file from S6, shortcut definitions already shared by the UI</td></tr>
       <tr><td>Code signing, notarization</td><td>Needs an Apple Developer ID and a Windows certificate</td><td>Release workflow from S7; certificates go in as repo secrets</td></tr>
       <tr><td>Active Directory, 389-DS validation</td><td>OpenLDAP only for v0.1.0</td><td>Behaviour kept behind <code>ldapx</code></td></tr>
       <tr><td>E2E on the packaged app, Linux, translations</td><td>Not needed for the MVP</td><td>Strings grouped per feature</td></tr>

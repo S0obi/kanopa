@@ -4,7 +4,7 @@ import { blockedReason, treeMenu, type TreeMenuContext } from "./treeMenu";
 
 const node = (dn: string, type: string, hasChildren = false): TreeNode => ({ dn, rdn: dn.split(",")[0], type, sub: "", hasChildren, count: -1, referral: false });
 const ctx = (patch: Partial<TreeMenuContext> = {}): TreeMenuContext => ({ canWrite: true, roots: ["dc=example,dc=org"], platform: "windows", ...patch });
-const ids = (n: TreeNode, c = ctx()) => treeMenu(n, c).map((i) => ("separator" in i ? "—" : i.id));
+const ids = (n: TreeNode, c = ctx()) => treeMenu(n, c).map((i) => ("id" in i ? i.id : "—"));
 const item = (n: TreeNode, id: string, c = ctx()) => treeMenu(n, c).find((i) => "id" in i && i.id === id) as Extract<ReturnType<typeof treeMenu>[number], { id: string }>;
 
 describe("the tree's menu", () => {

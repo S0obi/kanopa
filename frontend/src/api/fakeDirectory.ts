@@ -91,9 +91,36 @@ function build(): Map<string, Node> {
   }
   for (const [cn, desc, ip] of hosts)
     add(`cn=${cn},ou=hosts,${BASE}`, { objectClass: ["device", "ipHost", "top"], cn: [cn], description: [desc], ipHostNumber: [ip], ...stamps });
+  if (large()) addLargeProfile(add, stamps);
   add(`ou=partners,${BASE}`, { objectClass: ["referral", "extensibleObject"], ou: ["partners"], ref: ["ldap://partners.example.org/ou=partners,dc=example,dc=org"] });
   m.set(key(SUBSCHEMA), { dn: SUBSCHEMA, attrs: { objectClass: ["top", "subentry", "subschema", "extensibleObject"], cn: ["Subschema"] }, children: [] });
   return m;
+}
+
+/**
+ * The large profile, as `task ldap:up PROFILE=large` seeds it: ou=archive with 10,000 entries, and
+ * cn=everyone, a group of 5,000 members. On with `?large` in the address, or setLargeProfile(true).
+ */
+let largeOn = typeof location !== "undefined" && new URLSearchParams(location.search).has("large");
+const large = () => largeOn;
+export function setLargeProfile(on: boolean) {
+  largeOn = on;
+  dir = null;
+}
+export const LARGE = { ou: `ou=archive,${BASE}`, group: `cn=everyone,ou=groups,${BASE}`, children: 10_000, members: 5_000 };
+
+function addLargeProfile(add: (dn: string, attrs: Attrs) => void, stamps: Attrs) {
+  add(LARGE.ou, { objectClass: ["organizationalUnit", "top"], ou: ["archive"], description: ["Former employees and old accounts"], ...stamps });
+  const uids: string[] = [];
+  for (let i = 1; i <= LARGE.children; i++) {
+    const uid = `arch${String(i).padStart(5, "0")}`;
+    if (i <= LARGE.members) uids.push(`uid=${uid},${LARGE.ou}`);
+    add(`uid=${uid},${LARGE.ou}`, {
+      objectClass: ["inetOrgPerson", "organizationalPerson", "person", "top"], uid: [uid], cn: [`Archive ${i}`], sn: [`Archive${i}`], givenName: ["Archive"],
+      mail: [`${uid}@example.org`], ...stamps,
+    });
+  }
+  add(LARGE.group, { objectClass: ["groupOfNames", "top"], cn: ["everyone"], description: ["Everyone in the archive"], member: uids, ...stamps });
 }
 
 let dir: Map<string, Node> | null = null;

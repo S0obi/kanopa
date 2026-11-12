@@ -8,7 +8,7 @@ import { Badge, Banner, Button, ConfirmDialog, EmptyState, Icon, Kbd, Logo, Menu
 import { ConnectionDialog } from "./ConnectionDialog";
 import { PasswordDialog } from "./PasswordDialog";
 import { hostOf, hostPortOf } from "./url";
-import { ThemeMenu } from "@/theme/ThemeMenu";
+import { AppMenu } from "@/features/app/AppMenu";
 
 type RowStatus = { state: "connecting" } | { state: "error"; title: string; message: string; reason: ConnectReason };
 
@@ -173,7 +173,7 @@ export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Plat
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-4">
             <Logo size={40} wordmark />
-            <ThemeMenu />
+            <AppMenu />
           </div>
           <div className="flex flex-col gap-1.5">
             <h1 className="type-display m-0">Choose a connection</h1>
@@ -188,7 +188,7 @@ export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Plat
             {notice}
           </Banner>
         )}
-        {list.isError && <Banner tone="danger" title="Kanopa could not read your saved connections.">{errorText(list.error)}</Banner>}
+        {list.isError && <Banner tone="danger" title="Kanopa couldn't read your saved connections.">{errorText(list.error)}</Banner>}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <TextField

@@ -33,6 +33,31 @@ func (s *SettingsService) SetTheme(choice string) error {
 	return nil
 }
 
+// Layout is what the interface remembers between runs.
+type Layout struct {
+	SidebarWidth int    `json:"sidebarWidth"` // the tree pane's width; 0 when nothing was saved
+	Tab          string `json:"tab"`          // the entry view's last tab
+}
+
+// Layout returns the remembered layout.
+func (s *SettingsService) Layout() Layout {
+	l := s.store.Layout()
+	return Layout{SidebarWidth: l.SidebarWidth, Tab: l.Tab}
+}
+
+// SetLayout remembers the layout. A width or tab that can't be right is dropped rather than kept.
+func (s *SettingsService) SetLayout(l Layout) error {
+	keep := settings.Layout{}
+	if l.SidebarWidth >= 100 && l.SidebarWidth <= 2000 {
+		keep.SidebarWidth = l.SidebarWidth
+	}
+	switch l.Tab {
+	case "attributes", "ldif", "members", "memberOf":
+		keep.Tab = l.Tab
+	}
+	return s.store.SetLayout(keep)
+}
+
 // SetAppearance tells the window which theme the page now shows ("light" or "dark"), after the
 // choice was resolved against the operating system. It paints the native frame to match.
 func (s *SettingsService) SetAppearance(resolved string) error {

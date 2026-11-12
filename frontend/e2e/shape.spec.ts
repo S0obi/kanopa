@@ -68,7 +68,7 @@ test("delete with cleanup; a container with children is blocked", async ({ page 
   await connect(page);
   await row(page, /^ou=people/).click();
   await page.keyboard.press("ArrowRight");
-  await row(page, /^uid=alan,/).click();
+  await row(page, /^uid=alan /).click();
   await expect(title(page, "Alan Turing")).toBeVisible();
   await menu(page, /Delete entry/);
   const ask = page.getByRole("alertdialog", { name: /Delete uid=alan/ });
@@ -76,10 +76,10 @@ test("delete with cleanup; a container with children is blocked", async ({ page 
   await expect(ask.getByRole("checkbox")).toBeChecked();
   await ask.getByRole("button", { name: "Delete entry" }).click();
   await expect(page.getByText("Marked for deletion.")).toBeVisible();
-  await expect(row(page, /^uid=alan, Alan Turing, pending delete/)).toBeVisible();
+  await expect(row(page, /^uid=alan Alan Turing delete/)).toBeVisible();
   await bar(page).getByRole("button", { name: /Apply/ }).click();
   await expect(page.getByText("Saved 3 changes to localhost.")).toBeVisible();
-  await expect(row(page, /^uid=alan,/)).toHaveCount(0);
+  await expect(row(page, /^uid=alan /)).toHaveCount(0);
 
   await page.getByRole("button", { name: "Collapse all" }).click();
   await row(page, /^dc=example,dc=org/).click();
