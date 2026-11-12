@@ -39,7 +39,8 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
   const result = wanted ? query.data : undefined;
   const hits = result?.hits ?? [];
   const stale = query.isPlaceholderData || settled !== text;
-  const open = focused && !closed && connected && searchable(text);
+  const dropped = focused && !closed && connected;
+  const open = dropped && searchable(text);
   const current = open && active >= 0 && active < hits.length ? active : -1;
 
   // Ctrl/⌘+F and Ctrl/⌘+K go to the field and select what is in it.
@@ -110,7 +111,7 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
           autoComplete="off"
           spellCheck={false}
           disabled={!connected}
-          placeholder={connected ? "Search by name or mail, or type an LDAP filter" : "Reconnect to search"}
+          placeholder={connected ? "Search" : "Reconnect to search"}
           value={text}
           onChange={(e) => {
             setText(e.target.value);
@@ -134,11 +135,44 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
         )}
       </div>
 
+      {dropped && !open && (
+        <div className="kn-hsearch__panel" onMouseDown={(e) => e.preventDefault()}>
+          <Tips
+            onTry={(example) => {
+              setText(example);
+              input.current?.focus();
+            }}
+          />
+        </div>
+      )}
       {open && (
         <div className="kn-hsearch__panel" id={listId} role="listbox" tabIndex={-1} aria-label="Matching entries" onMouseDown={(e) => e.preventDefault()}>
           <Panel result={result} text={text} settledText={settled} loading={query.isFetching && !result} stale={stale} listId={listId} current={current} onPick={pick} onHover={setActive} baseDn={session.baseDn} />
         </div>
       )}
+    </div>
+  );
+}
+
+const EXAMPLES: { text: string; what: string }[] = [
+  { text: "ada", what: "A name, a uid or a mail address" },
+  { text: "ada lov", what: "Several words: each one has to match" },
+  { text: "(uid=ada)", what: "An LDAP filter, with or without the parentheses" },
+];
+
+/** What the field understands, shown while it is focused and empty. A click tries an example. */
+function Tips({ onTry }: { onTry: (text: string) => void }) {
+  return (
+    <div>
+      <div className="kn-hsearch__head">
+        <span>Try</span>
+      </div>
+      {EXAMPLES.map((e) => (
+        <button key={e.text} type="button" className="kn-hsearch__tip" onClick={() => onTry(e.text)}>
+          <code>{e.text}</code>
+          <span className="text-ink-muted">{e.what}</span>
+        </button>
+      ))}
     </div>
   );
 }

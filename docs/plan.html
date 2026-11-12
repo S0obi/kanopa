@@ -692,8 +692,8 @@ services/
       <div class="cell">
         <h4>Frontend</h4>
         <ul>
-          <li>A search field centered in the header: about 320px at rest, widening to about 520px on focus, with a ⌘F / Ctrl+F hint and a clear button. Ctrl/⌘+F and Ctrl/⌘+K focus it; Esc clears it</li>
-          <li>The dropdown says which mode it is in (Names and mail, LDAP filter) and how many it shows ("10 of 83", "10 of 200+"). Each row has the type tile, the name with what was typed marked, the mail or description, and the DN. A broken filter is explained there, with the character it points at; a server size limit and a missing paging control are named</li>
+          <li>A search field on the right of the header, beside Refresh and the theme menu: about 220px at rest, growing to the left to about 360px on focus so the buttons never move, with a ⌘F / Ctrl+F hint and a clear button. Ctrl/⌘+F and Ctrl/⌘+K focus it; Esc clears it. Focused and empty, it shows three examples to try (a name, several words, an LDAP filter)</li>
+          <li>The 460px dropdown, right-aligned with the field, says which mode it is in (Names and mail, LDAP filter) and how many it shows ("10 of 83", "10 of 200+"). Each row has the type tile, the name with what was typed marked, the mail or description, and the DN. A broken filter is explained there, with the character it points at; a server size limit and a missing paging control are named</li>
           <li>Arrow keys choose, Enter opens (the first row when none is chosen), a click opens. Opening selects the entry in the tree, opens its parents, and shows it; the text stays, so focusing the field brings the same results back. The field is disabled while the connection is lost</li>
           <li>Night forest: dark tokens generated from <code>tokens.json</code>; theme switch (System, Clearing, Night forest) on the welcome screen and in the window; follows the OS by default</li>
           <li>Status bar says "No paging" on a server without the control</li>
