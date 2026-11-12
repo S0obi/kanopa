@@ -2,6 +2,7 @@ package ldapx
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -48,21 +49,21 @@ func (s *Session) op() Op {
 func (s *Session) secs() int { return int(s.Timeout / time.Second) }
 
 // Children reads every entry directly below dn, up to limit, in pages of pageSize (the paged
-// results control). truncated is true when there are more. Many servers (OpenLDAP among them)
-// keep one paged search per connection, so callers must not run two paged searches at once
-// on a session.
-func (s *Session) Children(ctx context.Context, dn string, pageSize, limit int, mode ReferralMode) (children []Child, truncated bool, err error) {
+// results control). cut says whether, and why, it stopped before the end. Many servers (OpenLDAP
+// among them) keep one paged search per connection, so callers must not run two paged searches
+// at once on a session. On a server without paging the read is one plain search.
+func (s *Session) Children(ctx context.Context, dn string, pageSize, limit int, mode ReferralMode) (children []Child, cut Cut, err error) {
 	req := ldap.NewSearchRequest(dn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, s.secs(), false,
 		"(objectClass=*)", childAttrs, mode.controls())
-	entries, truncated, err := searchPagedCtx(ctx, s.Conn, req, max(pageSize, 1), limit)
+	r, err := s.readBounded(ctx, req, max(pageSize, 1), limit)
 	if err != nil {
-		return nil, false, Classify(err, s.op())
+		return nil, NotCut, Classify(err, s.op())
 	}
-	children = make([]Child, 0, len(entries))
-	for _, e := range entries {
+	children = make([]Child, 0, len(r.Entries))
+	for _, e := range r.Entries {
 		children = append(children, childOf(e))
 	}
-	return children, truncated, nil
+	return children, r.Cut, nil
 }
 
 // Child describes the entry as the tree lists it.
@@ -159,7 +160,7 @@ func (s *Session) MemberOf(ctx context.Context, base, dn, uid string, limit int)
 	filter += ")"
 	req := ldap.NewSearchRequest(base, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, s.secs(), false,
 		filter, []string{"cn", "description", "objectClass"}, nil)
-	entries, truncated, err := searchPagedCtx(ctx, s.Conn, req, 500, limit)
+	entries, truncated, err := s.readAll(ctx, req, 500, limit)
 	if err != nil {
 		return nil, false, Classify(err, s.op())
 	}
@@ -172,10 +173,71 @@ func (s *Session) MemberOf(ctx context.Context, base, dn, uid string, limit int)
 	return groups, truncated, nil
 }
 
-// searchPagedCtx runs a paged search to the end, or until limit entries are read. When it stops
+// Cut says why a bounded read stopped before the end of the results.
+type Cut int
+
+const (
+	// NotCut: every match was read.
+	NotCut Cut = iota
+	// CutByKanopa: Kanopa's own limit was reached; the server has more.
+	CutByKanopa
+	// CutByServer: the server's size limit ended the search (result code 4). What was read is kept.
+	CutByServer
+)
+
+// Read is the entries of one bounded search, and whether and why it stopped early.
+type Read struct {
+	Entries []*ldap.Entry
+	Cut     Cut
+}
+
+// readBounded reads the matches of req up to limit. With the paged results control it reads them
+// pageSize at a time; on a server without that control it runs one plain search, bounded by
+// limit. A search the server's own size limit ended (code 4) keeps the entries it returned.
+func (s *Session) readBounded(ctx context.Context, req *ldap.SearchRequest, pageSize, limit int) (Read, error) {
+	if s.NoPaging {
+		return readUnpaged(ctx, s.Conn, req, limit)
+	}
+	return readPaged(ctx, s.Conn, req, pageSize, limit)
+}
+
+// readAll is readBounded for callers that only need to know that more exist.
+func (s *Session) readAll(ctx context.Context, req *ldap.SearchRequest, pageSize, limit int) ([]*ldap.Entry, bool, error) {
+	r, err := s.readBounded(ctx, req, pageSize, limit)
+	return r.Entries, r.Cut != NotCut, err
+}
+
+// sizeLimited reports whether err is the server's "size limit exceeded" (4).
+func sizeLimited(err error) bool {
+	var le *ldap.Error
+	return errors.As(err, &le) && le.ResultCode == ldap.LDAPResultSizeLimitExceeded
+}
+
+// readUnpaged runs one plain search asking for one entry more than limit, to tell "exactly
+// limit" from "more than limit".
+func readUnpaged(ctx context.Context, c *ldap.Conn, req *ldap.SearchRequest, limit int) (Read, error) {
+	r := *req
+	if r.SizeLimit == 0 || r.SizeLimit > limit+1 {
+		r.SizeLimit = limit + 1
+	}
+	res, err := keepSearch(ctx, c, &r)
+	if err != nil && (!sizeLimited(err) || res == nil) {
+		return Read{}, err
+	}
+	out := Read{Entries: res.Entries}
+	switch {
+	case len(out.Entries) > limit:
+		out.Entries, out.Cut = out.Entries[:limit], CutByKanopa
+	case err != nil:
+		out.Cut = CutByServer
+	}
+	return out, nil
+}
+
+// readPaged runs a paged search to the end, or until limit entries are read. When it stops
 // early it abandons the paged search on the server (an empty page with the cookie), so the
 // connection is ready for the next one.
-func searchPagedCtx(ctx context.Context, c *ldap.Conn, req *ldap.SearchRequest, pageSize, limit int) ([]*ldap.Entry, bool, error) {
+func readPaged(ctx context.Context, c *ldap.Conn, req *ldap.SearchRequest, pageSize, limit int) (Read, error) {
 	var out []*ldap.Entry
 	var cookie []byte
 	base := req.Controls
@@ -184,33 +246,76 @@ func searchPagedCtx(ctx context.Context, c *ldap.Conn, req *ldap.SearchRequest, 
 		paging.SetCookie(cookie)
 		req.Controls = append(append([]ldap.Control{}, base...), paging)
 		res, err := keepSearch(ctx, c, req)
-		if err != nil {
-			return nil, false, err
+		if err != nil && (!sizeLimited(err) || res == nil) {
+			return Read{}, err
 		}
 		out = append(out, res.Entries...)
+		if err != nil {
+			// The server's own size limit ended the search: no cookie to continue with.
+			if len(out) > limit {
+				return Read{Entries: out[:limit], Cut: CutByKanopa}, nil
+			}
+			return Read{Entries: out, Cut: CutByServer}, nil
+		}
 		ctrl, ok := ldap.FindControl(res.Controls, ldap.ControlTypePaging).(*ldap.ControlPaging)
 		if !ok || len(ctrl.Cookie) == 0 {
 			if len(out) > limit {
-				return out[:limit], true, nil
+				return Read{Entries: out[:limit], Cut: CutByKanopa}, nil
 			}
-			return out, false, nil
+			return Read{Entries: out}, nil
 		}
 		if len(out) >= limit {
 			stop := ldap.NewControlPaging(0)
 			stop.SetCookie(ctrl.Cookie)
 			req.Controls = append(append([]ldap.Control{}, base...), stop)
 			_, _ = c.Search(req)
-			return out[:limit], true, nil
+			return Read{Entries: out[:limit], Cut: CutByKanopa}, nil
 		}
 		cookie = ctrl.Cookie
 	}
 }
 
-// keepSearch searches on a long-lived session. Unlike searchCtx it never closes the connection
-// when ctx ends: the connection's own timeout bounds the request, and the session stays usable.
+// keepSearch searches on a long-lived session. When ctx ends it stops waiting for the answer at once
+// and leaves the connection open for the next request; the server's late replies are dropped. A silent
+// server is bounded by the request's time limit (plus a short grace), as the connection's own timeout
+// used to: a search that gets no answer fails as a timeout instead of waiting for ever.
 func keepSearch(ctx context.Context, c *ldap.Conn, req *ldap.SearchRequest) (*ldap.SearchResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return c.Search(req)
+	if c.IsClosing() {
+		return nil, ldap.NewError(ldap.ErrorNetwork, errors.New("ldap: connection closed"))
+	}
+	wait := time.Duration(req.TimeLimit)*time.Second + 2*time.Second
+	if req.TimeLimit <= 0 {
+		wait = 30 * time.Second
+	}
+	sctx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+	r := c.SearchAsync(sctx, req, 256)
+	res := &ldap.SearchResult{}
+	for r.Next() {
+		if e := r.Entry(); e != nil {
+			res.Entries = append(res.Entries, e)
+		}
+		if ref := r.Referral(); ref != "" {
+			res.Referrals = append(res.Referrals, ref)
+		}
+		res.Controls = append(res.Controls, r.Controls()...)
+	}
+	// Cancellation is not reported by the response: say which of the two ended the wait.
+	if err := sctx.Err(); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, ldap.NewError(ldap.ErrorNetwork, errors.New("ldap: connection timed out"))
+	}
+	if err := r.Err(); err != nil {
+		return res, err
+	}
+	// A connection that dies mid-search ends the stream without an error of its own.
+	if c.IsClosing() {
+		return nil, ldap.NewError(ldap.ErrorNetwork, errors.New("ldap: connection closed"))
+	}
+	return res, nil
 }

@@ -461,6 +461,18 @@ export function fakeFind(kind: "people" | "groups", q: string): FindResult {
   return { entries: hits.slice(0, 8), total: hits.length, more: false, filter, base: BASE, failure: null };
 }
 
+/** The entries under base that a filter matches, in directory order; null when base is not in the directory. */
+export function fakeSearch(base: string, scope: "base" | "one" | "sub", match: (attrs: Attrs) => boolean): Array<{ dn: string; attrs: Attrs }> | null {
+  const root = key(base);
+  if (!directory().has(root)) return null;
+  const out: Array<{ dn: string; attrs: Attrs }> = [];
+  for (const [k, n] of directory()) {
+    const inside = scope === "base" ? k === root : scope === "one" ? splitDn(n.dn).slice(1).join(",").toLowerCase() === root : k === root || k.endsWith(`,${root}`);
+    if (inside && match(n.attrs)) out.push({ dn: n.dn, attrs: n.attrs });
+  }
+  return out;
+}
+
 /** A sample of the fixture's schema, as Go's ObjectClasses lists it. */
 export function fakeClasses(): ClassInfo[] {
   const a = (name: string, kind = "text", singleValue = false) => ({ name, kind, singleValue, required: false });

@@ -69,6 +69,16 @@ export function Ping(id: string): $CancellablePromise<$models.Failure | null> {
 }
 
 /**
+ * Quick finds entries under the connection's base DN for the header search field. Plain words
+ * match names and mail case-insensitively and come back best match first; an LDAP filter comes
+ * back in the server's order. It reads up to 200 matches in one round trip and holds the
+ * connection's paged-search lock meanwhile, so the tree waits its turn; canceling ctx stops it.
+ */
+export function Quick(id: string, text: string): $CancellablePromise<$models.QuickResult> {
+    return $Call.ByID(915470174, id, text);
+}
+
+/**
  * Referrers lists the groups under the base DN whose member or uniqueMember holds dn, with the
  * attribute that holds it: what a rename or a delete with cleanup updates.
  */

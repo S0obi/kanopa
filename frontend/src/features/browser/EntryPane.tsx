@@ -8,22 +8,14 @@ import { Badge, Banner, Button, DnBreadcrumb, EmptyState, LdifView, MenuButton, 
 import { cells, dropEntry, pendingOf, pendingView, toEntryChanges, undoDelete, undoRename, useChanges, valuesAfter, type ChangeSet, type PendingAttr } from "./changes";
 import { DeleteDialog, MemberOfPanel, MembersPanel, NewEntryDialog, PendingState, RenameDialog } from "./shape";
 import { AddAttributeDialog, ValueEditor, targetOf, type EditTarget } from "./editors";
+import { useSettled } from "@/lib/settled";
 import { dnKey, useBrowser } from "./store";
-
-/** The selected DN, settled for a moment, so arrowing through the tree does not read every entry. */
-function useSettled<T>(value: T, ms = 120): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
-}
 
 export function EntryPane() {
   const backend = useBackend();
   const { session, selected, select, reveal, failed, connection } = useBrowser();
-  const dn = useSettled(selected);
+  // Settled for a moment, so arrowing through the tree does not read every entry.
+  const dn = useSettled(selected, 120);
   const id = session?.connectionId ?? "";
   // A new entry is not on the server yet: the view comes from the pending change.
   const created = useChanges((s) => (dn ? s.byConnection[id]?.[dnKey(dn)] : undefined));

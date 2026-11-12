@@ -175,7 +175,7 @@ pre.tree{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-
     <a class="tl" role="listitem" href="#s3"><span class="n c3">S3</span><div class="t">Browse</div><div class="v">Read the whole directory: tree, entries, LDIF, groups</div><div class="tag">v0.0.3</div></a>
     <a class="tl" role="listitem" href="#s4"><span class="n c4">S4</span><div class="t">Edit safely</div><div class="v">Change attributes with review before Apply</div><div class="tag">v0.0.4</div></a>
     <a class="tl" role="listitem" href="#s5"><span class="n c5">S5</span><div class="t">Shape the tree</div><div class="v">Create, rename and delete entries</div><div class="tag">v0.0.5</div></a>
-    <a class="tl" role="listitem" href="#s6"><span class="n c6">S6</span><div class="t">Search and Night forest</div><div class="v">Find entries with LDAP filters; a dark theme; servers without paging</div><div class="tag">v0.0.6</div></a>
+    <a class="tl" role="listitem" href="#s6"><span class="n c6">S6</span><div class="t">Search and Night forest</div><div class="v">A search field in the header; a dark theme; servers without paging</div><div class="tag">v0.0.6</div></a>
     <a class="tl" role="listitem" href="#s7"><span class="n c7">S7</span><div class="t">v0.1.0</div><div class="v">Hardened, checked on macOS, released publicly with installers</div><div class="tag">v0.1.0</div></a>
   </div>
 </header>
@@ -227,7 +227,7 @@ pre.tree{margin:0;font-family:var(--mono);font-size:12px;line-height:1.55;white-
         <li>Entry view: Attributes, LDIF (read-only), Member of / Members</li>
         <li>Editing: value editor with diff, add attribute, pending changes, Review LDIF, Apply / Discard</li>
         <li>New entry (Person, Group, Other), rename, delete; a right-click menu on the tree</li>
-        <li>Search: base DN, scope, LDAP filter with a live syntax check, attributes, paged results</li>
+        <li>Search: a field in the header, for names and mail or an LDAP filter, listing the best ten under the base DN</li>
         <li>Night forest dark theme, following the OS or chosen</li>
         <li>Servers without paging or child-count attributes, handled gracefully</li>
         <li>Lost connection and reconnect, keeping pending changes</li>
@@ -677,25 +677,24 @@ services/
 <section id="s6">
   <div class="card">
     <div class="stage-head"><span class="badge c6">Stage 6</span><h3>Search and Night forest</h3><span class="status">Not started</span><span class="tagv">v0.0.6</span></div>
-    <div class="value"><strong>You can:</strong> find entries anywhere with an LDAP filter and open them in the tree, work in the Night forest dark theme, and browse servers that don't page or don't say how many children an entry has.</div>
+    <div class="value"><strong>You can:</strong> find an entry from the header by typing a name, a mail address or an LDAP filter, and open it in the tree; work in the Night forest dark theme; and browse servers that don't page or don't say how many children an entry has.</div>
     <div class="grid">
       <div class="cell">
         <h4>Backend</h4>
         <ul>
           <li>Server features from the root DSE: paging when <code>supportedControl</code> lists <code>1.2.840.113556.1.4.319</code>. Without it, searches run unpaged with Kanopa's limit as <code>sizeLimit</code>; on Size limit exceeded (4) the partial results are kept and marked as stopped by the server. The same path serves the tree, the pickers and Search</li>
           <li>Child hints without <code>hasSubordinates</code> / <code>numSubordinates</code>: container classes (<code>organizationalUnit</code>, <code>organization</code>, <code>domain</code>, <code>dcObject</code>, <code>container</code>, …) are expandable, other entries are leaves. Expanding reads one level; an empty result clears the hint. No extra reads per row</li>
-          <li>Search service: base DN, scope (base, one level, subtree), filter, attributes to return. Paged at 100 per page, at most 500 entries; the result says when it stopped and why (Kanopa's limit, or the server's size limit)</li>
-          <li>Filter check on the Go side too: RFC 4515 parse with the error position, before anything is sent</li>
-          <li>Recent searches: the last 10 per connection, in the settings file. Settings also keep the theme choice</li>
+          <li>Quick find: text that starts with <code>(</code>, or reads <code>attribute=value</code>, is an LDAP filter (a bare one gets its parentheses); a distinguished name (two or more parts, such as one copied with Copy DN) finds that entry; anything else is words, and every word of two or more characters must match <code>uid</code>, <code>mail</code> or <code>givenName</code> as a prefix, or <code>cn</code>, <code>sn</code>, <code>displayName</code> or <code>ou</code> as a substring, case-insensitively, with the word escaped</li>
+          <li>One search from the connection's base DN, whole subtree, reading up to 200 matches in one round trip (names only). Words are ranked: exact first, then names that start with the word, then the rest, A to Z. The best 10 come back with the count read and whether there are more; a filter comes back in the server's order</li>
+          <li>Filter check on the Go side: RFC 4515 parse with the error position, before anything is sent. The result says when it stopped and why (Kanopa's limit, or the server's size limit)</li>
         </ul>
       </div>
       <div class="cell">
         <h4>Frontend</h4>
         <ul>
-          <li>Search button in the window header (Ctrl/⌘+F) swaps the entry pane for the search panel; the tree stays. Base DN starts at the selected entry</li>
-          <li>FilterInput: live syntax check with the error position, attribute-name completion from the schema, recent searches</li>
-          <li>ResultsTable: DN, type, name and the chosen attributes; Show more; "First 500 entries" or "The server stopped at N entries (size limit)" when it stops; Copy DNs</li>
-          <li>Opening a result selects it in the tree and shows the entry, with "Back to results"</li>
+          <li>A search field on the right of the header, beside Refresh and the theme menu: about 220px at rest, growing to the left to about 360px on focus so the buttons never move, with a ⌘F / Ctrl+F hint and a clear button. Ctrl/⌘+F and Ctrl/⌘+K focus it; Esc clears it. Focused and empty, it shows three examples to try (a name, several words, an LDAP filter)</li>
+          <li>The 460px dropdown, right-aligned with the field, says which mode it is in (Names and mail, LDAP filter) and how many it shows ("10 of 83", "10 of 200+"). Each row has the type tile, the name with what was typed marked, the mail or description, and the DN. A broken filter is explained there, with the character it points at; a server size limit and a missing paging control are named</li>
+          <li>Arrow keys choose, Enter opens (the first row when none is chosen, even when pressed before the results arrive), a click opens. Leaving the field with Tab or Esc closes the list. Opening selects the entry in the tree, opens its parents, reads the parent's further pages until the entry is listed, and shows it; the text stays, so focusing the field brings the same results back. The field is disabled while the connection is lost</li>
           <li>Night forest: dark tokens generated from <code>tokens.json</code>; theme switch (System, Clearing, Night forest) on the welcome screen and in the window; follows the OS by default</li>
           <li>Status bar says "No paging" on a server without the control</li>
         </ul>
@@ -704,29 +703,30 @@ services/
         <h4>Automated tests</h4>
         <ul>
           <li>Go: an in-process fake LDAP server whose features switch off (paging, <code>hasSubordinates</code>, <code>numSubordinates</code>, a size limit), driving <code>ldapx</code> and the services: tree, pickers and Search on a server that doesn't page; partial results on code 4; child hints by class</li>
-          <li>Go IT on OpenLDAP: search with each scope, paging past 100, the 500 limit, an invalid filter refused before sending</li>
-          <li>Go unit: filter parsing with error positions; recent-search list</li>
-          <li>Vitest: FilterInput check and completion, results paging, Back to results, theme switch and OS following</li>
-          <li>Playwright: search people by filter and open one; switch to Night forest and back</li>
+          <li>Go IT on OpenLDAP: a word finds Ada first, several words, a group by name, 1,182 people read as 200 and shown as 10, an invalid filter refused before sending</li>
+          <li>Go unit: filter parsing with error positions; which text is a filter and which is words; escaping; ranking; the 200 and 10 limits</li>
+          <li>Vitest: the dropdown (modes, marking, keyboard, limits, errors, a lost connection), the tree's note under a cut-short list, theme switch and OS following</li>
+          <li>Playwright: type a name and open the result; words, a filter and a broken filter; the field in Night forest</li>
         </ul>
       </div>
       <div class="cell">
         <h4>Human checklist</h4>
         <ul class="check">
-          <li>Search <code>(objectClass=inetOrgPerson)</code> over the subtree: the first 500, Show more pages by 100, and the limit is named</li>
+          <li>Type <code>ada</code> in the header field: she is first, with her mail; a click selects her in the tree and opens her</li>
+          <li>Type <code>ada lov</code>, then a mail address, then <code>an</code>: "10 of 200+" and a hint to keep typing. Paste a DN (Copy DN): it finds that entry</li>
+          <li>Type <code>(&amp;(objectClass=inetOrgPerson)(uid=ada))</code> and <code>uid=ada</code>: both say LDAP filter and find her</li>
           <li>Type <code>(&amp;(uid=ada)</code>: the error points at the missing parenthesis, and nothing is sent</li>
-          <li>Search from <code>ou=groups</code> with scope one level; open a result, then Back to results</li>
-          <li>Recent searches list the last runs after a reconnect</li>
+          <li>Ctrl+F and Ctrl+K reach the field from anywhere; arrows and Enter open a result; Esc clears it</li>
           <li>Switch Night forest on, restart: the choice is kept. Set System and change the OS theme: Kanopa follows</li>
           <li>Read every screen in Night forest: no light leftovers, contrast holds</li>
         </ul>
       </div>
       <div class="cell wide">
         <h4>Design references</h4>
-        <div class="refs"><span>Design system › FilterInput</span><span>ResultsTable</span><span>Night forest tokens</span><span>No Search screen on the canvas: built from the components</span></div>
+        <div class="refs"><span>Design system › FilterInput</span><span>Menu (the dropdown)</span><span>Night forest tokens</span><span>No search on the canvas: built from the components</span></div>
       </div>
     </div>
-    <div class="exit"><b>Out of scope:</b> export of results, saved searches, search across several naming contexts at once. <b>Risk:</b> the OpenLDAP fixture pages and has <code>hasSubordinates</code>, so the fallbacks are proven only against the fake server; AD and 389-DS validation stays parked.</div>
+    <div class="exit"><b>Out of scope:</b> a results page with columns, scope or paging, recent or saved searches, export of results, searching several naming contexts at once (a search starts at the connection's base DN). <b>Risk:</b> the OpenLDAP fixture pages and has <code>hasSubordinates</code>, so the fallbacks are proven only against the fake server; AD and 389-DS validation stays parked.</div>
   </div>
 </section>
 
@@ -787,7 +787,7 @@ services/
   <div class="tablewrap"><table>
     <thead><tr><th>Item</th><th>Why it waits</th><th>Ready for it</th></tr></thead>
     <tbody>
-      <tr><td>Search export (LDIF, CSV), saved searches</td><td>Search itself moved into S6; export needs a save dialog and formats</td><td>LDIF writer from S3, results from S6</td></tr>
+      <tr><td>Search results page, recent and saved searches, export (LDIF, CSV)</td><td>The header search lists the best ten; a full results view, history and export are more than a simple search needs</td><td>LDIF writer from S3, quick find from S6</td></tr>
       <tr><td>SASL DIGEST-MD5, SASL EXTERNAL</td><td>Extra auth and certificate handling risk</td><td>Bind method already a field in the saved connection</td></tr>
       <tr><td>LDIF import / export, schema browser, Access tab</td><td>Bulk work and new screens</td><td>LDIF writer from S3, change set from S4</td></tr>
       <tr><td>Following referrals</td><td>Needs a second server to test against</td><td>Ignore and Show as entries from S3; the option is already in the form</td></tr>

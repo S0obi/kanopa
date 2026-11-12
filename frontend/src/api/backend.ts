@@ -11,9 +11,12 @@ import type {
   EntryChange,
   EntryView,
   Failure,
+  FilterCheck,
   FindResult,
   ListResult,
   PreviewResult,
+  QuickHit,
+  QuickResult,
   RelatedEntry,
   RelatedResult,
   SavedConnection,
@@ -25,8 +28,8 @@ import type {
 } from "../../bindings/github.com/S0obi/kanopa/services/models";
 
 export type {
-  AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FindResult, ListResult, PreviewResult,
-  RelatedEntry, RelatedResult, SavedConnection,
+  AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
+  QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection,
   SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
 };
 
@@ -66,6 +69,11 @@ export interface Backend {
   referrers(id: string, dn: string): Promise<RelatedResult>;
   /** null while the connection answers. */
   ping(id: string): Promise<Failure | null>;
+  /**
+   * The header search: words match names and mail (best first), an LDAP filter is sent as is.
+   * Reads up to 200 matches from the base DN and returns the best 10. Aborting the signal stops it.
+   */
+  quick(id: string, text: string, signal?: AbortSignal): Promise<QuickResult>;
   copyText(text: string): Promise<void>;
 
   /** The pending changes as LDIF; nothing is sent. */

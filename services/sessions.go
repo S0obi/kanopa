@@ -33,7 +33,9 @@ type liveSession struct {
 // childList is every child of one parent, read in one paged search.
 type childList struct {
 	nodes     []TreeNode
-	truncated bool // the parent has more than childLimit children
+	truncated bool // the parent has more than childLimit children, or the server stopped listing them
+	// serverLimit: the server's own size limit stopped the list, not Kanopa's.
+	serverLimit bool
 }
 
 func (l *liveSession) cachedChildren(dn string) *childList {
