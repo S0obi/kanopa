@@ -45,12 +45,12 @@ beforeEach(() => {
 });
 
 describe("the tree's right-click menu", () => {
-  it("selects the row and lists the actions that fit it", async () => {
+  it("lists the actions that fit the row, without selecting it", async () => {
     await open();
     await rightClick(/^ou=people/);
     const menu = await menuOf("ou=people");
-    expect(await item(/^ou=people/)).toHaveAttribute("aria-selected", "true");
-    expect(await heading("people")).toBeInTheDocument();
+    expect(await item(/^ou=people/)).toHaveAttribute("aria-selected", "false");
+    expect(screen.queryByRole("heading", { level: 1, name: "people" })).not.toBeInTheDocument();
     expect(names(menu)).toEqual(["Copy DNCtrl+C", "New child entry…", "Rename…Has children", "Delete…Del"]);
     expect(within(menu).getByRole("menuitem", { name: /Rename/ })).toHaveAttribute("aria-disabled", "true");
   });
@@ -64,6 +64,7 @@ describe("the tree's right-click menu", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(tree()).toHaveFocus();
 
+    await user.click(await item(/^ou=people/));
     await user.keyboard("{Shift>}{F10}{/Shift}");
     expect(await menuOf("ou=people")).toBeInTheDocument();
     await user.keyboard("{Escape}");

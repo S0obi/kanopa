@@ -110,7 +110,7 @@ export function sampleConnections(): Array<SavedConnection & { password?: string
   const base = { timeoutSeconds: 10, pageSize: 500, referrals: "show", readOnly: false, lastError: "", plainConsent: false };
   return [
     { ...base, id: "prod", name: "Production directory", url: "ldaps://localhost:636", security: "ldaps", baseDn: "dc=example,dc=org", bind: "simple",
-      bindDn: "cn=admin,dc=example,dc=org", savePassword: true, hasPassword: true, password: "kanopa-admin", verifyCert: false, lastUsed: hoursAgo(1) },
+      bindDn: "cn=admin,dc=example,dc=org", savePassword: true, hasPassword: true, password: "kanopa-admin", verifyCert: false, lastUsed: hoursAgo(0.005) },
     { ...base, id: "staging", name: "Staging", url: "ldap://slow.example.org:389", security: "starttls", baseDn: "dc=staging,dc=example,dc=org", bind: "simple",
       bindDn: "uid=svc-kanopa,ou=services,dc=example,dc=org", savePassword: true, hasPassword: true, password: "kanopa-reader", verifyCert: true, lastUsed: hoursAgo(30),
       lastError: "Nothing came back from slow.example.org:389 within 10 seconds. Check your VPN or network, then try again. Timeout (-5)" },

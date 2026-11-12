@@ -168,7 +168,8 @@ export function DirectoryTree() {
   /** Opens the menu for a row: at the pointer, or below the row's label for the keyboard. */
   function openMenu(row: TreeRow, at?: { x: number; y: number }) {
     if (row.kind !== "node") return;
-    activate(row);
+    // A right click only opens the menu; the keyboard's menu key acts on the row the keyboard is on.
+    if (!at) activate(row);
     let p = at;
     if (!p) {
       const r = document
