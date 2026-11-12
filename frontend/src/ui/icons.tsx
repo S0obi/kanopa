@@ -4,7 +4,7 @@ export type IconName =
   | "chevron-right" | "chevron-down" | "folder" | "user" | "users" | "server" | "database" | "entry"
   | "search" | "filter" | "plus" | "minus" | "x" | "check" | "warning" | "info" | "error" | "success"
   | "key" | "lock" | "unlock" | "refresh" | "copy" | "pencil" | "trash" | "more" | "square"
-  | "eye" | "eye-off" | "plug" | "download";
+  | "eye" | "eye-off" | "plug" | "download" | "sun" | "moon";
 
 type Part = [tag: "path" | "circle" | "rect" | "ellipse", attrs: Record<string, string | number>];
 
@@ -42,6 +42,8 @@ const P: Record<IconName, Part[]> = {
   "eye-off": [["path", { d: "M6.6 3.7c.4-.1.9-.2 1.4-.2 4 0 6.5 4.5 6.5 4.5s-.6 1.1-1.7 2.3M4.2 4.9C2.5 6.1 1.5 8 1.5 8S4 12.5 8 12.5c1.2 0 2.3-.4 3.2-1M2.5 2.5l11 11" }], ["path", { d: "M6.6 6.6a2 2 0 0 0 2.8 2.8" }]],
   plug: [["path", { d: "M6 2.5v3M10 2.5v3M4.5 5.5h7v2a3.5 3.5 0 0 1-7 0zM8 11v2.5" }]],
   download: [["path", { d: "M8 2.5v7.5M4.8 7l3.2 3.2L11.2 7M3 13.5h10" }]],
+  sun: [["circle", { cx: 8, cy: 8, r: 2.8 }], ["path", { d: "M8 1.8v1.4M8 12.8v1.4M1.8 8h1.4M12.8 8h1.4M3.6 3.6l1 1M11.4 11.4l1 1M12.4 3.6l-1 1M4.6 11.4l-1 1" }]],
+  moon: [["path", { d: "M13 9.4A5.3 5.3 0 0 1 6.6 3 5.3 5.3 0 1 0 13 9.4z" }]],
 };
 
 export interface IconProps {
