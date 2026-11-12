@@ -127,9 +127,8 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
             Read-only
           </Badge>
         )}
-        <div className="flex min-w-0 grow justify-center px-4">
-          <HeaderSearch session={session} connection={connection} />
-        </div>
+        <span className="grow" />
+        <HeaderSearch session={session} connection={connection} />
         <Tooltip content="Read the tree and the entry again" shortcut={platform === "mac" ? ["mod", "r"] : ["F5"]} placement="bottom">
           <Button variant="ghost" size="sm" icon="refresh" label="Refresh" busy={refreshing} disabled={connection !== "connected"} onClick={() => void refresh()} />
         </Tooltip>

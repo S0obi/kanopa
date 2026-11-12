@@ -62,6 +62,19 @@ describe("the header search", () => {
     expect((await options())[0]).toHaveTextContent("Ada Lovelace");
   });
 
+  it("shows what it understands while it is focused and empty, and a click tries an example", async () => {
+    const { user } = await open();
+    expect(screen.queryByText("Try")).not.toBeInTheDocument();
+    await user.click(field());
+    expect(await screen.findByText("Try")).toBeInTheDocument();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /ada lov/ }));
+    expect(field()).toHaveValue("ada lov");
+    expect(field()).toHaveFocus();
+    expect((await options())[0]).toHaveTextContent("Ada Lovelace");
+    expect(screen.queryByText("Try")).not.toBeInTheDocument();
+  });
+
   it("is reached with Ctrl+F and Ctrl+K, and Esc clears it", async () => {
     const { user } = await open();
     fireEvent.keyDown(window, { key: "f", ctrlKey: true });

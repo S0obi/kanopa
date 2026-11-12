@@ -17,6 +17,7 @@ test("type a name, click the result: the entry is selected in the tree and opens
   await connect(page);
   await page.keyboard.press("Control+f");
   await expect(field(page)).toBeFocused();
+  await expect(page.getByText("Try", { exact: true })).toBeVisible();
   await page.keyboard.type("ada");
   const list = page.getByRole("listbox", { name: "Matching entries" });
   await expect(list.getByRole("option").first()).toContainText("Ada Lovelace");
