@@ -8,6 +8,7 @@ import { Badge, Banner, Button, ConfirmDialog, EmptyState, Icon, Kbd, Logo, Menu
 import { ConnectionDialog } from "./ConnectionDialog";
 import { PasswordDialog } from "./PasswordDialog";
 import { hostOf, hostPortOf } from "./url";
+import { ThemeMenu } from "@/theme/ThemeMenu";
 
 type RowStatus = { state: "connecting" } | { state: "error"; title: string; message: string; reason: ConnectReason };
 
@@ -170,7 +171,10 @@ export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Plat
     <main className="flex-1 overflow-auto px-6 py-12" onKeyDown={onListKey}>
       <div className="mx-auto flex max-w-[1040px] flex-col gap-6">
         <div className="flex flex-col gap-4">
-          <Logo size={40} wordmark />
+          <div className="flex items-center justify-between gap-4">
+            <Logo size={40} wordmark />
+            <ThemeMenu />
+          </div>
           <div className="flex flex-col gap-1.5">
             <h1 className="type-display m-0">Choose a connection</h1>
             <p className="m-0 max-w-[560px] text-ink-muted">

@@ -1,6 +1,6 @@
 import { Clipboard, Events } from "@wailsio/runtime";
-import { AppService, ChangeService, ConnectionService, DirectoryService } from "../../bindings/github.com/S0obi/kanopa/services";
-import type { Backend } from "./backend";
+import { AppService, ChangeService, ConnectionService, DirectoryService, SettingsService } from "../../bindings/github.com/S0obi/kanopa/services";
+import type { Backend, ThemeChoice } from "./backend";
 
 type Cancellable<T> = Promise<T> & { cancel(): void };
 
@@ -37,4 +37,7 @@ export const wailsBackend: Backend = {
   setPendingChanges: (n) => AppService.SetPendingChanges(n),
   onCloseRequested: (f) => Events.On("kanopa:close-requested", () => f()),
   closeAnyway: () => AppService.CloseAnyway(),
+  theme: async () => (await SettingsService.Theme()) as ThemeChoice,
+  setTheme: (choice) => SettingsService.SetTheme(choice),
+  setAppearance: (resolved) => SettingsService.SetAppearance(resolved),
 };

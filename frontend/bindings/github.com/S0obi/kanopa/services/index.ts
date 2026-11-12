@@ -5,11 +5,13 @@ import * as AppService from "./appservice.js";
 import * as ChangeService from "./changeservice.js";
 import * as ConnectionService from "./connectionservice.js";
 import * as DirectoryService from "./directoryservice.js";
+import * as SettingsService from "./settingsservice.js";
 export {
     AppService,
     ChangeService,
     ConnectionService,
-    DirectoryService
+    DirectoryService,
+    SettingsService
 };
 
 export type {

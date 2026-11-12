@@ -12,6 +12,7 @@ import (
 	"github.com/S0obi/kanopa/internal/applog"
 	"github.com/S0obi/kanopa/internal/connections"
 	"github.com/S0obi/kanopa/internal/secrets"
+	"github.com/S0obi/kanopa/internal/settings"
 	"github.com/S0obi/kanopa/services"
 )
 
@@ -44,7 +45,15 @@ func run() error {
 	connSvc := services.NewConnectionService(logger, store, secrets.Keyring{})
 	dirSvc := services.NewDirectoryService(logger, connSvc)
 	changeSvc := services.NewChangeService(logger, connSvc)
+	prefs := openSettings(logger)
 	var win *application.WebviewWindow
+	settingsSvc := services.NewSettingsService(logger, prefs, func(dark bool) {
+		if win == nil {
+			return
+		}
+		win.SetBackgroundColour(surfaceColour(dark))
+		paintTitleBar(win, dark)
+	})
 	appSvc := services.NewAppService(func() {
 		if win != nil {
 			win.Close()
@@ -59,6 +68,7 @@ func run() error {
 			application.NewService(dirSvc),
 			application.NewService(changeSvc),
 			application.NewService(appSvc),
+			application.NewService(settingsSvc),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -74,9 +84,11 @@ func run() error {
 		Height:    800,
 		MinWidth:  960,
 		MinHeight: 640,
-		// The Kanopa surface color, so the window doesn't flash white on start.
-		BackgroundColour: application.NewRGB(243, 246, 240),
+		// The Kanopa surface color of the theme, so the window doesn't flash the wrong one on start.
+		BackgroundColour: surfaceColour(startsDark(prefs.Theme())),
 		URL:              "/",
+		Windows:          application.WindowsWindow{Theme: windowsTheme(prefs.Theme())},
+		Mac:              application.MacWindow{Appearance: macAppearance(prefs.Theme())},
 	})
 	// Closing with unapplied changes waits for the person's answer. (Cmd+Q on macOS: stage 6.)
 	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
@@ -104,4 +116,55 @@ func openConnections(logger *slog.Logger) *connections.Store {
 	}
 	logger.Error("open connections", "path", path, "err", err)
 	return connections.Unavailable(path, err)
+}
+
+// openSettings opens Kanopa's preferences. When that fails the app still starts, with the defaults.
+func openSettings(logger *slog.Logger) *settings.Store {
+	path, err := settings.DefaultPath()
+	if err == nil {
+		var store *settings.Store
+		if store, err = settings.Open(path); err == nil {
+			if n := store.Notice(); n != "" {
+				logger.Warn(n)
+			}
+			return store
+		}
+	}
+	logger.Error("open settings", "path", path, "err", err)
+	return settings.Unavailable(path, err)
+}
+
+// startsDark reports whether the window opens in Night forest: chosen, or System on a dark OS.
+func startsDark(choice string) bool {
+	return choice == settings.ThemeDark || (choice == settings.ThemeSystem && systemIsDark())
+}
+
+// surfaceColour is the --surface token of Clearing or Night forest (frontend/src/theme/tokens.json).
+func surfaceColour(dark bool) application.RGBA {
+	if dark {
+		return application.NewRGB(19, 26, 21)
+	}
+	return application.NewRGB(243, 246, 240)
+}
+
+// windowsTheme is the title-bar theme the window opens with.
+func windowsTheme(choice string) application.Theme {
+	switch choice {
+	case settings.ThemeDark:
+		return application.Dark
+	case settings.ThemeLight:
+		return application.Light
+	}
+	return application.SystemDefault
+}
+
+// macAppearance is the appearance the window opens with.
+func macAppearance(choice string) application.MacAppearanceType {
+	switch choice {
+	case settings.ThemeDark:
+		return application.NSAppearanceNameDarkAqua
+	case settings.ThemeLight:
+		return application.NSAppearanceNameAqua
+	}
+	return application.DefaultAppearance
 }

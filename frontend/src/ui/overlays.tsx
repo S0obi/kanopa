@@ -263,7 +263,7 @@ type MenuPlacement = { top?: number; bottom?: number; right: number };
  * The menu is drawn in a layer of its own, so a scrolling container (a table) never clips it
  * or grows a scrollbar for it. Outside clicks, Esc, scrolling and resizing close it.
  */
-export function MenuButton({ label, items, onSelect, platform }: { label: string; items: MenuItem[]; onSelect: (id: string) => void; platform?: Platform }) {
+export function MenuButton({ label, items, onSelect, platform, icon = "more", size }: { label: string; items: MenuItem[]; onSelect: (id: string) => void; platform?: Platform; icon?: IconName; size?: ButtonProps["size"] }) {
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState<MenuPlacement | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
@@ -309,7 +309,8 @@ export function MenuButton({ label, items, onSelect, platform }: { label: string
       <Button
         ref={button}
         variant="ghost"
-        icon="more"
+        size={size}
+        icon={icon}
         label={label}
         aria-haspopup="menu"
         aria-expanded={open}

@@ -7,7 +7,7 @@
 .kn-segmented { display: inline-flex; gap: 2px; padding: 2px; height: var(--size-control); box-sizing: border-box; border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--surface-sunken); }
 .kn-segmented button { all: unset; box-sizing: border-box; height: 24px; padding: 0 10px; border-radius: var(--radius-xs); font: 500 13px/24px var(--font-sans); color: var(--ink-muted); cursor: default; transition: background-color 120ms; }
 .kn-segmented button:hover { color: var(--ink); }
-.kn-segmented button[aria-pressed="true"] { background: var(--surface-raised); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px #1c27201f; }
+.kn-segmented button[aria-pressed="true"] { background: var(--surface-raised); color: var(--ink); font-weight: 600; box-shadow: var(--shadow-sm); }
 .kn-segmented button:focus-visible { box-shadow: var(--focus-ring); }
 
 /* Disclosure button (Advanced). */
@@ -26,7 +26,7 @@ code, .kn-code { font: 400 12px/20px var(--font-mono); word-break: break-all; }
 
 /* Shortcut inside a primary button (Save and connect). */
 .kn-kbd--on-moss, .kn-kbd--on-moss kbd { color: var(--on-moss); }
-.kn-kbd--on-moss kbd { background: var(--moss-soft); border-color: transparent; box-shadow: none; }
+.kn-kbd--on-moss kbd { background: color-mix(in srgb, var(--on-moss) 14%, transparent); border-color: transparent; box-shadow: none; }
 
 /* A field the person must look at (the password after a refused bind). */
 .kn-input--attention { border-color: var(--danger-ink); }
@@ -102,7 +102,7 @@ hr.kn-menu__sep { border: 0; }
 .kn-option__tag { margin-left: auto; font: 400 12px/16px var(--font-sans); color: var(--ink-muted); }
 
 /* Pending changes bar: sits at the bottom of the entry pane. */
-.kn-changes--docked { border-radius: 0; border-width: 1px 0 0; box-shadow: 0 -4px 12px #1c272014; flex-wrap: wrap; padding-top: 6px; padding-bottom: 6px; }
+.kn-changes--docked { border-radius: 0; border-width: 1px 0 0; box-shadow: 0 -4px 12px color-mix(in srgb, var(--scrim) 30%, transparent); flex-wrap: wrap; padding-top: 6px; padding-bottom: 6px; }
 .kn-changes__count { flex: none; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: var(--radius-full); background: var(--moss); color: var(--on-moss); font: 600 12px/20px var(--font-sans); text-align: center; }
 .kn-changes--docked .kn-changes__text { flex: 1 1 240px; white-space: normal; }
 
