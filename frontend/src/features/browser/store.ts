@@ -11,6 +11,8 @@ export interface NodeState {
   more?: string; // token for the next page
   total?: number; // children on the server, when known
   truncated?: boolean;
+  /** The server's own size limit ended the list, so what is listed is all Kanopa can read. */
+  serverLimit?: boolean;
   loading?: boolean;
   error?: string;
 }
@@ -92,6 +94,7 @@ export const useBrowser = create<BrowserState>((set, get) => {
       more: r.more,
       total: r.total >= 0 ? r.total : nodes[k]?.total,
       truncated: r.truncated,
+      serverLimit: r.serverLimit,
       loading: false,
     };
     // A parent whose children are known may have none after all.
@@ -234,7 +237,9 @@ export type TreeRow =
   | { kind: "node"; key: string; state: NodeState; depth: number; open: boolean; parent: string | null }
   | { kind: "more"; key: string; parent: string; depth: number; remaining: number | null; loading: boolean }
   | { kind: "loading"; key: string; depth: number }
-  | { kind: "error"; key: string; depth: number; message: string };
+  | { kind: "error"; key: string; depth: number; message: string }
+  /** A line about the list above it: it was cut short. Not a stop for the keyboard. */
+  | { kind: "note"; key: string; depth: number; message: string };
 
 /**
  * The rows the tree shows, in order: expanded nodes, their children, "Show N more" and loading
@@ -252,6 +257,15 @@ export function visibleRows(nodes: Record<string, NodeState>, roots: string[], e
       if (!open) continue;
       if (state.children) walk(state.children, depth + 1, k);
       if (extra.length) walk(extra.map((n) => dnKey(n.dn)), depth + 1, k);
+      if (state.children && !state.more && !state.loading && !state.error && state.truncated) {
+        const total = (state.total ?? state.children.length).toLocaleString("en-US");
+        rows.push({
+          kind: "note",
+          key: `${k}#note`,
+          depth: depth + 1,
+          message: state.serverLimit ? `The server stopped the list at ${total} entries (its size limit)` : `Only the first ${total} entries are listed`,
+        });
+      }
       if (state.error) rows.push({ kind: "error", key: `${k}#error`, depth: depth + 1, message: state.error });
       else if (state.loading && !state.children) rows.push({ kind: "loading", key: `${k}#loading`, depth: depth + 1 });
       else if (state.more) {

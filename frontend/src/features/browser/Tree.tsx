@@ -4,6 +4,7 @@ import { rdnParts } from "@/lib/dn";
 import { detectPlatform, isMod } from "@/lib/platform";
 import { Button, ContextMenu, Icon, Spinner, TypeTile, cx, useToasts } from "@/ui";
 import { marks as marksOf, newChildren, useChanges, type Mark } from "./changes";
+import { useSearch } from "@/features/search/store";
 import { dnKey, useBrowser, visibleRows, type TreeRow } from "./store";
 import { blockedReason, offered, treeMenu, type TreeAction, type TreeMenuContext } from "./treeMenu";
 
@@ -74,7 +75,7 @@ export function DirectoryTree() {
 
   function activate(row: TreeRow | undefined) {
     // "Reading…" and error lines are not stops for the keyboard.
-    if (!row || row.kind === "loading" || row.kind === "error") return;
+    if (!row || row.kind === "loading" || row.kind === "error" || row.kind === "note") return;
     setActive(row.key);
     if (row.kind === "node") select(row.state.node.dn);
   }
@@ -99,7 +100,8 @@ export function DirectoryTree() {
       return;
     }
     select(n.dn);
-    ask(action, n.dn);
+    if (action === "search") useSearch.getState().show(n.dn);
+    else ask(action, n.dn);
   }
 
   /** Opens the menu for a row: at the pointer, or below the row's label for the keyboard. */
@@ -146,7 +148,13 @@ export function DirectoryTree() {
     }
     const go = (i: number) => {
       e.preventDefault();
-      activate(rows[Math.max(0, Math.min(rows.length - 1, i))]);
+      let at = Math.max(0, Math.min(rows.length - 1, i));
+      // A note about a cut-short list is not a stop: carry on past it, in the direction of travel.
+      const dir = at >= activeIndex ? 1 : -1;
+      while (rows[at]?.kind === "note" && at + dir >= 0 && at + dir < rows.length) at += dir;
+      // A note at the very end: the last real row is the end.
+      while (rows[at]?.kind === "note" && at - dir >= 0 && at - dir < rows.length) at -= dir;
+      activate(rows[at]);
     };
     switch (e.key) {
       case "ArrowDown":
@@ -262,6 +270,16 @@ function Row({ row, mark, top, selected, active, onSelect, onToggle, onMore, onM
         <span className="kn-tree__twisty" />
         <Spinner size={14} />
         <span className="kn-tree__label text-ink-muted">Reading…</span>
+      </div>
+    );
+  if (row.kind === "note")
+    return (
+      <div className="kn-tree__row kn-tree__row--note" style={style} role="none">
+        <span className="kn-tree__twisty" />
+        <Icon name="info" size={14} className="text-ink-muted" />
+        <span className="kn-tree__label text-ink-muted" title={row.message}>
+          {row.message}
+        </span>
       </div>
     );
   if (row.kind === "error")

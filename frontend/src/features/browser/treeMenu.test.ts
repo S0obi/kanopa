@@ -9,7 +9,7 @@ const item = (n: TreeNode, id: string, c = ctx()) => treeMenu(n, c).find((i) => 
 
 describe("the tree's menu", () => {
   it("offers New child only on containers and Add member only on groups", () => {
-    expect(ids(node("ou=people,dc=example,dc=org", "ou", true))).toEqual(["copy", "new", "rename", "—", "delete"]);
+    expect(ids(node("ou=people,dc=example,dc=org", "ou", true))).toEqual(["copy", "new", "search", "rename", "—", "delete"]);
     expect(ids(node("cn=admins,ou=groups,dc=example,dc=org", "group"))).toEqual(["copy", "addMember", "rename", "—", "delete"]);
     expect(ids(node("uid=ada,ou=people,dc=example,dc=org", "person"))).toEqual(["copy", "rename", "—", "delete"]);
   });
@@ -39,5 +39,21 @@ describe("the tree's menu", () => {
     expect(item(p, "rename").shortcut).toEqual(["F2"]);
     expect(item(p, "delete").shortcut).toEqual(["delete"]);
     expect(item(p, "delete", ctx({ platform: "mac" })).shortcut).toEqual(["mod", "backspace"]);
+  });
+});
+
+describe("Search below here", () => {
+  const ou = node("ou=people,dc=example,dc=org", "ou", true);
+
+  it("only reads, so it works on a read-only connection and on an entry marked for deletion, but not on one that isn't there yet", () => {
+    expect(item(ou, "search", ctx({ canWrite: false })).disabled).toBe(false);
+    expect(item(ou, "search", ctx({ mark: "deleted" })).disabled).toBe(false);
+    expect(item(ou, "search", ctx({ mark: "new" }))).toMatchObject({ disabled: true, hint: "Not created yet" });
+  });
+
+  it("is offered on containers and on anything with children, not on leaves", () => {
+    expect(ids(node("uid=ada,ou=people,dc=example,dc=org", "person"))).not.toContain("search");
+    expect(ids(node("cn=x,dc=example,dc=org", "entry", true))).toContain("search");
+    expect(ids(node("dc=example,dc=org", "root"))).toContain("search");
   });
 });

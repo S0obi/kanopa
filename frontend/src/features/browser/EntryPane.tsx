@@ -8,6 +8,7 @@ import { Badge, Banner, Button, DnBreadcrumb, EmptyState, LdifView, MenuButton, 
 import { cells, dropEntry, pendingOf, pendingView, toEntryChanges, undoDelete, undoRename, useChanges, valuesAfter, type ChangeSet, type PendingAttr } from "./changes";
 import { DeleteDialog, MemberOfPanel, MembersPanel, NewEntryDialog, PendingState, RenameDialog } from "./shape";
 import { AddAttributeDialog, ValueEditor, targetOf, type EditTarget } from "./editors";
+import { useSearch } from "@/features/search/store";
 import { dnKey, useBrowser } from "./store";
 
 /** The selected DN, settled for a moment, so arrowing through the tree does not read every entry. */
@@ -20,7 +21,32 @@ function useSettled<T>(value: T, ms = 120): T {
   return v;
 }
 
+/** The entry view, with a way back to the search results it was opened from. */
 export function EntryPane() {
+  return (
+    <>
+      <BackToResults />
+      <EntryBody />
+    </>
+  );
+}
+
+function BackToResults() {
+  const selected = useBrowser((s) => s.selected);
+  const openedDn = useSearch((s) => s.openedDn);
+  const count = useSearch((s) => s.result?.rows?.length ?? 0);
+  const show = useSearch((s) => s.show);
+  if (!selected || !openedDn || count === 0 || !sameDn(selected, openedDn)) return null;
+  return (
+    <div className="px-4 pt-3">
+      <Button variant="ghost" size="sm" icon="chevron-left" onClick={() => show()}>
+        Back to results ({count.toLocaleString("en-US")})
+      </Button>
+    </div>
+  );
+}
+
+function EntryBody() {
   const backend = useBackend();
   const { session, selected, select, reveal, failed, connection } = useBrowser();
   const dn = useSettled(selected);

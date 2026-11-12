@@ -46,6 +46,7 @@ func run() error {
 	dirSvc := services.NewDirectoryService(logger, connSvc)
 	changeSvc := services.NewChangeService(logger, connSvc)
 	prefs := openSettings(logger)
+	connSvc.AfterDelete = func(id string) { _ = prefs.ClearRecent(id) }
 	var win *application.WebviewWindow
 	settingsSvc := services.NewSettingsService(logger, prefs, func(dark bool) {
 		if win == nil {

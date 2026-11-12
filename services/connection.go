@@ -48,6 +48,10 @@ type ConnectionService struct {
 	secrets secrets.Store
 
 	live *registry // open connections, shared with DirectoryService
+
+	// AfterDelete, when set, is called with the ID of a connection once it is deleted, so what is
+	// kept about it elsewhere (its recent searches) goes too.
+	AfterDelete func(id string)
 }
 
 // NewConnectionService returns a service over the given connections file and credential store.

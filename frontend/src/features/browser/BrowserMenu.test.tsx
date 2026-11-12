@@ -51,7 +51,7 @@ describe("the tree's right-click menu", () => {
     const menu = await menuOf("ou=people");
     expect(await item(/^ou=people/)).toHaveAttribute("aria-selected", "true");
     expect(await heading("people")).toBeInTheDocument();
-    expect(names(menu)).toEqual(["Copy DNCtrl+C", "New child entry…", "Rename…Has children", "Delete…Del"]);
+    expect(names(menu)).toEqual(["Copy DNCtrl+C", "New child entry…", "Search below here…Ctrl+F", "Rename…Has children", "Delete…Del"]);
     expect(within(menu).getByRole("menuitem", { name: /Rename/ })).toHaveAttribute("aria-disabled", "true");
   });
 
@@ -141,6 +141,6 @@ describe("the tree's right-click menu", () => {
   it("disables the shaping actions on a read-only connection", async () => {
     await open({ readOnly: true });
     await rightClick(/^ou=people/);
-    expect(names(await menuOf("ou=people"))).toEqual(["Copy DNCtrl+C", "New child entry…Read-only", "Rename…Read-only", "Delete…Read-only"]);
+    expect(names(await menuOf("ou=people"))).toEqual(["Copy DNCtrl+C", "New child entry…Read-only", "Search below here…Ctrl+F", "Rename…Read-only", "Delete…Read-only"]);
   });
 });

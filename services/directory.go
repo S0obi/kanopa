@@ -60,8 +60,10 @@ type TreeResult struct {
 	More      string     `json:"more"`      // token for the next page, empty when done
 	Total     int        `json:"total"`     // children of the parent read, -1 when unknown
 	Truncated bool       `json:"truncated"` // the parent has more than 20,000 children; only those are listed
-	ElapsedMs int64      `json:"elapsedMs"`
-	Failure   *Failure   `json:"failure"`
+	// ServerLimit: the server's own size limit ended the read, so the list is what it returned.
+	ServerLimit bool     `json:"serverLimit"`
+	ElapsedMs   int64    `json:"elapsedMs"`
+	Failure     *Failure `json:"failure"`
 }
 
 // EntryAttribute is one attribute as the entry view shows it.
@@ -360,12 +362,12 @@ func (d *DirectoryService) Children(ctx context.Context, id, dn, more string) Tr
 		offset = n
 	} else {
 		l.paged.Lock()
-		children, truncated, err := l.Children(ctx, dn, l.pageSize, childLimit, l.referrals)
+		children, cut, err := l.Children(ctx, dn, l.pageSize, childLimit, l.referrals)
 		l.paged.Unlock()
 		if err != nil {
 			return TreeResult{Failure: d.fail(l, err), Total: -1}
 		}
-		list = &childList{nodes: make([]TreeNode, 0, len(children)), truncated: truncated}
+		list = &childList{nodes: make([]TreeNode, 0, len(children)), truncated: cut != ldapx.NotCut, serverLimit: cut == ldapx.CutByServer}
 		for _, c := range children {
 			list.nodes = append(list.nodes, nodeOf(c))
 		}
@@ -373,7 +375,7 @@ func (d *DirectoryService) Children(ctx context.Context, id, dn, more string) Tr
 	}
 	end := min(offset+l.pageSize, len(list.nodes))
 	offset = min(offset, end)
-	out := TreeResult{Nodes: list.nodes[offset:end], Total: len(list.nodes), Truncated: list.truncated}
+	out := TreeResult{Nodes: list.nodes[offset:end], Total: len(list.nodes), Truncated: list.truncated, ServerLimit: list.serverLimit}
 	if end < len(list.nodes) {
 		out.More = strconv.Itoa(end)
 	}

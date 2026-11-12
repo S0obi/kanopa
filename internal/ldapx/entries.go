@@ -126,7 +126,7 @@ type Found struct {
 func (s *Session) Find(ctx context.Context, base, filter string, limit, countLimit int) (hits []Found, total int, more bool, err error) {
 	req := ldap.NewSearchRequest(base, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, s.secs(), false,
 		filter, []string{"cn"}, nil)
-	entries, truncated, err := searchPagedCtx(ctx, s.Conn, req, 500, countLimit)
+	entries, truncated, err := s.readAll(ctx, req, 500, countLimit)
 	if err != nil {
 		return nil, 0, false, Classify(err, s.op())
 	}
@@ -153,7 +153,7 @@ func (s *Session) Find(ctx context.Context, base, filter string, limit, countLim
 func (s *Session) CountChildren(ctx context.Context, dn string, limit int) (count int, more bool, err error) {
 	req := ldap.NewSearchRequest(dn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, s.secs(), false,
 		"(objectClass=*)", []string{"1.1"}, nil)
-	entries, truncated, err := searchPagedCtx(ctx, s.Conn, req, min(max(limit, 1), 1000), limit)
+	entries, truncated, err := s.readAll(ctx, req, min(max(limit, 1), 1000), limit)
 	if err != nil {
 		return 0, false, Classify(err, s.op())
 	}
@@ -175,7 +175,7 @@ func (s *Session) Referrers(ctx context.Context, base, dn string, limit int) ([]
 	for _, attr := range []string{"member", "uniqueMember"} {
 		req := ldap.NewSearchRequest(base, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, s.secs(), false,
 			"("+attr+"="+ldap.EscapeFilter(dn)+")", []string{"cn", "objectClass"}, nil)
-		entries, truncated, err := searchPagedCtx(ctx, s.Conn, req, 500, limit)
+		entries, truncated, err := s.readAll(ctx, req, 500, limit)
 		if err != nil {
 			var le *ldap.Error
 			// Servers without uniqueMember in their schema refuse the filter: nothing refers through it.

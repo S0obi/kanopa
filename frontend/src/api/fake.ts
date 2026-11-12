@@ -1,5 +1,6 @@
-import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName } from "./backend";
-import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeMemberOf, fakeNode, fakePreview, fakeReferrers } from "./fakeDirectory";
+import type { Backend, ConnectionParams, ConnectResult, Failure, RecentSearch, SavedConnection, SaveRequest, SearchResult, SearchRow, TestResult, ThemeChoice, ThemeName } from "./backend";
+import { BASE, SUBSCHEMA, fakeApply, fakeAttributeNames, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeMemberOf, fakeNode, fakePreview, fakeReferrers, fakeSearch, typeOf } from "./fakeDirectory";
+import { fakeCheckFilter, fakeFilterMatcher } from "./fakeFilter";
 
 /**
  * A stand-in for the Go services, for Vitest, Playwright and UI work in a plain browser
@@ -30,6 +31,12 @@ export const FAKE = {
   theme: { choice: "system" as ThemeChoice, appearance: "light" as ThemeName },
   /** Makes saving the theme fail, as a read-only settings file would. */
   failThemeSave: false,
+  /** False simulates a server without the paged results control. */
+  paging: true,
+  /** A server-side size limit on searches (0: none); a search with more matches stops there. */
+  serverLimit: 0,
+  /** The recent searches the fake "settings file" holds, by connection. */
+  recent: {} as Record<string, RecentSearch[]>,
 };
 
 const URL_RE = /^(ldaps?):\/\/([A-Za-z0-9.-]+)(?::(\d{1,5}))?\/?$/i;
@@ -235,7 +242,7 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
         session: {
           connectionId: id, name: c.name, url: u.url, security: secLabel(c.url, c.security), boundAs: c.bind === "simple" ? c.bindDn : "",
           baseDn: c.baseDn || FAKE.baseDn, vendor: "", namingContexts: [FAKE.baseDn], ldapVersions: ["3"], controls: 14, extensions: 5, elapsedMs: 42, readOnly: c.readOnly,
-          subschemaDn: SUBSCHEMA, schemaRead: true,
+          subschemaDn: SUBSCHEMA, schemaRead: true, paging: FAKE.paging,
         },
       };
     },
@@ -244,19 +251,22 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     },
     async roots(id) {
       const lost = check(id);
-      if (lost) return { nodes: [], more: "", total: -1, truncated: false, elapsedMs: 0, failure: lost };
+      if (lost) return { nodes: [], more: "", total: -1, truncated: false, serverLimit: false, elapsedMs: 0, failure: lost };
       const roots = [{ ...fakeNode(BASE)!, rdn: BASE }, { ...fakeNode(SUBSCHEMA)!, rdn: SUBSCHEMA, sub: "Schema" }];
-      return { nodes: roots, more: "", total: -1, truncated: false, elapsedMs: 3, failure: null };
+      return { nodes: roots, more: "", total: -1, truncated: false, serverLimit: false, elapsedMs: 3, failure: null };
     },
     async children(id, dn, more) {
       await wait(FAKE.delayMs / 2);
       const lost = check(id);
-      if (lost) return { nodes: [], more: "", total: -1, truncated: false, elapsedMs: 0, failure: lost };
-      const all = fakeChildren(dn) ?? [];
+      if (lost) return { nodes: [], more: "", total: -1, truncated: false, serverLimit: false, elapsedMs: 0, failure: lost };
+      let all = fakeChildren(dn) ?? [];
+      // A server with a size limit lists no more than that, and doesn't say there is more.
+      const serverLimit = FAKE.serverLimit > 0 && all.length > FAKE.serverLimit;
+      if (serverLimit) all = all.slice(0, FAKE.serverLimit);
       const size = open.get(id) ?? 500;
       const from = more ? Number(more) : 0;
       const to = Math.min(from + size, all.length);
-      return { nodes: all.slice(from, to), more: to < all.length ? String(to) : "", total: all.length, truncated: false, elapsedMs: 9, failure: null };
+      return { nodes: all.slice(from, to), more: to < all.length ? String(to) : "", total: all.length, truncated: serverLimit, serverLimit, elapsedMs: 9, failure: null };
     },
     async entry(id, dn) {
       await wait(FAKE.delayMs / 2);
@@ -324,6 +334,57 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
       if (FAKE.failReferrers)
         return { entries: [], truncated: false, failure: { title: "Request refused.", message: "Administrative limit exceeded (11) — the server stopped the search.", code: 11, lost: false } };
       return { entries: fakeReferrers(dn), truncated: false, failure: null };
+    },
+    async search(id, req, signal) {
+      await wait(FAKE.delayMs, signal);
+      const lost = check(id);
+      const out: SearchResult = { rows: [], columns: [], base: "", scope: req.scope, filter: "", limit: 500, truncated: false, serverLimit: false, paged: FAKE.paging, elapsedMs: 0, failure: null };
+      if (lost) return { ...out, failure: lost };
+      const filter = req.filter.trim() || "(objectClass=*)";
+      const verdict = fakeCheckFilter(filter);
+      if (!verdict.ok) return { ...out, failure: { title: "The filter is not valid.", message: verdict.suggestion ? `${verdict.message} Try ${verdict.suggestion}.` : verdict.message, code: 0, lost: false } };
+      if (req.scope !== "base" && req.scope !== "one" && req.scope !== "sub") return { ...out, failure: { title: "Search not sent.", message: `Kanopa searches "base", "one" or "sub", not "${req.scope}".`, code: 0, lost: false } };
+      const base = req.base.trim() || FAKE.baseDn;
+      const columns: string[] = [];
+      for (const a of (req.attributes ?? []).map((x) => x.trim())) if (a && a !== "*" && a !== "+" && !columns.some((c) => c.toLowerCase() === a.toLowerCase())) columns.push(a);
+      if (columns.length > 12) return { ...out, failure: { title: "Search not sent.", message: "A search shows at most 12 attributes as columns.", code: 0, lost: false } };
+      const found = fakeSearch(base, req.scope, fakeFilterMatcher(filter)!);
+      if (!found) return { ...out, base, filter, columns, failure: { title: "Request refused.", message: "The server said: no such object. No such object (32)", code: 32, lost: false } };
+      let hits = found;
+      let serverLimit = false;
+      if (FAKE.serverLimit > 0 && hits.length > FAKE.serverLimit) {
+        hits = hits.slice(0, FAKE.serverLimit);
+        serverLimit = true;
+      }
+      const truncated = serverLimit || hits.length > 500;
+      const rows: SearchRow[] = hits.slice(0, 500).map((h) => {
+        const get = (n: string) => h.attrs[Object.keys(h.attrs).find((k) => k.toLowerCase() === n.toLowerCase()) ?? n] ?? [];
+        const oc = get("objectClass");
+        return {
+          dn: h.dn,
+          name: get("displayName")[0] || get("cn")[0] || get("uid")[0] || get("ou")[0] || h.dn.split(",")[0]!,
+          type: typeOf(oc, h.dn),
+          sub: get("description")[0] ?? "",
+          cells: columns.map((c) => get(c).map((v) => (v.startsWith(" ") ? "(binary, 5 bytes)" : v))),
+        };
+      });
+      return { ...out, rows, columns, base, filter, truncated, serverLimit, elapsedMs: 12 };
+    },
+    async checkFilter(text) {
+      return fakeCheckFilter(text);
+    },
+    async attributeNames(id) {
+      return check(id) ? [] : fakeAttributeNames();
+    },
+    async recentSearches(id) {
+      return [...(FAKE.recent[id] ?? [])];
+    },
+    async addRecentSearch(id, r) {
+      const same = (a: RecentSearch) => a.base.toLowerCase() === r.base.toLowerCase() && a.scope === r.scope && a.filter === r.filter && (a.attrs ?? []).join(",") === (r.attrs ?? []).join(",");
+      FAKE.recent[id] = [r, ...(FAKE.recent[id] ?? []).filter((a) => !same(a))].slice(0, 10);
+    },
+    async clearRecentSearches(id) {
+      delete FAKE.recent[id];
     },
     async setPendingChanges(n) {
       FAKE.window.pending = n;
