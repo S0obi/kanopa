@@ -12,6 +12,7 @@ import { useChanges } from "./changes";
 import { EntryPane } from "./EntryPane";
 import { useBrowser } from "./store";
 import { DirectoryTree } from "./Tree";
+import { ThemeMenu } from "@/theme/ThemeMenu";
 
 const PING_EVERY_MS = 30_000;
 
@@ -129,6 +130,7 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
         <Tooltip content="Read the tree and the entry again" shortcut={platform === "mac" ? ["mod", "r"] : ["F5"]} placement="bottom">
           <Button variant="ghost" size="sm" icon="refresh" label="Refresh" busy={refreshing} disabled={connection !== "connected"} onClick={() => void refresh()} />
         </Tooltip>
+        <ThemeMenu size="sm" />
         <span className="mx-1.5 h-[18px] w-px bg-line" aria-hidden="true" />
         <Button variant="ghost" size="sm" icon="x" busy={leaving} onClick={() => void disconnect()}>
           Disconnect

@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BackendContext, type Backend } from "@/api/backend";
 import { App } from "./App";
 import { blockBrowserMenu } from "@/lib/contextmenu";
+import { useTheme } from "@/theme/theme";
 
 // `vite --mode fake` runs the UI in a plain browser against the fake backend.
 async function loadBackend(): Promise<Backend> {
@@ -25,6 +26,8 @@ async function loadBackend(): Promise<Backend> {
 
 blockBrowserMenu();
 const backend = await loadBackend();
+// Before the first render: the saved theme is on the page when it first paints.
+await useTheme.getState().start(backend);
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
 
 createRoot(document.getElementById("root")!).render(

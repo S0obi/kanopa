@@ -79,7 +79,18 @@ export interface Backend {
   onCloseRequested(f: () => void): () => void;
   /** Closes the window, dropping the pending changes. */
   closeAnyway(): Promise<void>;
+
+  /** The saved theme choice. */
+  theme(): Promise<ThemeChoice>;
+  /** Saves the theme choice; rejects when it can't be kept between runs. */
+  setTheme(choice: ThemeChoice): Promise<void>;
+  /** Tells the window which theme the page now shows, so its frame (title bar, background) matches. */
+  setAppearance(resolved: ThemeName): Promise<void>;
 }
+
+/** Clearing (light), Night forest (dark), or whichever the operating system uses. */
+export type ThemeChoice = "system" | "light" | "dark";
+export type ThemeName = "light" | "dark";
 
 export const BackendContext = createContext<Backend | null>(null);
 

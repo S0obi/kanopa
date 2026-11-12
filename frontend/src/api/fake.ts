@@ -1,4 +1,4 @@
-import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult } from "./backend";
+import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName } from "./backend";
 import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeMemberOf, fakeNode, fakePreview, fakeReferrers } from "./fakeDirectory";
 
 /**
@@ -26,6 +26,10 @@ export const FAKE = {
   requestClose: () => {},
   /** Entries with unapplied changes, as the app last reported them; closed once the window would close. */
   window: { pending: 0, closed: false },
+  /** The theme the fake "settings file" holds, and what the window was last painted for. */
+  theme: { choice: "system" as ThemeChoice, appearance: "light" as ThemeName },
+  /** Makes saving the theme fail, as a read-only settings file would. */
+  failThemeSave: false,
 };
 
 const URL_RE = /^(ldaps?):\/\/([A-Za-z0-9.-]+)(?::(\d{1,5}))?\/?$/i;
@@ -330,6 +334,16 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     },
     async closeAnyway() {
       FAKE.window.closed = true;
+    },
+    async theme() {
+      return FAKE.theme.choice;
+    },
+    async setTheme(choice) {
+      FAKE.theme.choice = choice;
+      if (FAKE.failThemeSave) throw new Error("Your settings were saved by a newer Kanopa, so this one cannot change them. Update Kanopa to keep the theme between runs.");
+    },
+    async setAppearance(resolved) {
+      FAKE.theme.appearance = resolved;
     },
   };
 }
