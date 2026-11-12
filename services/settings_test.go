@@ -49,3 +49,23 @@ func TestAppearancePaintsTheWindow(t *testing.T) {
 		t.Fatal("the window is painted for a resolved theme, not for system")
 	}
 }
+
+func TestLayoutKeepsOnlyWhatCanBeRight(t *testing.T) {
+	s := newSettingsService(t, nil)
+	if l := s.Layout(); l.SidebarWidth != 0 || l.Tab != "" {
+		t.Fatalf("nothing saved: %+v", l)
+	}
+	if err := s.SetLayout(Layout{SidebarWidth: 340, Tab: "members"}); err != nil {
+		t.Fatal(err)
+	}
+	if l := s.Layout(); l.SidebarWidth != 340 || l.Tab != "members" {
+		t.Fatalf("got %+v", l)
+	}
+	// A width or a tab nothing offers is dropped, not kept.
+	if err := s.SetLayout(Layout{SidebarWidth: 5, Tab: "settings"}); err != nil {
+		t.Fatal(err)
+	}
+	if l := s.Layout(); l.SidebarWidth != 0 || l.Tab != "" {
+		t.Fatalf("got %+v", l)
+	}
+}

@@ -19,7 +19,7 @@ test("right-click a group, add a member from the picker", async ({ page }) => {
   await row(page, /^cn=admins/).click({ button: "right" });
   const menu = page.getByRole("menu", { name: "Actions for cn=admins" });
   await expect(menu).toBeVisible();
-  await expect(title(page, "admins")).toBeVisible();
+  await expect(row(page, /^cn=admins/)).toHaveAttribute("aria-selected", "false");
   await menu.getByRole("menuitem", { name: "Add member…" }).click();
   await expect(menu).toHaveCount(0);
   const search = page.getByRole("searchbox", { name: /Search people/ });

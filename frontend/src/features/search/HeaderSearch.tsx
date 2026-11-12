@@ -171,7 +171,7 @@ export function HeaderSearch({ session, connection }: { session: SessionInfo; co
         </div>
       )}
       {open && (
-        <div className="kn-hsearch__panel" id={listId} role="listbox" tabIndex={-1} aria-label="Matching entries" onMouseDown={(e) => e.preventDefault()}>
+        <div className="kn-hsearch__panel" id={listId} role={result && !result.failure && !result.invalid && (result.hits?.length ?? 0) > 0 ? "listbox" : "group"} tabIndex={-1} aria-label="Matching entries" onMouseDown={(e) => e.preventDefault()}>
           <Panel result={result} text={text} settledText={settled} stale={stale} listId={listId} current={current} onPick={pick} onHover={setActive} baseDn={session.baseDn} />
         </div>
       )}

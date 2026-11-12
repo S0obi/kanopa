@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const html = (page: Page) => page.locator("html");
 const pick = async (page: Page, name: string) => {
-  await page.getByRole("button", { name: "Theme" }).click();
+  await page.getByRole("button", { name: "Menu" }).click();
   await page.getByRole("menuitem", { name }).click();
 };
 const surface = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -41,7 +41,7 @@ test("the theme switch is on the connected screen too, and no light surface is l
   await page.getByRole("treeitem", { name: /^ou=people/ }).click();
   await expect(page.locator("main h1", { hasText: "people" })).toBeVisible();
   await expect(html(page)).toHaveAttribute("data-theme", "dark");
-  await page.getByRole("button", { name: "Theme" }).click();
+  await page.getByRole("button", { name: "Menu" }).click();
   await expect(page.getByRole("menuitem", { name: "Night forest" })).toBeVisible();
   await page.keyboard.press("Escape");
 

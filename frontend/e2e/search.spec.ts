@@ -25,7 +25,7 @@ test("type a name, click the result: the entry is selected in the tree and opens
   await list.getByRole("option").first().click();
 
   await expect(title(page, "Ada Lovelace")).toBeVisible();
-  await expect(row(page, /^uid=ada,/)).toHaveAttribute("aria-selected", "true");
+  await expect(row(page, /^uid=ada /)).toHaveAttribute("aria-selected", "true");
   await expect(list).toHaveCount(0);
   await expect(field(page)).toHaveValue("ada");
 });
@@ -57,7 +57,7 @@ test("ten of the matches, and the field in Night forest", async ({ page }) => {
   await expect(page.getByRole("option")).toHaveCount(10);
   await expect(page.getByRole("listbox")).toContainText("10 of 200+");
 
-  await page.getByRole("button", { name: "Theme" }).click();
+  await page.getByRole("button", { name: "Menu" }).click();
   await page.getByRole("menuitem", { name: "Night forest" }).click();
   await field(page).fill("ada");
   await expect(page.getByRole("option").first()).toContainText("Ada Lovelace");

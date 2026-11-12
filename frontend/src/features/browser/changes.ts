@@ -61,7 +61,11 @@ const rdnOf = (dn: string) => splitDn(dn)[0] ?? dn;
 
 /** Values compared exactly, in any order. */
 export function sameValues(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((v) => b.includes(v)) && b.every((v) => a.includes(v));
+  if (a.length !== b.length) return false;
+  // Sets: a group's member attribute holds thousands of values, and includes() on each would be quadratic.
+  const inA = new Set(a);
+  const inB = new Set(b);
+  return a.every((v) => inB.has(v)) && b.every((v) => inA.has(v));
 }
 
 export const isDelta = (a: PendingAttr) => a.add !== undefined || a.remove !== undefined;
@@ -388,9 +392,12 @@ export function diff(a: PendingAttr): DiffRow[] {
     rows.push({ sign: "+", value: "new password (hidden)" });
     return rows;
   }
-  for (const v of a.before) if (a.after.includes(v)) rows.push({ sign: " ", value: show(v) });
-  for (const v of a.before) if (!a.after.includes(v)) rows.push({ sign: "−", value: show(v) });
-  for (const v of a.after) if (!a.before.includes(v)) rows.push({ sign: "+", value: show(v) });
+  // Sets: an attribute can hold thousands of values (a group's members), and includes() on each would be quadratic.
+  const before = new Set(a.before);
+  const after = new Set(a.after);
+  for (const v of a.before) if (after.has(v)) rows.push({ sign: " ", value: show(v) });
+  for (const v of a.before) if (!after.has(v)) rows.push({ sign: "−", value: show(v) });
+  for (const v of a.after) if (!before.has(v)) rows.push({ sign: "+", value: show(v) });
   return rows;
 }
 
@@ -405,7 +412,8 @@ export interface Cell {
 export function cells(values: string[], pending: PendingAttr | undefined): Cell[] {
   if (!pending) return values.map((value) => ({ value, state: "same" }));
   if (isDelta(pending)) {
-    const gone = (v: string) => (pending.remove ?? []).some((r) => dnKey(r) === dnKey(v));
+    const removing = new Set((pending.remove ?? []).map(dnKey));
+    const gone = (v: string) => removing.has(dnKey(v));
     return [
       ...values.filter((v) => !gone(v)).map((value): Cell => ({ value, state: "same" })),
       ...(pending.add ?? []).map((value): Cell => ({ value, state: "added" })),
@@ -415,9 +423,11 @@ export function cells(values: string[], pending: PendingAttr | undefined): Cell[
   const show = (v: string) => pending.shown?.[v] ?? v;
   if (pending.kind === "password" && pending.password)
     return [{ value: "New password (hidden)", state: "edited", was: pending.before.length ? "current password" : undefined }];
-  const removed = pending.before.filter((v) => !pending.after.includes(v));
-  const added = pending.after.filter((v) => !pending.before.includes(v));
-  const kept = pending.after.filter((v) => pending.before.includes(v));
+  const was = new Set(pending.before);
+  const now = new Set(pending.after);
+  const removed = pending.before.filter((v) => !now.has(v));
+  const added = pending.after.filter((v) => !was.has(v));
+  const kept = pending.after.filter((v) => was.has(v));
   if (removed.length === 1 && added.length === 1 && kept.length === 0) return [{ value: added[0], state: "edited", was: removed[0] }];
   return [
     ...kept.map((v): Cell => ({ value: show(v), state: "same" })),
@@ -462,11 +472,14 @@ export function valueErrors(r: EditorRules, values: string[]): string[] {
         out.push(`Invalid DN syntax (34) — ${r.name} needs a DN such as uid=…,ou=people,${r.baseDn || "dc=example,dc=org"}.`);
         break;
       }
-  for (const [i, v] of vals.entries())
-    if (vals.indexOf(v) !== i) {
+  const seen = new Set<string>();
+  for (const v of vals) {
+    if (seen.has(v)) {
       out.push(`Type or value exists (20) — ${r.name} lists “${v}” twice.`);
       break;
     }
+    seen.add(v);
+  }
   return out;
 }
 

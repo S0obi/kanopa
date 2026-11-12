@@ -102,7 +102,7 @@ func TestDamagedFileIsMovedAside(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := s.Notice()
-	if !strings.Contains(n, "could not read your saved connections") || !strings.Contains(n, ".unreadable-") {
+	if !strings.Contains(n, "couldn't read your saved connections") || !strings.Contains(n, ".unreadable-") {
 		t.Fatalf("notice = %q", n)
 	}
 	if s.Notice() != "" {

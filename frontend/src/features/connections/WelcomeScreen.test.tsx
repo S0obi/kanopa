@@ -38,7 +38,7 @@ describe("WelcomeScreen", () => {
   });
 
   it("shows the notice about a damaged file once", async () => {
-    setup([], "Kanopa could not read your saved connections, so it started with none.");
+    setup([], "Kanopa couldn't read your saved connections, so it started with none.");
     expect(await screen.findByText(/started with none/)).toBeInTheDocument();
   });
 

@@ -9,6 +9,7 @@ import { cells, dropEntry, pendingOf, pendingView, toEntryChanges, undoDelete, u
 import { DeleteDialog, MemberOfPanel, MembersPanel, NewEntryDialog, PendingState, RenameDialog } from "./shape";
 import { AddAttributeDialog, ValueEditor, targetOf, type EditTarget } from "./editors";
 import { useSettled } from "@/lib/settled";
+import { useWindow } from "@/lib/useWindow";
 import { dnKey, useBrowser } from "./store";
 
 export function EntryPane() {
@@ -142,7 +143,7 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
       await backend.copyText(text);
       toast(`Copied ${what}.`);
     } catch {
-      toast(`Kanopa could not copy ${what}.`, "danger");
+      toast(`Kanopa couldn't copy ${what}.`, "danger");
     }
   };
 
@@ -296,6 +297,55 @@ interface AttributesProps {
 
 const MARK: Record<string, string> = { edited: "Edited", added: "Added", removed: "Removed" };
 
+/** Values shown before an attribute with many collapses behind "Show all". */
+const COLLAPSED = 25;
+/** The most changed values the attribute table lists for one attribute; the LDIF tab has every one. */
+const CHANGED_SHOWN = 200;
+
+/**
+ * Of a changed attribute's values, those that changed. A long attribute (a group's 5,000 members)
+ * does not list the thousands that did not change, or draw more than CHANGED_SHOWN that did.
+ */
+function changedCells<T extends { state: string }>(all: T[]): { shown: T[]; hidden: number } {
+  const list = all.length > COLLAPSED ? all.filter((c) => c.state !== "same") : all;
+  const shown = list.slice(0, CHANGED_SHOWN);
+  return { shown, hidden: all.length > COLLAPSED ? all.length - shown.length : 0 };
+}
+
+/** An attribute's values, one line each; past 25 only the first show until "Show all", and then only the lines in view are drawn. */
+function ValueLines({ name, values, kind, onOpen }: { name: string; values: string[]; kind: string; onOpen: (dn: string) => void }) {
+  const [all, setAll] = useState(false);
+  const big = values.length > COLLAPSED;
+  const shown = big && !all ? values.slice(0, COLLAPSED) : values;
+  const { attach, start, end, before, after, windowed } = useWindow<HTMLDivElement>(shown.length, 20, { threshold: 100 });
+  return (
+    <>
+      <div ref={attach} style={windowed ? { paddingTop: before, paddingBottom: after } : undefined}>
+        {shown.slice(start, end).map((v, k) =>
+          kind === "dn" ? (
+            <button key={start + k} type="button" className="kn-attrs__link" title={`Open ${v}`} onClick={() => onOpen(v)}>
+              {v}
+            </button>
+          ) : kind === "binary" || kind === "password" ? (
+            <div key={start + k} className="kn-attrs__binary">
+              {v}
+            </div>
+          ) : (
+            <div key={start + k} className="kn-attrs__value" title={v}>
+              {v}
+            </div>
+          ),
+        )}
+      </div>
+      {big && (
+        <button type="button" className="kn-disclosure !text-[12px] !text-moss-ink" aria-expanded={all} aria-label={all ? `Show fewer ${name} values` : `Show all ${values.length.toLocaleString("en-US")} ${name} values`} onClick={() => setAll((v) => !v)}>
+          {all ? "Show fewer" : `Show all ${values.length.toLocaleString("en-US")}`}
+        </button>
+      )}
+    </>
+  );
+}
+
 function Attributes({ attrs, pending, canEdit, onEdit, onAdd, onOpen, onCopy }: AttributesProps) {
   const [showOps, setShowOps] = useState(false);
   const user = attrs.filter((a) => !a.operational);
@@ -320,6 +370,7 @@ function Attributes({ attrs, pending, canEdit, onEdit, onAdd, onOpen, onCopy }: 
     );
     if (p) {
       const removedAll = p.after.length === 0 && !p.password;
+      const changed = changedCells(cells(values, p));
       return (
         <tr key={a.name} className="is-changed">
           <th scope="row" className="kn-attrs__name">
@@ -327,7 +378,7 @@ function Attributes({ attrs, pending, canEdit, onEdit, onAdd, onOpen, onCopy }: 
             {a.required && <span className="kn-attrs__flag">required</span>}
           </th>
           <td className="kn-attrs__values">
-            {cells(values, p).map((c, i) => (
+            {changed.shown.map((c, i) => (
               <div key={i} className="kn-attrs__cell">
                 <div className="min-w-0">
                   <div
@@ -347,6 +398,7 @@ function Attributes({ attrs, pending, canEdit, onEdit, onAdd, onOpen, onCopy }: 
                 )}
               </div>
             ))}
+            {changed.hidden > 0 && <div className="kn-attrs__more-note">{changed.hidden.toLocaleString("en-US")} more values not shown here; the LDIF tab has them all.</div>}
           </td>
           <td className="kn-attrs__actions">{actions}</td>
         </tr>
@@ -359,24 +411,14 @@ function Attributes({ attrs, pending, canEdit, onEdit, onAdd, onOpen, onCopy }: 
           {a.required && <span className="kn-attrs__flag">required</span>}
         </th>
         <td className={cx("kn-attrs__values", isOc && "is-tags")}>
-          {values.map((v, i) =>
-            isOc ? (
+          {isOc ? (
+            values.map((v, i) => (
               <Badge key={i} tone="heather" mono icon={false}>
                 {v}
               </Badge>
-            ) : a.kind === "dn" ? (
-              <button key={i} type="button" className="kn-attrs__link" title={`Open ${v}`} onClick={() => onOpen(v)}>
-                {v}
-              </button>
-            ) : a.kind === "binary" || a.kind === "password" ? (
-              <div key={i} className="kn-attrs__binary">
-                {v}
-              </div>
-            ) : (
-              <div key={i} className="kn-attrs__value" title={v}>
-                {v}
-              </div>
-            ),
+            ))
+          ) : (
+            <ValueLines name={a.name} values={values} kind={a.kind} onOpen={onOpen} />
           )}
         </td>
         <td className="kn-attrs__actions">{actions}</td>

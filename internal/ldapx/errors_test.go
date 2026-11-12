@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"testing"
@@ -100,7 +101,7 @@ func TestWriteRefusalsInTheDesignsWording(t *testing.T) {
 		{65, "object class 'inetOrgPerson' requires attribute 'sn'", "Object class violation (65) — inetOrgPerson requires the attribute sn."},
 		{19, "attribute 'displayName' cannot have multiple values", "Constraint violation (19) — attribute 'displayName' cannot have multiple values."},
 		{20, "modify/add: telephoneNumber: value #0 already exists", "Type or value exists (20) — modify/add: telephoneNumber: value #0 already exists."},
-		{21, "", "Invalid syntax (21) — a value does not match the syntax of its attribute."},
+		{21, "", "Invalid syntax (21) — a value doesn't match the syntax of its attribute."},
 		{50, "no write access to parent", "Insufficient access (50) — the account you bound as may not change this entry. Connect as an account with write access."},
 	}
 	for _, c := range cases {
@@ -136,5 +137,40 @@ func TestGoLDAPTimeoutIsNoAnswer(t *testing.T) {
 	e := Classify(ldap.NewError(ldap.ErrorNetwork, errors.New("ldap: connection timed out")), op)
 	if e.Code != CodeTimeout || e.Title != "No answer." {
 		t.Fatalf("got %+v", e)
+	}
+}
+
+// Every error Kanopa words names its result code, whatever the server sent and whatever Kanopa was doing.
+func TestEveryErrorNamesItsResultCode(t *testing.T) {
+	op := Op{Endpoint: Endpoint{"ldaps", "ldap.example.org", 636}, BindDN: "cn=admin,dc=example,dc=org", Timeout: 5 * time.Second}
+	codes := []int{0, 1, 2, 3, 4, 7, 8, 10, 11, 12, 16, 19, 20, 21, 32, 34, 48, 49, 50, 51, 52, 53, 64, 65, 66, 67, 68, 69, 80, 122, 200, 201, 999}
+	for _, stage := range []Stage{StageDial, StageStartTLS, StageBind, StageRead, StageWrite} {
+		op.Stage = stage
+		for _, code := range codes {
+			if code == 0 {
+				continue
+			}
+			e := Classify(ldap.NewError(uint16(code), errors.New("the server said so")), op) //nolint:gosec // G115: test codes fit
+			if e == nil {
+				t.Errorf("stage %d code %d: no error", stage, code)
+				continue
+			}
+			if want := fmt.Sprintf("(%d)", e.Code); !strings.Contains(e.Text(), want) {
+				t.Errorf("stage %d code %d: %q does not name %s", stage, code, e.Text(), want)
+			}
+			if e.Title == "" {
+				t.Errorf("stage %d code %d: no title", stage, code)
+			}
+			if strings.Contains(strings.ToLower(e.Text()), "error:") || strings.Contains(e.Text(), "!") {
+				t.Errorf("stage %d code %d: %q breaks the voice rules", stage, code, e.Text())
+			}
+		}
+	}
+	// A failure that is not an LDAP result at all (a refused connection, a timeout) names a code too.
+	for _, err := range []error{errors.New("dial tcp: connection refused"), context.DeadlineExceeded, errors.New("x509: certificate signed by unknown authority"), io.EOF} {
+		op.Stage = StageDial
+		if e := Classify(err, op); e == nil || !strings.Contains(e.Text(), fmt.Sprintf("(%d)", e.Code)) {
+			t.Errorf("%v: %v", err, e)
+		}
 	}
 }

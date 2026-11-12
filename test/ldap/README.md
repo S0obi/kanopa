@@ -56,3 +56,15 @@ On macOS, any Docker works and no setup is needed.
 ## Kanopa started from the Claude app
 
 The Claude desktop app is an MSIX package, so Windows redirects `AppData\Roaming` for every program it starts. A Kanopa launched from a Claude session writes its connections and logs under `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Kanopa`, not `%AppData%\Kanopa`. Start Kanopa from Explorer or your own terminal when you check where it keeps its files.
+
+## Large profile
+
+For the performance checks: `ou=archive` with 10,000 people (`uid=arch00001` to `arch10000`) and `cn=everyone,ou=groups`, a group of 5,000 members. It is opt-in, because loading it takes a little longer.
+
+```bash
+task ldap:seed-large              # writes test/ldap/seed-large.ldif (not committed)
+task ldap:up PROFILE=large        # the test directory with the large profile
+KANOPA_LDAP_PROFILE=large go test -tags integration -run TestLarge -v ./services/...
+```
+
+The tests print how long each step took and fail past a limit set many times higher. The GitHub workflow "Large directory" runs the same by hand.

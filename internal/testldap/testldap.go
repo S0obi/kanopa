@@ -8,6 +8,7 @@ package testldap
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -73,6 +74,28 @@ func (s *Server) readPorts(ctx context.Context) error {
 	return nil
 }
 
+// ProfileEnv names the environment variable that picks the fixture's profile: "large" adds ou=archive (10,000
+// people) and cn=everyone (5,000 members); it needs test/ldap/seed-large.ldif from `task ldap:seed-large`.
+const ProfileEnv = "KANOPA_LDAP_PROFILE"
+
+// Large reports whether the fixture is the large profile.
+func Large() bool { return os.Getenv(ProfileEnv) == "large" }
+
+func imageTag() string {
+	if Large() {
+		return "it-large"
+	}
+	return "it"
+}
+
+func buildArgs() map[string]*string {
+	if !Large() {
+		return nil
+	}
+	large := "large"
+	return map[string]*string{"PROFILE": &large}
+}
+
 func contextDir() string {
 	_, file, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(file), "..", "..", "test", "ldap")
@@ -110,8 +133,9 @@ func start(ctx context.Context) (*Server, error) {
 		FromDockerfile: testcontainers.FromDockerfile{
 			Context:   contextDir(),
 			Repo:      "kanopa-test-ldap",
-			Tag:       "it",
+			Tag:       imageTag(),
 			KeepImage: true,
+			BuildArgs: buildArgs(),
 		},
 		ExposedPorts: []string{"389/tcp", "636/tcp"},
 		WaitingFor: wait.ForAll(
