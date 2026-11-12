@@ -41,6 +41,9 @@ type Session struct {
 	Bind     BindMethod
 	BindDN   string
 	Timeout  time.Duration
+	// NoPaging is set when the server's root DSE lists its controls and the paged results control
+	// (RFC 2696) is not among them: reads are then one plain search, bounded by Kanopa's limit.
+	NoPaging bool
 }
 
 // Close releases the connection.
@@ -165,6 +168,20 @@ func (s *Session) ReadRootDSE(ctx context.Context) (*RootDSE, error) {
 		SupportedExts:     e.GetAttributeValues("supportedExtension"),
 		LDAPVersions:      e.GetAttributeValues("supportedLDAPVersion"),
 	}, nil
+}
+
+// PagingKnownAbsent reports whether the server lists its controls and the paged results control
+// is not one of them. A server that lists none is not assumed to lack it: some don't publish.
+func (r *RootDSE) PagingKnownAbsent() bool {
+	if len(r.SupportedControls) == 0 {
+		return false
+	}
+	for _, c := range r.SupportedControls {
+		if strings.TrimSpace(c) == ControlTypePaging {
+			return false
+		}
+	}
+	return true
 }
 
 // BaseDN is the context Kanopa opens when none is configured:

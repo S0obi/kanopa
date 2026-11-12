@@ -15,6 +15,21 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as $models from "./models.js";
 
 /**
+ * AttributeNames lists the attribute names of the server's schema, sorted, to complete a filter and
+ * the columns. It is empty when the server would not share its schema.
+ */
+export function AttributeNames(id: string): $CancellablePromise<string[] | null> {
+    return $Call.ByID(4103539579, id);
+}
+
+/**
+ * CheckFilter says whether text is a valid LDAP filter and, when not, where it goes wrong.
+ */
+export function CheckFilter(text: string): $CancellablePromise<$models.FilterCheck> {
+    return $Call.ByID(3060913711, text);
+}
+
+/**
  * Children returns one page of the entries below dn: the connection's page size, starting at
  * the token of the previous page ("" for the first). The first page reads every child from the
  * server in one paged search (up to 20,000) and keeps them, so "Show N more" knows N exactly.
@@ -81,4 +96,13 @@ export function Referrers(id: string, dn: string): $CancellablePromise<$models.R
  */
 export function Roots(id: string): $CancellablePromise<$models.TreeResult> {
     return $Call.ByID(3363316700, id);
+}
+
+/**
+ * Search runs a search on an open connection and reads up to 500 entries, 100 per round trip. It
+ * holds the connection's paged-search lock while it reads, so the tree and the pickers wait their
+ * turn instead of colliding with it; cancelling ctx stops it between pages.
+ */
+export function Search(id: string, req: $models.SearchRequest): $CancellablePromise<$models.SearchResult> {
+    return $Call.ByID(912715443, id, req);
 }

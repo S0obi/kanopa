@@ -135,3 +135,6 @@ hr.kn-menu__sep { border: 0; }
 .kn-menu__item[aria-disabled="true"] .kn-menu__label { opacity: .45; }
 .kn-menu__item[aria-disabled="true"] { opacity: 1; }
 .kn-menu__item[aria-disabled="true"] .kn-menu__icon { opacity: .45; }
+/* Search results: the column titles stay in view while the rows scroll under them. */
+.kn-attrs.kn-results { overflow: visible; }
+.kn-results thead th { position: sticky; top: 0; z-index: 1; }

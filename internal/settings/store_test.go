@@ -96,3 +96,58 @@ func TestNewerFileIsReadButNeverOverwritten(t *testing.T) {
 		t.Fatalf("the newer file was changed: %s", got)
 	}
 }
+
+func recent(filter string) Recent {
+	return Recent{Base: "dc=example,dc=org", Scope: "sub", Filter: filter}
+}
+
+func TestRecentSearchesAreNewestFirstDeduplicatedAndCapped(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	s, _ := Open(path)
+	for i := range 12 {
+		if err := s.AddRecent("a", recent("(uid=u"+string(rune('a'+i))+")")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := s.Recent("a"); len(got) != MaxRecent || got[0].Filter != "(uid=ul)" || got[MaxRecent-1].Filter != "(uid=uc)" {
+		t.Fatalf("got %d, first %q, last %q", len(got), got[0].Filter, got[len(got)-1].Filter)
+	}
+	// Running one again moves it to the front, once.
+	_ = s.AddRecent("a", recent("(uid=ue)"))
+	got := s.Recent("a")
+	if len(got) != MaxRecent || got[0].Filter != "(uid=ue)" || got[1].Filter != "(uid=ul)" {
+		t.Fatalf("got %+v", got)
+	}
+	// Per connection, and kept across a restart.
+	_ = s.AddRecent("b", recent("(cn=x)"))
+	again, _ := Open(path)
+	if len(again.Recent("a")) != MaxRecent || len(again.Recent("b")) != 1 {
+		t.Fatalf("a: %d, b: %d", len(again.Recent("a")), len(again.Recent("b")))
+	}
+}
+
+func TestClearingRecentSearchesLeavesTheThemeAndOtherConnections(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	s, _ := Open(path)
+	_ = s.SetTheme(ThemeDark)
+	_ = s.AddRecent("a", recent("(uid=ada)"))
+	_ = s.AddRecent("b", recent("(uid=alan)"))
+	if err := s.ClearRecent("a"); err != nil {
+		t.Fatal(err)
+	}
+	again, _ := Open(path)
+	if len(again.Recent("a")) != 0 || len(again.Recent("b")) != 1 || again.Theme() != ThemeDark {
+		t.Fatalf("a=%v b=%v theme=%s", again.Recent("a"), again.Recent("b"), again.Theme())
+	}
+}
+
+func TestSavingTheThemeKeepsTheRecentSearches(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	s, _ := Open(path)
+	_ = s.AddRecent("a", recent("(uid=ada)"))
+	_ = s.SetTheme(ThemeLight)
+	again, _ := Open(path)
+	if len(again.Recent("a")) != 1 {
+		t.Fatal("the theme change dropped the recent searches")
+	}
+}

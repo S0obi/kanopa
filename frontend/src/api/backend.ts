@@ -11,13 +11,18 @@ import type {
   EntryChange,
   EntryView,
   Failure,
+  FilterCheck,
   FindResult,
   ListResult,
   PreviewResult,
+  RecentSearch,
   RelatedEntry,
   RelatedResult,
   SavedConnection,
   SaveRequest,
+  SearchRequest,
+  SearchResult,
+  SearchRow,
   SessionInfo,
   TestResult,
   TreeNode,
@@ -25,9 +30,9 @@ import type {
 } from "../../bindings/github.com/S0obi/kanopa/services/models";
 
 export type {
-  AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FindResult, ListResult, PreviewResult,
-  RelatedEntry, RelatedResult, SavedConnection,
-  SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
+  AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
+  RecentSearch, RelatedEntry, RelatedResult, SavedConnection,
+  SaveRequest, SearchRequest, SearchResult, SearchRow, SessionInfo, TestResult, TreeNode, TreeResult,
 };
 
 /** Why a connection attempt stopped (services.Reason*). */
@@ -66,6 +71,16 @@ export interface Backend {
   referrers(id: string, dn: string): Promise<RelatedResult>;
   /** null while the connection answers. */
   ping(id: string): Promise<Failure | null>;
+  /** Searches the directory: up to 500 entries. Aborting the signal stops it. */
+  search(id: string, req: SearchRequest, signal?: AbortSignal): Promise<SearchResult>;
+  /** Whether text is a valid LDAP filter, and where it goes wrong when not. */
+  checkFilter(text: string): Promise<FilterCheck>;
+  /** The attribute names of the server's schema, sorted; empty when it would not share it. */
+  attributeNames(id: string): Promise<string[]>;
+  /** The last searches run on a connection, newest first; kept on this computer, never their results. */
+  recentSearches(id: string): Promise<RecentSearch[]>;
+  addRecentSearch(id: string, r: RecentSearch): Promise<void>;
+  clearRecentSearches(id: string): Promise<void>;
   copyText(text: string): Promise<void>;
 
   /** The pending changes as LDIF; nothing is sent. */

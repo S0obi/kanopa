@@ -239,6 +239,20 @@ export interface Failure {
 }
 
 /**
+ * FilterCheck is the verdict on a search filter, before anything is sent.
+ */
+export interface FilterCheck {
+    "ok": boolean;
+    "message": string;
+
+    /**
+     * Position is the 0-based character the message points at.
+     */
+    "position": number;
+    "suggestion": string;
+}
+
+/**
  * FindResult is one search for a picker: the first hits and how many match in all.
  */
 export interface FindResult {
@@ -269,6 +283,17 @@ export interface PreviewResult {
     "ldif": string;
     "entries": number;
     "failure": Failure | null;
+}
+
+/**
+ * RecentSearch is a search that was run on a connection: where, how deep, and the filter.
+ * Never its results.
+ */
+export interface RecentSearch {
+    "base": string;
+    "scope": string;
+    "filter": string;
+    "attrs": string[] | null;
 }
 
 /**
@@ -349,6 +374,84 @@ export interface SavedConnection {
 }
 
 /**
+ * SearchRequest is one search from the Search panel.
+ */
+export interface SearchRequest {
+    /**
+     * empty: the connection's base DN
+     */
+    "base": string;
+
+    /**
+     * base | one | sub
+     */
+    "scope": string;
+    "filter": string;
+
+    /**
+     * columns to show besides name, type and DN
+     */
+    "attributes": string[] | null;
+}
+
+/**
+ * SearchResult is what a search found and how it ended.
+ */
+export interface SearchResult {
+    "rows": SearchRow[] | null;
+    "columns": string[] | null;
+    "base": string;
+    "scope": string;
+
+    /**
+     * as sent
+     */
+    "filter": string;
+
+    /**
+     * the most entries Kanopa reads for one search
+     */
+    "limit": number;
+
+    /**
+     * Truncated: more entries match than were read. ServerLimit says the server's own size limit
+     * stopped the search, rather than Kanopa's.
+     */
+    "truncated": boolean;
+    "serverLimit": boolean;
+
+    /**
+     * Paged is false on a server without the paged results control.
+     */
+    "paged": boolean;
+    "elapsedMs": number;
+    "failure": Failure | null;
+}
+
+/**
+ * SearchRow is one entry found.
+ */
+export interface SearchRow {
+    "dn": string;
+    "name": string;
+
+    /**
+     * root | ou | person | group | server | entry
+     */
+    "type": string;
+
+    /**
+     * its description
+     */
+    "sub": string;
+
+    /**
+     * Cells holds the values of each requested attribute, in the order of SearchResult.Columns.
+     */
+    "cells": (string[] | null)[] | null;
+}
+
+/**
  * SessionInfo describes an open connection and the server behind it.
  */
 export interface SessionInfo {
@@ -383,6 +486,12 @@ export interface SessionInfo {
      * false when the server would not share its schema
      */
     "schemaRead": boolean;
+
+    /**
+     * Paging is false when the server lists its controls and the paged results control is not one:
+     * Kanopa then reads with plain searches, and a size limit on the server cuts lists short.
+     */
+    "paging": boolean;
 }
 
 /**
@@ -444,6 +553,11 @@ export interface TreeResult {
      * the parent has more than 20,000 children; only those are listed
      */
     "truncated": boolean;
+
+    /**
+     * ServerLimit: the server's own size limit ended the read, so the list is what it returned.
+     */
+    "serverLimit": boolean;
     "elapsedMs": number;
     "failure": Failure | null;
 }
