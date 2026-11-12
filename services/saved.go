@@ -95,6 +95,9 @@ type SessionInfo struct {
 	ReadOnly       bool     `json:"readOnly"`
 	SubschemaDN    string   `json:"subschemaDn"` // the schema entry, shown at the top of the tree
 	SchemaRead     bool     `json:"schemaRead"`  // false when the server would not share its schema
+	// Paging is false when the server lists its controls and the paged results control is not one:
+	// Kanopa then reads with plain searches, and a size limit on the server cuts lists short.
+	Paging bool `json:"paging"`
 }
 
 func (s *ConnectionService) view(c connections.Connection) SavedConnection {
@@ -343,6 +346,7 @@ func (s *ConnectionService) Connect(ctx context.Context, id, password string, sa
 	if serr != nil {
 		s.log.Info("schema not readable", "id", id, "err", serr)
 	}
+	sess.NoPaging = dse.PagingKnownAbsent()
 	live := &liveSession{Session: sess, id: id, name: c.Name, baseDN: c.BaseDN, namingContexts: nonNil(dse.NamingContexts),
 		subschemaDN: dse.SubschemaSubentry, schema: schema, pageSize: c.PageSize, referrals: ldapx.ReferralsAsEntries,
 		readOnly: c.ReadOnly, assertion: hasString(dse.SupportedControls, ldapx.ControlTypeAssertion),
@@ -363,7 +367,7 @@ func (s *ConnectionService) Connect(ctx context.Context, id, password string, sa
 		BaseDN: live.baseDN, Vendor: strings.TrimSpace(dse.VendorName + " " + dse.VendorVersion),
 		NamingContexts: live.namingContexts, LDAPVersions: nonNil(dse.LDAPVersions),
 		Controls: len(dse.SupportedControls), Extensions: len(dse.SupportedExts), ElapsedMs: elapsed, ReadOnly: c.ReadOnly,
-		SubschemaDN: dse.SubschemaSubentry, SchemaRead: schema != nil,
+		SubschemaDN: dse.SubschemaSubentry, SchemaRead: schema != nil, Paging: !sess.NoPaging,
 	}
 	s.log.Info("connected", "id", id, "url", info.URL, "security", c.Security, "elapsed_ms", elapsed)
 	return ConnectResult{OK: true, Title: "Connected.", Code: 0, Session: info,

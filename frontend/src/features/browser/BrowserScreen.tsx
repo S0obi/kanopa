@@ -12,6 +12,7 @@ import { useChanges } from "./changes";
 import { EntryPane } from "./EntryPane";
 import { useBrowser } from "./store";
 import { DirectoryTree } from "./Tree";
+import { HeaderSearch } from "@/features/search/HeaderSearch";
 import { ThemeMenu } from "@/theme/ThemeMenu";
 
 const PING_EVERY_MS = 30_000;
@@ -118,7 +119,7 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-10 shrink-0 items-center gap-3 border-b border-line bg-surface-sunken pr-2.5 pl-3.5">
+      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface-sunken px-4">
         <TypeTile type="server" size={22} />
         <h1 className="type-heading m-0 truncate">{session.name}</h1>
         {session.readOnly && (
@@ -127,6 +128,7 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
           </Badge>
         )}
         <span className="grow" />
+        <HeaderSearch session={session} connection={connection} />
         <Tooltip content="Read the tree and the entry again" shortcut={platform === "mac" ? ["mod", "r"] : ["F5"]} placement="bottom">
           <Button variant="ghost" size="sm" icon="refresh" label="Refresh" busy={refreshing} disabled={connection !== "connected"} onClick={() => void refresh()} />
         </Tooltip>
@@ -200,6 +202,7 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
           <StatusIndicator key="s" status={connection === "connected" ? "connected" : connection === "reconnecting" ? "connecting" : "error"} label={statusLabel} />,
           <code key="u">{session.url}</code>,
           <span key="b">{session.boundAs ? <>Bound as <code>{session.boundAs}</code></> : "Anonymous bind"}</span>,
+          ...(session.paging ? [] : [<span key="p" title="This server doesn't offer paged results. Kanopa reads with plain searches, and a size limit on the server cuts long lists short.">No paging</span>]),
         ]}
         end={[
           <span key="n">{plural(loaded, "entry", "entries")} read</span>,

@@ -1,5 +1,6 @@
 import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName } from "./backend";
 import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeMemberOf, fakeNode, fakePreview, fakeReferrers } from "./fakeDirectory";
+import { fakeQuick } from "./fakeQuick";
 
 /**
  * A stand-in for the Go services, for Vitest, Playwright and UI work in a plain browser
@@ -30,6 +31,10 @@ export const FAKE = {
   theme: { choice: "system" as ThemeChoice, appearance: "light" as ThemeName },
   /** Makes saving the theme fail, as a read-only settings file would. */
   failThemeSave: false,
+  /** False simulates a server without the paged results control. */
+  paging: true,
+  /** A server-side size limit on searches (0: none); a search with more matches stops there. */
+  serverLimit: 0,
 };
 
 const URL_RE = /^(ldaps?):\/\/([A-Za-z0-9.-]+)(?::(\d{1,5}))?\/?$/i;
@@ -235,7 +240,7 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
         session: {
           connectionId: id, name: c.name, url: u.url, security: secLabel(c.url, c.security), boundAs: c.bind === "simple" ? c.bindDn : "",
           baseDn: c.baseDn || FAKE.baseDn, vendor: "", namingContexts: [FAKE.baseDn], ldapVersions: ["3"], controls: 14, extensions: 5, elapsedMs: 42, readOnly: c.readOnly,
-          subschemaDn: SUBSCHEMA, schemaRead: true,
+          subschemaDn: SUBSCHEMA, schemaRead: true, paging: FAKE.paging,
         },
       };
     },
@@ -244,19 +249,22 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     },
     async roots(id) {
       const lost = check(id);
-      if (lost) return { nodes: [], more: "", total: -1, truncated: false, elapsedMs: 0, failure: lost };
+      if (lost) return { nodes: [], more: "", total: -1, truncated: false, serverLimit: false, elapsedMs: 0, failure: lost };
       const roots = [{ ...fakeNode(BASE)!, rdn: BASE }, { ...fakeNode(SUBSCHEMA)!, rdn: SUBSCHEMA, sub: "Schema" }];
-      return { nodes: roots, more: "", total: -1, truncated: false, elapsedMs: 3, failure: null };
+      return { nodes: roots, more: "", total: -1, truncated: false, serverLimit: false, elapsedMs: 3, failure: null };
     },
     async children(id, dn, more) {
       await wait(FAKE.delayMs / 2);
       const lost = check(id);
-      if (lost) return { nodes: [], more: "", total: -1, truncated: false, elapsedMs: 0, failure: lost };
-      const all = fakeChildren(dn) ?? [];
+      if (lost) return { nodes: [], more: "", total: -1, truncated: false, serverLimit: false, elapsedMs: 0, failure: lost };
+      let all = fakeChildren(dn) ?? [];
+      // A server with a size limit lists no more than that, and doesn't say there is more.
+      const serverLimit = FAKE.serverLimit > 0 && all.length > FAKE.serverLimit;
+      if (serverLimit) all = all.slice(0, FAKE.serverLimit);
       const size = open.get(id) ?? 500;
       const from = more ? Number(more) : 0;
       const to = Math.min(from + size, all.length);
-      return { nodes: all.slice(from, to), more: to < all.length ? String(to) : "", total: all.length, truncated: false, elapsedMs: 9, failure: null };
+      return { nodes: all.slice(from, to), more: to < all.length ? String(to) : "", total: all.length, truncated: serverLimit, serverLimit, elapsedMs: 9, failure: null };
     },
     async entry(id, dn) {
       await wait(FAKE.delayMs / 2);
@@ -324,6 +332,12 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
       if (FAKE.failReferrers)
         return { entries: [], truncated: false, failure: { title: "Request refused.", message: "Administrative limit exceeded (11) — the server stopped the search.", code: 11, lost: false } };
       return { entries: fakeReferrers(dn), truncated: false, failure: null };
+    },
+    async quick(id, text, signal) {
+      await wait(FAKE.delayMs, signal);
+      const lost = check(id);
+      if (lost) return { ...fakeQuick("", FAKE.baseDn, { serverLimit: 0, paged: FAKE.paging }), failure: lost };
+      return fakeQuick(text, FAKE.baseDn, { serverLimit: FAKE.serverLimit, paged: FAKE.paging });
     },
     async setPendingChanges(n) {
       FAKE.window.pending = n;

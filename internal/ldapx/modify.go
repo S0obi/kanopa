@@ -12,6 +12,7 @@ import (
 
 // OIDs of what Kanopa looks for in the root DSE before it writes.
 const (
+	ControlTypePaging    = ldap.ControlTypePaging    // RFC 2696, paged results
 	ControlTypeAssertion = "1.3.6.1.1.12"            // RFC 4528
 	ExtPasswordModify    = "1.3.6.1.4.1.4203.1.11.1" // RFC 3062
 )

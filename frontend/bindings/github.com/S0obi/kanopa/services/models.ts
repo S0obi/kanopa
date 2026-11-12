@@ -239,6 +239,18 @@ export interface Failure {
 }
 
 /**
+ * FilterCheck says what is wrong with a search filter, and where.
+ */
+export interface FilterCheck {
+    "message": string;
+
+    /**
+     * Position is the 0-based character of the typed text the message points at.
+     */
+    "position": number;
+}
+
+/**
  * FindResult is one search for a picker: the first hits and how many match in all.
  */
 export interface FindResult {
@@ -268,6 +280,64 @@ export interface ListResult {
 export interface PreviewResult {
     "ldif": string;
     "entries": number;
+    "failure": Failure | null;
+}
+
+/**
+ * QuickHit is one entry a quick find lists.
+ */
+export interface QuickHit {
+    "dn": string;
+    "name": string;
+
+    /**
+     * root | ou | person | group | server | entry
+     */
+    "type": string;
+
+    /**
+     * a person's mail, else the entry's description
+     */
+    "sub": string;
+}
+
+/**
+ * QuickResult is what a quick find found and how it ended.
+ */
+export interface QuickResult {
+    "mode": string;
+
+    /**
+     * as sent to the server
+     */
+    "filter": string;
+
+    /**
+     * Hits are the best quickShow matches, best first (names) or in the server's order (filter).
+     */
+    "hits": QuickHit[] | null;
+
+    /**
+     * Total is how many matches were read, at most quickRead; More says there are others.
+     */
+    "total": number;
+    "more": boolean;
+
+    /**
+     * ServerLimit: the server's own size limit ended the search, not Kanopa's.
+     */
+    "serverLimit": boolean;
+
+    /**
+     * Paged is false on a server without the paged results control.
+     */
+    "paged": boolean;
+    "elapsedMs": number;
+
+    /**
+     * Invalid is set for an LDAP filter that can't be sent; nothing reached the server.
+     */
+    "invalid": FilterCheck | null;
     "failure": Failure | null;
 }
 
@@ -383,6 +453,12 @@ export interface SessionInfo {
      * false when the server would not share its schema
      */
     "schemaRead": boolean;
+
+    /**
+     * Paging is false when the server lists its controls and the paged results control is not one:
+     * Kanopa then reads with plain searches, and a size limit on the server cuts lists short.
+     */
+    "paging": boolean;
 }
 
 /**
@@ -444,6 +520,11 @@ export interface TreeResult {
      * the parent has more than 20,000 children; only those are listed
      */
     "truncated": boolean;
+
+    /**
+     * ServerLimit: the server's own size limit ended the read, so the list is what it returned.
+     */
+    "serverLimit": boolean;
     "elapsedMs": number;
     "failure": Failure | null;
 }
