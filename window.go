@@ -35,15 +35,15 @@ func placeWindow(saved settings.Window, ok bool, screens []application.Rect) (w 
 	return fallback, false
 }
 
-// windowToSave is what to remember when the window closes. A maximized window keeps the bounds it had
-// before, so restoring it from maximized later gives back a sensible size.
-func windowToSave(current application.Rect, maximized bool, before settings.Window, hadBefore bool) settings.Window {
-	w := settings.Window{X: current.X, Y: current.Y, Width: current.Width, Height: current.Height, Maximized: maximized}
-	if maximized && hadBefore && before.Valid() {
-		before.Maximized = true
-		return before
+// fillsAScreen reports whether the bounds cover a whole screen (give or take the borders of a maximized
+// window): those are the bounds of a maximized window, not a place worth going back to.
+func fillsAScreen(b application.Rect, screens []application.Rect) bool {
+	for _, s := range screens {
+		if b.Width >= s.Width-16 && b.Height >= s.Height-48 {
+			return true
+		}
 	}
-	return w
+	return false
 }
 
 // screenBounds lists the screens' bounds in device-independent pixels.

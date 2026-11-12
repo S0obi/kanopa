@@ -47,20 +47,12 @@ func TestPlaceWindowRefusesWhatCantBeUsed(t *testing.T) {
 	}
 }
 
-func TestMaximizedWindowKeepsItsEarlierBounds(t *testing.T) {
-	before := settings.Window{X: 200, Y: 100, Width: 1300, Height: 850}
-	got := windowToSave(application.Rect{X: 0, Y: 0, Width: 1920, Height: 1040}, true, before, true)
-	if !got.Maximized || got.Width != 1300 || got.X != 200 {
-		t.Fatalf("got %+v", got)
+func TestFillsAScreen(t *testing.T) {
+	screens := []application.Rect{{X: 0, Y: 0, Width: 1920, Height: 1080}}
+	if !fillsAScreen(application.Rect{X: -8, Y: -8, Width: 1936, Height: 1096}, screens) {
+		t.Error("a maximized window's bounds fill the screen")
 	}
-	// With nothing before, the maximized bounds are all there is.
-	got = windowToSave(application.Rect{Width: 1920, Height: 1040}, true, settings.Window{}, false)
-	if !got.Maximized || got.Width != 1920 {
-		t.Fatalf("got %+v", got)
-	}
-	// Not maximized: where it is now.
-	got = windowToSave(application.Rect{X: 5, Y: 6, Width: 1000, Height: 700}, false, before, true)
-	if got.Maximized || got.X != 5 || got.Width != 1000 {
-		t.Fatalf("got %+v", got)
+	if fillsAScreen(application.Rect{X: 100, Y: 80, Width: 1280, Height: 800}, screens) {
+		t.Error("an ordinary window doesn't")
 	}
 }
