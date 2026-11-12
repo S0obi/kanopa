@@ -1,3 +1,4 @@
+import { useWindow } from "@/lib/useWindow";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AllowedAttribute, EntryAttribute, EntryView, SessionInfo } from "@/api/backend";
 import { Banner, Button, Dialog, Icon, TextField, cx } from "@/ui";
@@ -125,6 +126,9 @@ export function ValueEditor({ connectionId, entry, target: t, session, onClose }
     return valueErrors({ name: t.name, kind: t.kind, singleValue: t.singleValue, baseDn: session.baseDn }, values);
   }, [isPassword, isBinary, password, confirm, kept, t, values, session.baseDn]);
   const rows = diff(draft);
+  // Thousands of values (a group's members) draw only the rows in view, in boxes that scroll by themselves.
+  const { attach: attachValues, start: valuesFrom, end: valuesTo, before: valuesBefore, after: valuesAfter, windowed: valuesWindowed } = useWindow<HTMLDivElement>(values.length, 38, { self: true });
+  const { attach: attachDiff, start: diffFrom, end: diffTo, before: diffBefore, after: diffAfter, windowed: diffWindowed } = useWindow<HTMLDivElement>(rows.length, 25, { self: true, overscan: 20 });
   const canAdd = !isPassword && !isBinary && !(t.singleValue && values.length >= 1);
   const encrypted = session.security === "LDAPS" || session.security === "StartTLS";
 
@@ -219,9 +223,17 @@ export function ValueEditor({ connectionId, entry, target: t, session, onClose }
               </span>
               <span className="text-[12px] leading-4 text-ink-muted">{metaText}</span>
             </div>
-            <div role="group" aria-labelledby="ve-values" className="flex flex-col gap-1.5">
-              {values.map((v, i) => (
-                <div key={i} className="flex items-center gap-1.5">
+            <div
+              role="group"
+              aria-labelledby="ve-values"
+              ref={attachValues}
+              className={cx("flex flex-col", valuesWindowed ? "max-h-[320px] overflow-auto" : "gap-1.5")}
+              style={valuesWindowed ? { paddingTop: valuesBefore, paddingBottom: valuesAfter } : undefined}
+            >
+              {values.slice(valuesFrom, valuesTo).map((v, k) => {
+                const i = valuesFrom + k;
+                return (
+                <div key={i} className={cx("flex items-center gap-1.5", valuesWindowed && "h-[38px] shrink-0")}>
                   <div className={cx("kn-input kn-input--mono grow", tried && errors.length > 0 && "kn-input--attention")}>
                     <input
                       ref={i === 0 ? firstInput : undefined}
@@ -239,7 +251,8 @@ export function ValueEditor({ connectionId, entry, target: t, session, onClose }
                     <Button variant="ghost" size="sm" icon="x" label={`Remove value ${i + 1}`} onClick={() => setValues((vs) => vs.filter((_, j) => j !== i))} />
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
             {canAdd && (
               <button type="button" className="kn-add-value" onClick={() => setValues((vs) => [...vs, ""])}>
@@ -251,9 +264,14 @@ export function ValueEditor({ connectionId, entry, target: t, session, onClose }
         )}
         <div className="flex flex-col gap-1.5">
           <span className="type-label">Change against the server</span>
-          <div className="kn-diff" aria-label="Change against the server">
-            {rows.map((r, i) => (
-              <div key={i} className="kn-diff__row" data-sign={r.sign}>
+          <div
+            className={cx("kn-diff", diffWindowed && "max-h-[240px] overflow-auto")}
+            aria-label="Change against the server"
+            ref={attachDiff}
+            style={diffWindowed ? { paddingTop: diffBefore, paddingBottom: diffAfter } : undefined}
+          >
+            {rows.slice(diffFrom, diffTo).map((r, k) => (
+              <div key={diffFrom + k} className="kn-diff__row" data-sign={r.sign} style={diffWindowed ? { height: 25, flex: "none" } : undefined}>
                 <span className="kn-diff__sign" aria-hidden="true">
                   {r.sign}
                 </span>

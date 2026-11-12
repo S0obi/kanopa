@@ -257,10 +257,10 @@ func (c *ChangeService) applyStep(ctx context.Context, l *liveSession, s step) e
 			var le *ldapx.Error
 			if errors.As(perr, &le) {
 				kept := *le
-				kept.Detail += " The entry was created without its password, and Kanopa could not remove it again: delete it, or set its password, by hand."
+				kept.Detail += " The entry was created without its password, and Kanopa couldn't remove it again: delete it, or set its password, by hand."
 				return &kept
 			}
-			return fmt.Errorf("%w; the entry was created without its password and could not be removed again", perr)
+			return fmt.Errorf("%w; the entry was created without its password and couldn't be removed again", perr)
 		}
 		return perr
 	}

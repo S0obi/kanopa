@@ -96,3 +96,44 @@ func TestNewerFileIsReadButNeverOverwritten(t *testing.T) {
 		t.Fatalf("the newer file was changed: %s", got)
 	}
 }
+
+func TestWindowAndLayoutAreRemembered(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	s, _ := Open(path)
+	if _, ok := s.Window(); ok {
+		t.Fatal("nothing saved yet")
+	}
+	if err := s.SetWindow(Window{X: 40, Y: 30, Width: 1300, Height: 820, Maximized: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetLayout(Layout{SidebarWidth: 320, Tab: "ldif"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.SetTheme(ThemeDark) // saving one setting keeps the others
+	again, _ := Open(path)
+	w, ok := again.Window()
+	if !ok || w != (Window{X: 40, Y: 30, Width: 1300, Height: 820, Maximized: true}) {
+		t.Fatalf("window %+v ok=%v", w, ok)
+	}
+	if l := again.Layout(); l.SidebarWidth != 320 || l.Tab != "ldif" || again.Theme() != ThemeDark {
+		t.Fatalf("layout %+v theme %s", l, again.Theme())
+	}
+}
+
+func TestAWindowNoWindowCanHaveIsNotKept(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	s, _ := Open(path)
+	if err := s.SetWindow(Window{Width: 10, Height: 10}); err == nil {
+		t.Fatal("a 10 by 10 window should be refused")
+	}
+	if err := os.WriteFile(path, []byte(`{"version":1,"theme":"light","window":{"x":0,"y":0,"width":-5,"height":700}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	again, _ := Open(path)
+	if _, ok := again.Window(); ok {
+		t.Fatal("a saved window of negative width should be ignored")
+	}
+	if again.Theme() != ThemeLight {
+		t.Fatal("the rest of the file still counts")
+	}
+}

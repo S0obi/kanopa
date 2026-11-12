@@ -143,7 +143,7 @@ func TestPreviewLDIF(t *testing.T) {
 
 func TestCloseGuard(t *testing.T) {
 	closed := 0
-	a := NewAppService(func() { closed++ })
+	a := NewAppService(AppConfig{Close: func() { closed++ }})
 	if a.ShouldBlockClose() {
 		t.Fatal("nothing pending")
 	}

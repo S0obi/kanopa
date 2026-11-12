@@ -1,7 +1,8 @@
-import { Fragment, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { Fragment, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { cx } from "./cx";
 import { Icon, type IconName } from "./icons";
 import { rdnParts, splitDn } from "@/lib/dn";
+import { useWindow } from "@/lib/useWindow";
 
 export type EntryType = "root" | "server" | "ou" | "person" | "group" | "entry";
 
@@ -128,20 +129,23 @@ export function tokenizeLdif(text: string): Token[][] {
 }
 
 export function LdifView({ value, label = "LDIF", className }: { value: string; label?: string; className?: string }) {
-  const lines = tokenizeLdif(value);
+  const lines = useMemo(() => tokenizeLdif(value), [value]);
+  // Thousands of lines (a group with 5,000 members) draw only the ones in view; every line is 20px tall.
+  const { attach, start, end, before, after, windowed } = useWindow<HTMLDivElement>(lines.length, 20, { overscan: 20, threshold: 200 });
+  const pad = windowed ? { paddingTop: before, paddingBottom: after } : undefined;
   return (
     <div className={cx("kn-ldif kn-ldif--readonly", className)}>
       {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard to scroll */}
-      <div className="kn-ldif__scroll" role="region" aria-label={label} tabIndex={0}>
-        <div className="kn-ldif__gutter" aria-hidden="true">
-          {lines.map((_, i) => (
-            <div key={i}>{i + 1}</div>
+      <div className="kn-ldif__scroll" role="region" aria-label={label} tabIndex={0} ref={attach}>
+        <div className="kn-ldif__gutter" aria-hidden="true" style={pad}>
+          {lines.slice(start, end).map((_, k) => (
+            <div key={start + k}>{start + k + 1}</div>
           ))}
         </div>
         <div className="kn-ldif__code">
-          <div className="kn-ldif__hl">
-            {lines.map((toks, i) => (
-              <div key={i} className="kn-ldif__line">
+          <div className="kn-ldif__hl" style={pad}>
+            {lines.slice(start, end).map((toks, k) => (
+              <div key={start + k} className="kn-ldif__line">
                 {toks.length ? toks.map((t, j) => <span key={j} className={`kn-syn-${t[0]}`}>{t[1]}</span>) : "​"}
               </div>
             ))}
@@ -163,12 +167,18 @@ export interface SplitPaneProps {
   label?: string;
   className?: string;
   startClassName?: string;
+  /** Called with the width when the person lets go of the divider or moves it with the keyboard. */
+  onResize?: (size: number) => void;
 }
 
-export function SplitPane({ start, end, defaultSize = 264, min = 200, max = 480, label = "Resize the sidebar", className, startClassName }: SplitPaneProps) {
-  const [size, setSize] = useState(defaultSize);
+export function SplitPane({ start, end, defaultSize = 264, min = 200, max = 480, label = "Resize the sidebar", className, startClassName, onResize }: SplitPaneProps) {
+  const [size, setSize] = useState(Math.max(min, Math.min(max, Math.round(defaultSize))));
   const ref = useRef<HTMLDivElement>(null);
-  const set = (n: number) => setSize(Math.max(min, Math.min(max, Math.round(n))));
+  const latest = useRef(size);
+  const set = (n: number) => {
+    latest.current = Math.max(min, Math.min(max, Math.round(n)));
+    setSize(latest.current);
+  };
   function onPointerDown(e: ReactPointerEvent) {
     e.preventDefault();
     const box = ref.current!.getBoundingClientRect();
@@ -177,6 +187,7 @@ export function SplitPane({ start, end, defaultSize = 264, min = 200, max = 480,
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       document.body.style.cursor = "";
+      onResize?.(latest.current);
     };
     document.body.style.cursor = "col-resize";
     window.addEventListener("pointermove", move);
@@ -188,6 +199,7 @@ export function SplitPane({ start, end, defaultSize = 264, min = 200, max = 480,
     if (e.key in moves) {
       e.preventDefault();
       set(moves[e.key]);
+      onResize?.(latest.current);
     }
   }
   return (

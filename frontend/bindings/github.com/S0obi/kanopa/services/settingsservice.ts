@@ -10,12 +10,30 @@
 // @ts-ignore: Unused imports
 import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+/**
+ * Layout returns the remembered layout.
+ */
+export function Layout(): $CancellablePromise<$models.Layout> {
+    return $Call.ByID(3317830097);
+}
+
 /**
  * SetAppearance tells the window which theme the page now shows ("light" or "dark"), after the
  * choice was resolved against the operating system. It paints the native frame to match.
  */
 export function SetAppearance(resolved: string): $CancellablePromise<void> {
     return $Call.ByID(3957944043, resolved);
+}
+
+/**
+ * SetLayout remembers the layout. A width or tab that can't be right is dropped rather than kept.
+ */
+export function SetLayout(l: $models.Layout): $CancellablePromise<void> {
+    return $Call.ByID(400249779, l);
 }
 
 /**

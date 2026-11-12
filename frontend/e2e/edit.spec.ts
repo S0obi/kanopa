@@ -12,7 +12,7 @@ async function openAda(page: Page) {
   await page.getByRole("button", { name: "Connect to Production directory" }).click();
   await row(page, /^ou=people/).click();
   await page.keyboard.press("ArrowRight");
-  await row(page, /^uid=ada,/).click();
+  await row(page, /^uid=ada /).click();
   await expect(page.locator("main h1", { hasText: "Ada Lovelace" })).toBeVisible();
 }
 

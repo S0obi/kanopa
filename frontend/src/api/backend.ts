@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type {
+  About,
   AllowedAttribute,
   ApplyResult,
   ClassInfo,
@@ -13,6 +14,7 @@ import type {
   Failure,
   FilterCheck,
   FindResult,
+  Layout,
   ListResult,
   PreviewResult,
   QuickHit,
@@ -28,7 +30,7 @@ import type {
 } from "../../bindings/github.com/S0obi/kanopa/services/models";
 
 export type {
-  AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
+  About, Layout, AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
   QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection,
   SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
 };
@@ -87,6 +89,20 @@ export interface Backend {
   onCloseRequested(f: () => void): () => void;
   /** Closes the window, dropping the pending changes. */
   closeAnyway(): Promise<void>;
+
+  /** The version and system Kanopa runs on, for the About dialog. */
+  about(): Promise<About>;
+  /** Text for a bug report: versions and the system, nothing about servers, entries or people. */
+  diagnostics(): Promise<string>;
+  /** Shows the folder of the log file in the file manager. */
+  openLogFolder(): Promise<void>;
+  /** Opens Kanopa's home page in the browser. */
+  openRepo(): Promise<void>;
+  /** Writes an error the interface caught to the log, with its stack. */
+  logClientError(message: string, stack: string): Promise<void>;
+  /** What the interface remembers between runs: the tree pane's width and the entry view's tab. */
+  layout(): Promise<Layout>;
+  setLayout(layout: Layout): Promise<void>;
 
   /** The saved theme choice. */
   theme(): Promise<ThemeChoice>;

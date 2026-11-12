@@ -16,14 +16,17 @@ RUN mkdir -p /etc/openldap/tls && cd /etc/openldap/tls \
  && chown -R ldap:ldap /etc/openldap/tls && chmod 600 server.key
 
 COPY slapd.conf /etc/openldap/slapd.conf
-COPY seed.ldif /tmp/seed.ldif
+# seed.ldif is always there; seed-large.ldif only after `task ldap:seed-large`, and it is loaded for PROFILE=large.
+COPY seed*.ldif /tmp/
 
 ARG ADMIN_PASSWORD=kanopa-admin
+ARG PROFILE=
 RUN sed -i "s|@ROOTPW@|$(slappasswd -s "$ADMIN_PASSWORD")|" /etc/openldap/slapd.conf \
  && mkdir -p /var/lib/openldap/openldap-data /run/openldap \
  && slapadd -f /etc/openldap/slapd.conf -l /tmp/seed.ldif \
+ && if [ "$PROFILE" = large ]; then slapadd -f /etc/openldap/slapd.conf -l /tmp/seed-large.ldif; fi \
  && chown -R ldap:ldap /var/lib/openldap /run/openldap \
- && rm /tmp/seed.ldif
+ && rm -f /tmp/seed*.ldif
 
 # kanopa-search <dn>: the entry as the server holds it, for comparing with Kanopa by hand.
 RUN printf '#!/bin/sh\nexec ldapsearch -LLL -o ldif-wrap=no -x -H ldap://localhost -D cn=admin,dc=example,dc=org -w "%s" -b "$1" -s base "*" "+"\n' "$ADMIN_PASSWORD" \
