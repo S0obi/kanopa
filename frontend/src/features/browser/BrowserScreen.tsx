@@ -119,7 +119,7 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-10 shrink-0 items-center gap-3 border-b border-line bg-surface-sunken pr-2.5 pl-3.5">
+      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface-sunken px-4">
         <TypeTile type="server" size={22} />
         <h1 className="type-heading m-0 truncate">{session.name}</h1>
         {session.readOnly && (
