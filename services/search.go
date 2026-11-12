@@ -3,196 +3,236 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
-	"unicode/utf8"
+
+	"github.com/go-ldap/ldap/v3"
 
 	"github.com/S0obi/kanopa/internal/ldapx"
 )
 
-// Search reads at most searchLimit entries, searchPage at a time.
+// Quick find reads up to quickRead matches to rank and count them, and shows quickShow.
 const (
-	searchLimit = 500
-	searchPage  = 100
-	// searchColumns bounds the extra attributes a search can add as columns.
-	searchColumns = 12
-	// cellLimit shortens a long value in a results cell; the entry view has the whole of it.
-	cellLimit = 300
+	quickRead     = 200
+	quickShow     = 10
+	quickMinChars = 2
+	// quickWords bounds how many words of a plain search are used.
+	quickWords = 6
 )
 
-// SearchRequest is one search from the Search panel.
-type SearchRequest struct {
-	Base       string   `json:"base"`  // empty: the connection's base DN
-	Scope      string   `json:"scope"` // base | one | sub
-	Filter     string   `json:"filter"`
-	Attributes []string `json:"attributes"` // columns to show besides name, type and DN
-}
+// Modes of a quick find.
+const (
+	ModeNames  = "names"  // a plain word or words, matched against names and mail
+	ModeFilter = "filter" // an LDAP filter
+)
 
-// SearchRow is one entry found.
-type SearchRow struct {
+// QuickHit is one entry a quick find lists.
+type QuickHit struct {
 	DN   string `json:"dn"`
 	Name string `json:"name"`
 	Type string `json:"type"` // root | ou | person | group | server | entry
-	Sub  string `json:"sub"`  // its description
-	// Cells holds the values of each requested attribute, in the order of SearchResult.Columns.
-	Cells [][]string `json:"cells"`
+	Sub  string `json:"sub"`  // a person's mail, else the entry's description
 }
 
-// SearchResult is what a search found and how it ended.
-type SearchResult struct {
-	Rows    []SearchRow `json:"rows"`
-	Columns []string    `json:"columns"`
-	Base    string      `json:"base"`
-	Scope   string      `json:"scope"`
-	Filter  string      `json:"filter"` // as sent
-	Limit   int         `json:"limit"`  // the most entries Kanopa reads for one search
-	// Truncated: more entries match than were read. ServerLimit says the server's own size limit
-	// stopped the search, rather than Kanopa's.
-	Truncated   bool `json:"truncated"`
+// FilterCheck says what is wrong with a search filter, and where.
+type FilterCheck struct {
+	Message string `json:"message"`
+	// Position is the 0-based character of the typed text the message points at.
+	Position int `json:"position"`
+}
+
+// QuickResult is what a quick find found and how it ended.
+type QuickResult struct {
+	Mode   string `json:"mode"`
+	Filter string `json:"filter"` // as sent to the server
+	// Hits are the best quickShow matches, best first (names) or in the server's order (filter).
+	Hits []QuickHit `json:"hits"`
+	// Total is how many matches were read, at most quickRead; More says there are others.
+	Total int  `json:"total"`
+	More  bool `json:"more"`
+	// ServerLimit: the server's own size limit ended the search, not Kanopa's.
 	ServerLimit bool `json:"serverLimit"`
 	// Paged is false on a server without the paged results control.
-	Paged     bool     `json:"paged"`
-	ElapsedMs int64    `json:"elapsedMs"`
-	Failure   *Failure `json:"failure"`
+	Paged     bool  `json:"paged"`
+	ElapsedMs int64 `json:"elapsedMs"`
+	// Invalid is set for an LDAP filter that can't be sent; nothing reached the server.
+	Invalid *FilterCheck `json:"invalid"`
+	Failure *Failure     `json:"failure"`
 }
 
-// FilterCheck is the verdict on a search filter, before anything is sent.
-type FilterCheck struct {
-	OK      bool   `json:"ok"`
-	Message string `json:"message"`
-	// Position is the 0-based character the message points at.
-	Position   int    `json:"position"`
-	Suggestion string `json:"suggestion"`
-}
+// assertion matches text that is an LDAP "attribute=value" without its parentheses.
+var assertion = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._;-]*[~<>]?=`)
 
-// CheckFilter says whether text is a valid LDAP filter and, when not, where it goes wrong.
-func (d *DirectoryService) CheckFilter(text string) FilterCheck {
-	if err := ldapx.CheckFilter(text); err != nil {
-		return FilterCheck{Message: err.Msg, Position: err.Pos, Suggestion: err.Suggestion}
+// Attributes a plain word is matched against. Names and mail start with the word; the others
+// may contain it.
+var (
+	prefixAttrs    = []string{"uid", "mail", "givenName"}
+	substringAttrs = []string{"cn", "sn", "displayName", "ou"}
+)
+
+// quickFilter decides what a quick find searches for. Text that starts with "(" is an LDAP filter,
+// and so is "attribute=value" (it gets its parentheses). Anything else is words, each of which
+// must match a name or a mail address.
+func quickFilter(text string) (mode, filter string, words []string) {
+	text = strings.TrimSpace(text)
+	switch {
+	case strings.HasPrefix(text, "("):
+		return ModeFilter, text, nil
+	case assertion.MatchString(text):
+		return ModeFilter, "(" + text + ")", nil
 	}
-	return FilterCheck{OK: true}
-}
-
-// AttributeNames lists the attribute names of the server's schema, sorted, to complete a filter and
-// the columns. It is empty when the server would not share its schema.
-func (d *DirectoryService) AttributeNames(id string) []string {
-	l, f := d.session(id)
-	if f != nil || l.schema == nil {
-		return []string{}
+	words = strings.Fields(text)
+	if len(words) > quickWords {
+		words = words[:quickWords]
 	}
-	return nonNil(l.schema.AttributeNames())
+	var all strings.Builder
+	for _, w := range words {
+		e := ldapx.EscapeFilter(w)
+		all.WriteString("(|")
+		for _, a := range prefixAttrs {
+			all.WriteString("(" + a + "=" + e + "*)")
+		}
+		for _, a := range substringAttrs {
+			all.WriteString("(" + a + "=*" + e + "*)")
+		}
+		all.WriteString(")")
+	}
+	if len(words) == 1 {
+		return ModeNames, all.String(), words
+	}
+	return ModeNames, "(&" + all.String() + ")", words
 }
 
-var scopes = map[string]int{"base": ldapx.ScopeBase, "one": ldapx.ScopeOneLevel, "sub": ldapx.ScopeSubtree}
-
-// Search runs a search on an open connection and reads up to 500 entries, 100 per round trip. It
-// holds the connection's paged-search lock while it reads, so the tree and the pickers wait their
-// turn instead of colliding with it; canceling ctx stops it between pages.
-func (d *DirectoryService) Search(ctx context.Context, id string, req SearchRequest) SearchResult {
+// Quick finds entries under the connection's base DN for the header search field. Plain words
+// match names and mail case-insensitively and come back best match first; an LDAP filter comes
+// back in the server's order. It reads up to 200 matches in one round trip and holds the
+// connection's paged-search lock meanwhile, so the tree waits its turn; canceling ctx stops it.
+func (d *DirectoryService) Quick(ctx context.Context, id, text string) QuickResult {
 	l, f := d.session(id)
 	if f != nil {
-		return SearchResult{Failure: f, Rows: []SearchRow{}, Columns: []string{}}
+		return QuickResult{Failure: f, Hits: []QuickHit{}}
 	}
-	out := SearchResult{Rows: []SearchRow{}, Columns: []string{}, Limit: searchLimit, Paged: !l.NoPaging}
-	refuse := func(title, msg string) SearchResult {
-		out.Failure = &Failure{Title: title, Message: msg}
+	mode, filter, words := quickFilter(text)
+	out := QuickResult{Mode: mode, Filter: filter, Hits: []QuickHit{}, Paged: !l.NoPaging}
+	if mode == ModeNames && len([]rune(strings.TrimSpace(text))) < quickMinChars {
+		return out
+	}
+	if mode == ModeFilter {
+		if err := ldapx.CheckFilter(filter); err != nil {
+			bare := !strings.HasPrefix(strings.TrimSpace(text), "(")
+			pos := err.Pos
+			if bare && pos > 0 {
+				pos-- // the parenthesis Kanopa added is not in the text
+			}
+			out.Invalid = &FilterCheck{Message: err.Msg, Position: pos}
+			return out
+		}
+	}
+	if l.baseDN == "" {
+		out.Failure = &Failure{Title: "No base DN.", Message: "This connection has no base DN to search from. Edit the connection and set one."}
 		return out
 	}
 
-	filter := strings.TrimSpace(req.Filter)
-	if filter == "" {
-		filter = "(objectClass=*)"
-	}
-	if err := ldapx.CheckFilter(filter); err != nil {
-		msg := err.Msg
-		if err.Suggestion != "" {
-			msg += " Try " + err.Suggestion + "."
-		}
-		return refuse("The filter is not valid.", msg)
-	}
-	scope, ok := scopes[req.Scope]
-	if !ok {
-		return refuse("Search not sent.", fmt.Sprintf("Kanopa searches \"base\", \"one\" or \"sub\", not %q.", req.Scope))
-	}
-	base := strings.TrimSpace(req.Base)
-	if base == "" {
-		base = l.baseDN
-	}
-	out.Base, out.Scope, out.Filter = base, req.Scope, filter
-
-	var columns []string
-	for _, a := range req.Attributes {
-		a = strings.TrimSpace(a)
-		if a == "" || a == "*" || a == "+" || hasString(columns, a) {
-			continue
-		}
-		columns = append(columns, a)
-	}
-	if len(columns) > searchColumns {
-		return refuse("Search not sent.", fmt.Sprintf("A search shows at most %d attributes as columns.", searchColumns))
-	}
-	out.Columns = nonNil(columns)
-
 	start := time.Now()
 	l.paged.Lock()
-	r, err := l.Search(ctx, ldapx.SearchParams{Base: base, Scope: scope, Filter: filter, Attrs: columns,
-		PageSize: searchPage, Limit: searchLimit, Mode: l.referrals})
+	r, err := l.Search(ctx, ldapx.SearchParams{Base: l.baseDN, Scope: ldapx.ScopeSubtree, Filter: filter,
+		Attrs: []string{"mail", "sn", "givenName"}, PageSize: quickRead, Limit: quickRead, Mode: l.referrals})
 	l.paged.Unlock()
 	out.ElapsedMs = time.Since(start).Milliseconds()
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			return refuse("Search stopped.", "The search was stopped before it finished.")
+			out.Failure = &Failure{Title: "Search stopped.", Message: "The search was stopped before it finished."}
+			return out
 		}
 		out.Failure = d.fail(l, err)
 		return out
 	}
-	out.Truncated, out.ServerLimit = r.Cut != ldapx.NotCut, r.Cut == ldapx.CutByServer
-	for _, e := range r.Entries {
-		out.Rows = append(out.Rows, rowOf(e.DN, e.GetAttributeValues("objectClass"), e.GetAttributeValue("displayName"),
-			e.GetAttributeValue("cn"), e.GetAttributeValue("uid"), e.GetAttributeValue("ou"), e.GetAttributeValue("description"),
-			e.GetAttributeValues("ref"), columns, e.GetEqualFoldAttributeValues))
+	out.Total, out.More, out.ServerLimit = len(r.Entries), r.Cut != ldapx.NotCut, r.Cut == ldapx.CutByServer
+
+	entries := r.Entries
+	if mode == ModeNames {
+		entries = ranked(entries, words)
 	}
-	// Counts only: what was asked for stays out of the log.
-	d.log.Info("search", "id", id, "rows", len(out.Rows), "truncated", out.Truncated, "elapsed_ms", out.ElapsedMs)
+	for _, e := range entries[:min(quickShow, len(entries))] {
+		out.Hits = append(out.Hits, hitOf(e))
+	}
+	// Counts only: what was typed stays out of the log.
+	d.log.Info("quick find", "id", id, "mode", mode, "matches", out.Total, "elapsed_ms", out.ElapsedMs)
 	return out
 }
 
-// rowOf describes one entry found: what to call it, what it is, and the values of the columns.
-func rowOf(dn string, classes []string, displayName, cn, uid, ou, description string, refs, columns []string, values func(string) []string) SearchRow {
-	row := SearchRow{DN: dn, Type: typeOf(classes, false), Sub: description, Cells: make([][]string, 0, len(columns))}
-	rdn := firstRDN(dn)
-	row.Name = rdn
-	for _, n := range []string{displayName, cn, uid, ou} {
-		if n != "" {
-			row.Name = n
-			break
+// nameOf is what an entry is called: its display name, cn, uid, ou, else its first RDN.
+func nameOf(e *ldap.Entry) string {
+	for _, a := range []string{"displayName", "cn", "uid", "ou"} {
+		if v := e.GetAttributeValue(a); v != "" {
+			return v
 		}
 	}
-	if hasClass(classes, "referral") {
-		row.Type = "entry"
-		if len(refs) > 0 {
-			row.Sub = refs[0]
-		}
-	}
-	for _, c := range columns {
-		vals := values(c)
-		cell := make([]string, 0, len(vals))
-		for _, v := range vals {
-			cell = append(cell, cellText(v))
-		}
-		row.Cells = append(row.Cells, cell)
-	}
-	return row
+	return firstRDN(e.DN)
 }
 
-// cellText shows a value in a results cell: text as is (shortened when long), anything else by its size.
-func cellText(v string) string {
-	if !utf8.ValidString(v) {
-		return fmt.Sprintf("(binary, %d bytes)", len(v))
+func hitOf(e *ldap.Entry) QuickHit {
+	classes := e.GetAttributeValues("objectClass")
+	h := QuickHit{DN: e.DN, Name: nameOf(e), Type: typeOf(classes, false), Sub: e.GetAttributeValue("description")}
+	if mail := e.GetAttributeValue("mail"); mail != "" && h.Type == "person" {
+		h.Sub = mail
 	}
-	if r := []rune(v); len(r) > cellLimit {
-		return string(r[:cellLimit]) + "…"
+	if hasClass(classes, "referral") {
+		h.Type = "entry"
+		if refs := e.GetAttributeValues("ref"); len(refs) > 0 {
+			h.Sub = refs[0]
+		}
 	}
-	return v
+	return h
+}
+
+// ranked orders entries by how well they match the words: an entry whose name or mail is exactly
+// a word comes first, then one that starts with it, then one that contains it. Within a rank, by name.
+func ranked(entries []*ldap.Entry, words []string) []*ldap.Entry {
+	type scored struct {
+		e    *ldap.Entry
+		tier int
+		name string
+	}
+	list := make([]scored, len(entries))
+	for i, e := range entries {
+		list[i] = scored{e, tierOf(e, words), strings.ToLower(nameOf(e))}
+	}
+	sort.SliceStable(list, func(i, j int) bool {
+		if list[i].tier != list[j].tier {
+			return list[i].tier < list[j].tier
+		}
+		return list[i].name < list[j].name
+	})
+	out := make([]*ldap.Entry, len(list))
+	for i, s := range list {
+		out[i] = s.e
+	}
+	return out
+}
+
+// tierOf is the worst of the words' best matches: 0 exact, 1 prefix, 2 contained, 3 matched some other way.
+func tierOf(e *ldap.Entry, words []string) int {
+	worst := 0
+	for _, w := range words {
+		w = strings.ToLower(w)
+		best := 3
+		for _, a := range append(append([]string{}, prefixAttrs...), substringAttrs...) {
+			for _, v := range e.GetAttributeValues(a) {
+				v = strings.ToLower(v)
+				switch {
+				case v == w:
+					best = min(best, 0)
+				case strings.HasPrefix(v, w):
+					best = min(best, 1)
+				case strings.Contains(v, w):
+					best = min(best, 2)
+				}
+			}
+		}
+		worst = max(worst, best)
+	}
+	return worst
 }

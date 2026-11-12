@@ -10,75 +10,44 @@ import (
 	"github.com/S0obi/kanopa/internal/testldap"
 )
 
-func TestSearchAgainstTheFixture(t *testing.T) {
+func TestQuickFindAgainstTheFixture(t *testing.T) {
 	s := newTestService(t)
 	d := NewDirectoryService(nil, s)
 	id := connectFixture(t, s, "show")
 	ctx := context.Background()
 
-	// The fixture has 1,182 people: a subtree search stops at Kanopa's 500 and says so.
-	all := d.Search(ctx, id, SearchRequest{Scope: "sub", Filter: "(objectClass=inetOrgPerson)"})
-	if all.Failure != nil {
-		t.Fatalf("failure %+v", all.Failure)
+	// A word finds Ada, best match first, whatever the object class.
+	r := d.Quick(ctx, id, "ada")
+	if r.Failure != nil || r.Invalid != nil || len(r.Hits) == 0 {
+		t.Fatalf("got %+v", r)
 	}
-	if len(all.Rows) != 500 || !all.Truncated || all.ServerLimit || !all.Paged {
-		t.Fatalf("rows %d truncated %v serverLimit %v paged %v", len(all.Rows), all.Truncated, all.ServerLimit, all.Paged)
+	if r.Hits[0].DN != "uid=ada,ou=people,"+testldap.BaseDN || r.Hits[0].Name != "Ada Lovelace" || r.Hits[0].Type != "person" || !strings.Contains(r.Hits[0].Sub, "@") {
+		t.Fatalf("first hit %+v", r.Hits[0])
 	}
-	seen := map[string]bool{}
-	for _, r := range all.Rows {
-		if seen[strings.ToLower(r.DN)] {
-			t.Fatalf("%s listed twice: paging past 100 repeated an entry", r.DN)
-		}
-		seen[strings.ToLower(r.DN)] = true
-		if r.Type != "person" {
-			t.Fatalf("%s is a %s", r.DN, r.Type)
-		}
+	if r.Mode != ModeNames || !r.Paged {
+		t.Fatalf("mode %s paged %v", r.Mode, r.Paged)
 	}
 
-	// A narrower search reads everything it matches.
-	ada := d.Search(ctx, id, SearchRequest{Base: "ou=people," + testldap.BaseDN, Scope: "one", Filter: "(uid=ada)", Attributes: []string{"mail", "title"}})
-	if ada.Failure != nil || len(ada.Rows) != 1 || ada.Truncated {
-		t.Fatalf("ada: %+v", ada)
+	// Several words, and a group by its name.
+	if r := d.Quick(ctx, id, "ada lov"); len(r.Hits) != 1 || r.Hits[0].Name != "Ada Lovelace" {
+		t.Fatalf("ada lov: %+v", r.Hits)
 	}
-	row := ada.Rows[0]
-	if row.Name != "Ada Lovelace" || len(row.Cells) != 2 || len(row.Cells[0]) != 1 || !strings.Contains(row.Cells[0][0], "@") {
-		t.Fatalf("row %+v", row)
+	if r := d.Quick(ctx, id, "engineering"); len(r.Hits) == 0 || r.Hits[0].Type != "group" {
+		t.Fatalf("engineering: %+v", r.Hits)
 	}
 
-	// Each scope.
-	for _, tc := range []struct {
-		scope string
-		base  string
-		want  int
-	}{
-		{"base", "ou=groups," + testldap.BaseDN, 1},
-		{"one", "ou=groups," + testldap.BaseDN, 24},
-		{"sub", "ou=groups," + testldap.BaseDN, 25},
-	} {
-		r := d.Search(ctx, id, SearchRequest{Base: tc.base, Scope: tc.scope, Filter: "(objectClass=*)"})
-		if r.Failure != nil || len(r.Rows) != tc.want {
-			t.Fatalf("%s under %s: %d rows, want %d (%+v)", tc.scope, tc.base, len(r.Rows), tc.want, r.Failure)
-		}
+	// 1,182 people: 200 are read, ranked, and 10 shown.
+	many := d.Quick(ctx, id, "ou=people")
+	if many.Mode != ModeFilter {
+		t.Fatalf("ou=people is an LDAP query, got %s", many.Mode)
+	}
+	all := d.Quick(ctx, id, "(objectClass=inetOrgPerson)")
+	if all.Failure != nil || all.Total != 200 || !all.More || len(all.Hits) != 10 {
+		t.Fatalf("total %d more %v hits %d failure %+v", all.Total, all.More, len(all.Hits), all.Failure)
 	}
 
-	// A filter that is wrong never reaches the server; a base that is not there is the server's answer.
-	if bad := d.Search(ctx, id, SearchRequest{Scope: "sub", Filter: "(&(uid=ada)"}); bad.Failure == nil || bad.Failure.Title != "The filter is not valid." {
-		t.Fatalf("got %+v", bad.Failure)
-	}
-	if missing := d.Search(ctx, id, SearchRequest{Base: "ou=nowhere," + testldap.BaseDN, Scope: "sub", Filter: "(uid=ada)"}); missing.Failure == nil || missing.Failure.Code != 32 {
-		t.Fatalf("got %+v", missing.Failure)
-	}
-
-	// The fixture's schema offers attribute names for completing.
-	names := d.AttributeNames(id)
-	if len(names) < 50 {
-		t.Fatalf("%d attribute names", len(names))
-	}
-	has := map[string]bool{}
-	for _, n := range names {
-		has[strings.ToLower(n)] = true
-	}
-	if !has["uid"] || !has["mail"] || !has["member"] {
-		t.Fatal("uid, mail and member should be offered")
+	// An invalid filter never reaches the server.
+	if bad := d.Quick(ctx, id, "(&(uid=ada)"); bad.Invalid == nil || bad.Invalid.Position != 11 {
+		t.Fatalf("got %+v", bad)
 	}
 }

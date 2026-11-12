@@ -473,14 +473,6 @@ export function fakeSearch(base: string, scope: "base" | "one" | "sub", match: (
   return out;
 }
 
-/** The attribute names the sample schema knows, sorted. */
-export function fakeAttributeNames(): string[] {
-  const names = new Set<string>();
-  for (const n of directory().values()) for (const a of Object.keys(n.attrs)) if (!OPERATIONAL.has(a.toLowerCase())) names.add(a);
-  for (const c of fakeClasses()) for (const a of [...(c.must ?? []), ...(c.may ?? [])]) names.add(a.name);
-  return [...names].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-}
-
 /** A sample of the fixture's schema, as Go's ObjectClasses lists it. */
 export function fakeClasses(): ClassInfo[] {
   const a = (name: string, kind = "text", singleValue = false) => ({ name, kind, singleValue, required: false });

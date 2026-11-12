@@ -33,35 +33,6 @@ func (s *SettingsService) SetTheme(choice string) error {
 	return nil
 }
 
-// RecentSearch is a search that was run on a connection: where, how deep, and the filter.
-// Never its results.
-type RecentSearch struct {
-	Base   string   `json:"base"`
-	Scope  string   `json:"scope"`
-	Filter string   `json:"filter"`
-	Attrs  []string `json:"attrs"`
-}
-
-// RecentSearches returns the last searches run on a connection, newest first.
-func (s *SettingsService) RecentSearches(connectionID string) []RecentSearch {
-	out := []RecentSearch{}
-	for _, r := range s.store.Recent(connectionID) {
-		out = append(out, RecentSearch{Base: r.Base, Scope: r.Scope, Filter: r.Filter, Attrs: nonNil(r.Attrs)})
-	}
-	return out
-}
-
-// AddRecentSearch remembers a search at the top of the connection's list. The filter is kept on
-// this computer only, and never written to the log.
-func (s *SettingsService) AddRecentSearch(connectionID string, r RecentSearch) error {
-	return s.store.AddRecent(connectionID, settings.Recent{Base: r.Base, Scope: r.Scope, Filter: r.Filter, Attrs: nonNil(r.Attrs)})
-}
-
-// ClearRecentSearches forgets a connection's recent searches.
-func (s *SettingsService) ClearRecentSearches(connectionID string) error {
-	return s.store.ClearRecent(connectionID)
-}
-
 // SetAppearance tells the window which theme the page now shows ("light" or "dark"), after the
 // choice was resolved against the operating system. It paints the native frame to match.
 func (s *SettingsService) SetAppearance(resolved string) error {

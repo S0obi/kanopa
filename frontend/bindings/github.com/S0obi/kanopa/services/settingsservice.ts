@@ -10,32 +10,6 @@
 // @ts-ignore: Unused imports
 import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
-import * as $models from "./models.js";
-
-/**
- * AddRecentSearch remembers a search at the top of the connection's list. The filter is kept on
- * this computer only, and never written to the log.
- */
-export function AddRecentSearch(connectionID: string, r: $models.RecentSearch): $CancellablePromise<void> {
-    return $Call.ByID(127668409, connectionID, r);
-}
-
-/**
- * ClearRecentSearches forgets a connection's recent searches.
- */
-export function ClearRecentSearches(connectionID: string): $CancellablePromise<void> {
-    return $Call.ByID(3671017159, connectionID);
-}
-
-/**
- * RecentSearches returns the last searches run on a connection, newest first.
- */
-export function RecentSearches(connectionID: string): $CancellablePromise<$models.RecentSearch[] | null> {
-    return $Call.ByID(4017716048, connectionID);
-}
-
 /**
  * SetAppearance tells the window which theme the page now shows ("light" or "dark"), after the
  * choice was resolved against the operating system. It paints the native frame to match.

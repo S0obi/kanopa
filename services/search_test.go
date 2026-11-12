@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/S0obi/kanopa/internal/fakeldap"
@@ -10,12 +11,21 @@ import (
 const fakeBase = "dc=example,dc=org"
 const fakePeople = "ou=people," + fakeBase
 
+func entry(dn string, attrs map[string][]string) fakeldap.Entry {
+	return fakeldap.Entry{DN: dn, Attrs: attrs}
+}
+
 func fakeDirectory(n int) []fakeldap.Entry {
+	person := []string{"inetOrgPerson", "organizationalPerson", "person", "top"}
 	top := []fakeldap.Entry{
-		{DN: fakeBase, Attrs: map[string][]string{"objectClass": {"dcObject", "organization", "top"}, "dc": {"example"}}},
-		{DN: fakePeople, Attrs: map[string][]string{"objectClass": {"organizationalUnit", "top"}, "ou": {"people"}, "description": {"People"}}},
-		{DN: "ou=groups," + fakeBase, Attrs: map[string][]string{"objectClass": {"organizationalUnit", "top"}, "ou": {"groups"}}},
-		{DN: "cn=admins,ou=groups," + fakeBase, Attrs: map[string][]string{"objectClass": {"groupOfNames", "top"}, "cn": {"admins"}, "member": {"uid=user0001," + fakePeople}}},
+		entry(fakeBase, map[string][]string{"objectClass": {"dcObject", "organization", "top"}, "dc": {"example"}}),
+		entry(fakePeople, map[string][]string{"objectClass": {"organizationalUnit", "top"}, "ou": {"people"}, "description": {"People"}}),
+		entry("ou=groups,"+fakeBase, map[string][]string{"objectClass": {"organizationalUnit", "top"}, "ou": {"groups"}}),
+		entry("cn=admins,ou=groups,"+fakeBase, map[string][]string{"objectClass": {"groupOfNames", "top"}, "cn": {"admins"}, "member": {"uid=ada," + fakePeople}}),
+		entry("cn=Canada Team,ou=groups,"+fakeBase, map[string][]string{"objectClass": {"groupOfNames", "top"}, "cn": {"Canada Team"}, "description": {"Toronto office"}}),
+		entry("uid=adamson,"+fakePeople, map[string][]string{"objectClass": person, "uid": {"adamson"}, "cn": {"Bob Adamson"}, "sn": {"Adamson"}, "givenName": {"Bob"}, "mail": {"bob.adamson@example.org"}}),
+		entry("uid=ada,"+fakePeople, map[string][]string{"objectClass": person, "uid": {"ada"}, "cn": {"Ada Lovelace"}, "sn": {"Lovelace"}, "givenName": {"Ada"}, "mail": {"ada@example.org"}, "description": {"Mathematician"}}),
+		entry("uid=grace,"+fakePeople, map[string][]string{"objectClass": person, "uid": {"grace"}, "cn": {"Grace Hopper"}, "sn": {"Hopper"}, "givenName": {"Grace"}, "mail": {"grace@example.org"}}),
 	}
 	return append(top, fakeldap.People(fakeBase, n)...)
 }
@@ -38,156 +48,211 @@ func connectFake(t *testing.T, srv *fakeldap.Server) (*DirectoryService, string,
 	return NewDirectoryService(nil, s), c.ID, res.Session
 }
 
-func TestSearchReadsFiveHundredAtMostAndSaysSo(t *testing.T) {
-	srv := fakeldap.Start(t, fakeDirectory(1200), fakeldap.Options{Paging: true})
-	d, id, info := connectFake(t, srv)
-	if !info.Paging {
-		t.Fatal("the server offers paging")
+func names(r QuickResult) []string {
+	var out []string
+	for _, h := range r.Hits {
+		out = append(out, h.Name)
 	}
-	r := d.Search(context.Background(), id, SearchRequest{Scope: "sub", Filter: "(objectClass=inetOrgPerson)"})
-	if r.Failure != nil {
-		t.Fatalf("failure %+v", r.Failure)
-	}
-	if len(r.Rows) != 500 || !r.Truncated || r.ServerLimit || !r.Paged || r.Limit != 500 {
-		t.Fatalf("rows %d truncated %v serverLimit %v paged %v", len(r.Rows), r.Truncated, r.ServerLimit, r.Paged)
-	}
-	if r.Base != fakeBase || r.Filter != "(objectClass=inetOrgPerson)" {
-		t.Fatalf("base %q filter %q", r.Base, r.Filter)
-	}
-	first := r.Rows[0]
-	if first.Type != "person" || first.Name != "User user0001" || first.DN != "uid=user0001,"+fakePeople {
-		t.Fatalf("first row %+v", first)
-	}
-	var pages int
-	for _, q := range srv.Requests() {
-		if q.Paged && q.Filter == "(objectClass=inetOrgPerson)" {
-			pages++
+	return out
+}
+
+func TestQuickFilterTellsAnLDAPQueryFromWords(t *testing.T) {
+	one := "(|(uid=ada*)(mail=ada*)(givenName=ada*)(cn=*ada*)(sn=*ada*)(displayName=*ada*)(ou=*ada*))"
+	for _, tc := range []struct {
+		text, mode, filter string
+		words              int
+	}{
+		{"ada", ModeNames, one, 1},
+		{"  ada  ", ModeNames, one, 1},
+		{"ada lov", ModeNames, "(&" + one + strings.ReplaceAll(one, "ada", "lov") + ")", 2},
+		{"(uid=ada)", ModeFilter, "(uid=ada)", 0},
+		{"  (&(uid=ada)(mail=*))", ModeFilter, "(&(uid=ada)(mail=*))", 0},
+		{"uid=ada", ModeFilter, "(uid=ada)", 0},
+		{"cn=Ada Lovelace", ModeFilter, "(cn=Ada Lovelace)", 0},
+		{"age>=18", ModeFilter, "(age>=18)", 0},
+		{"mail=*@example.org", ModeFilter, "(mail=*@example.org)", 0},
+		{"+41 44 555", ModeNames, "", 3},
+		{"1=1", ModeNames, "", 1}, // an attribute name starts with a letter
+	} {
+		mode, filter, words := quickFilter(tc.text)
+		if mode != tc.mode || len(words) != tc.words || (tc.filter != "" && filter != tc.filter) {
+			t.Errorf("%q: mode %s, %d words, filter %q; want %s, %d, %q", tc.text, mode, len(words), filter, tc.mode, tc.words, tc.filter)
 		}
 	}
-	// Five pages of 100, then the cursor is closed.
-	if pages != 6 {
-		t.Fatalf("%d paged requests, want 5 pages and 1 to close the cursor", pages)
+}
+
+func TestQuickFilterEscapesWhatTheWordHolds(t *testing.T) {
+	_, filter, _ := quickFilter(`a*b (c) d\e`)
+	for _, bad := range []string{"a*b", "(c)", `d\e`} {
+		if strings.Contains(filter, bad) {
+			t.Errorf("%q should be escaped in %s", bad, filter)
+		}
+	}
+	for _, want := range []string{`a\2ab`, `\28c\29`, `d\5ce`} {
+		if !strings.Contains(filter, want) {
+			t.Errorf("%s should hold %q", filter, want)
+		}
+	}
+	_, many, words := quickFilter("a1 b2 c3 d4 e5 f6 g7 h8")
+	if len(words) != 6 || strings.Contains(many, "g7") {
+		t.Errorf("only the first %d words count: %v", quickWords, words)
 	}
 }
 
-func TestSearchOnAServerWithoutPaging(t *testing.T) {
-	srv := fakeldap.Start(t, fakeDirectory(1200), fakeldap.Options{})
-	d, id, info := connectFake(t, srv)
-	if info.Paging {
-		t.Fatal("the server lists its controls without paging")
-	}
-	r := d.Search(context.Background(), id, SearchRequest{Scope: "sub", Filter: "(uid=user*)"})
-	if r.Failure != nil || len(r.Rows) != 500 || !r.Truncated || r.ServerLimit || r.Paged {
-		t.Fatalf("rows %d truncated %v serverLimit %v paged %v failure %+v", len(r.Rows), r.Truncated, r.ServerLimit, r.Paged, r.Failure)
-	}
-	last := srv.Requests()[len(srv.Requests())-1]
-	if last.Paged || last.SizeLimit != 501 {
-		t.Fatalf("one plain search asking for one more than the limit, got %+v", last)
-	}
-}
-
-func TestSearchKeepsWhatAServerSizeLimitReturned(t *testing.T) {
-	srv := fakeldap.Start(t, fakeDirectory(1200), fakeldap.Options{SizeLimit: 200})
+func TestQuickFindRanksTheBestMatchFirst(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(0), fakeldap.Options{Paging: true})
 	d, id, _ := connectFake(t, srv)
-	r := d.Search(context.Background(), id, SearchRequest{Scope: "sub", Filter: "(uid=user*)"})
-	if r.Failure != nil {
-		t.Fatalf("a size limit is not a failure: %+v", r.Failure)
+	r := d.Quick(context.Background(), id, "ada")
+	if r.Failure != nil || r.Invalid != nil {
+		t.Fatalf("got %+v %+v", r.Failure, r.Invalid)
 	}
-	if len(r.Rows) != 200 || !r.Truncated || !r.ServerLimit {
-		t.Fatalf("rows %d truncated %v serverLimit %v", len(r.Rows), r.Truncated, r.ServerLimit)
+	// Exactly "ada" first; then names that start with it; then names that contain it.
+	got := strings.Join(names(r), "|")
+	if got != "Ada Lovelace|Bob Adamson|Canada Team" {
+		t.Fatalf("got %s", got)
+	}
+	if r.Mode != ModeNames || r.Total != 3 || r.More || !r.Paged {
+		t.Fatalf("mode %s total %d more %v paged %v", r.Mode, r.Total, r.More, r.Paged)
+	}
+	first := r.Hits[0]
+	if first.Type != "person" || first.DN != "uid=ada,"+fakePeople || first.Sub != "ada@example.org" {
+		t.Fatalf("first hit %+v", first)
+	}
+	if grp := r.Hits[2]; grp.Type != "group" || grp.Sub != "Toronto office" {
+		t.Fatalf("group hit %+v", grp)
 	}
 }
 
-func TestSearchScopesColumnsAndNames(t *testing.T) {
-	srv := fakeldap.Start(t, fakeDirectory(20), fakeldap.Options{Paging: true})
+func TestQuickFindWithSeveralWords(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(0), fakeldap.Options{Paging: true})
+	d, id, _ := connectFake(t, srv)
+	ctx := context.Background()
+	if r := d.Quick(ctx, id, "ada lov"); len(r.Hits) != 1 || r.Hits[0].Name != "Ada Lovelace" {
+		t.Fatalf("ada lov: %v", names(r))
+	}
+	if r := d.Quick(ctx, id, "lovelace ada"); len(r.Hits) != 1 {
+		t.Fatalf("word order does not matter: %v", names(r))
+	}
+	// Mail counts as a name.
+	if r := d.Quick(ctx, id, "grace@example"); len(r.Hits) != 1 || r.Hits[0].Name != "Grace Hopper" {
+		t.Fatalf("mail: %v", names(r))
+	}
+	if r := d.Quick(ctx, id, "ada hopper"); len(r.Hits) != 0 {
+		t.Fatalf("every word must match: %v", names(r))
+	}
+	if r := d.Quick(ctx, id, "zzzz"); r.Failure != nil || len(r.Hits) != 0 || r.Total != 0 {
+		t.Fatalf("nothing matches: %+v", r)
+	}
+}
+
+func TestQuickFindReadsTwoHundredAndShowsTen(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(1200), fakeldap.Options{Paging: true})
+	d, id, _ := connectFake(t, srv)
+	r := d.Quick(context.Background(), id, "user")
+	if r.Failure != nil || r.Total != 200 || !r.More || len(r.Hits) != 10 {
+		t.Fatalf("total %d more %v hits %d failure %+v", r.Total, r.More, len(r.Hits), r.Failure)
+	}
+	// One round trip, whatever the page size of the connection.
+	var searches int
+	for _, q := range srv.Requests() {
+		if strings.Contains(q.Filter, "user") {
+			searches++
+		}
+	}
+	if searches != 2 { // the page of 200, then the request that closes the cursor
+		t.Fatalf("%d searches", searches)
+	}
+	if r := d.Quick(context.Background(), id, "user0007"); len(r.Hits) != 1 || r.Hits[0].DN != "uid=user0007,"+fakePeople || r.More {
+		t.Fatalf("user0007: %+v", r.Hits)
+	}
+}
+
+func TestQuickFindWithAnLDAPFilter(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(30), fakeldap.Options{Paging: true})
 	d, id, _ := connectFake(t, srv)
 	ctx := context.Background()
 
-	one := d.Search(ctx, id, SearchRequest{Base: fakeBase, Scope: "one", Filter: "(objectClass=organizationalUnit)"})
-	if len(one.Rows) != 2 || one.Rows[0].Type != "ou" || one.Rows[0].Name != "people" || one.Rows[0].Sub != "People" {
-		t.Fatalf("one level: %+v", one.Rows)
+	r := d.Quick(ctx, id, "(&(objectClass=inetOrgPerson)(uid=user0007))")
+	if r.Mode != ModeFilter || len(r.Hits) != 1 || r.Hits[0].Name != "User user0007" {
+		t.Fatalf("got %+v", r)
 	}
-	base := d.Search(ctx, id, SearchRequest{Base: "uid=user0007," + fakePeople, Scope: "base", Filter: "(objectClass=*)"})
-	if len(base.Rows) != 1 {
-		t.Fatalf("base: %+v", base.Rows)
+	bare := d.Quick(ctx, id, "uid=user0008")
+	if bare.Filter != "(uid=user0008)" || len(bare.Hits) != 1 {
+		t.Fatalf("a bare attribute=value is wrapped: %+v", bare)
 	}
-	cols := d.Search(ctx, id, SearchRequest{Base: fakePeople, Scope: "sub", Filter: "(uid=user0007)", Attributes: []string{"mail", " sn ", "mail", "", "*", "title"}})
-	if len(cols.Rows) != 1 || len(cols.Columns) != 3 || cols.Columns[0] != "mail" || cols.Columns[1] != "sn" {
-		t.Fatalf("columns %v rows %+v", cols.Columns, cols.Rows)
-	}
-	row := cols.Rows[0]
-	if len(row.Cells) != 3 || row.Cells[0][0] != "user0007@example.org" || row.Cells[1][0] != "user0007" || len(row.Cells[2]) != 0 {
-		t.Fatalf("cells %v", row.Cells)
-	}
-	// An empty filter is everything.
-	all := d.Search(ctx, id, SearchRequest{Base: fakePeople, Scope: "one", Filter: "  "})
-	if all.Filter != "(objectClass=*)" || len(all.Rows) != 20 {
-		t.Fatalf("empty filter: %q, %d rows", all.Filter, len(all.Rows))
+	// In the server's order, not ranked.
+	all := d.Quick(ctx, id, "(objectClass=inetOrgPerson)")
+	if all.Total != 33 || len(all.Hits) != 10 || all.More {
+		t.Fatalf("total %d hits %d more %v", all.Total, len(all.Hits), all.More)
 	}
 }
 
-func TestSearchRefusesWhatCannotBeSentWithoutSendingIt(t *testing.T) {
-	srv := fakeldap.Start(t, fakeDirectory(5), fakeldap.Options{Paging: true})
+func TestQuickFindRefusesAFilterItCannotSendWithoutSendingIt(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(3), fakeldap.Options{Paging: true})
 	d, id, _ := connectFake(t, srv)
 	before := len(srv.Requests())
 	ctx := context.Background()
 
-	bad := d.Search(ctx, id, SearchRequest{Scope: "sub", Filter: "(&(uid=ada)"})
-	if bad.Failure == nil || bad.Failure.Title != "The filter is not valid." {
-		t.Fatalf("got %+v", bad.Failure)
+	bad := d.Quick(ctx, id, "(&(uid=ada)")
+	if bad.Invalid == nil || bad.Invalid.Position != 11 || !strings.Contains(bad.Invalid.Message, "Missing )") || bad.Failure != nil || len(bad.Hits) != 0 {
+		t.Fatalf("got %+v", bad)
 	}
-	bare := d.Search(ctx, id, SearchRequest{Scope: "sub", Filter: "uid=ada"})
-	if bare.Failure == nil || bare.Failure.Message != "A filter is wrapped in parentheses, like (uid=ada). Try (uid=ada)." {
-		t.Fatalf("got %+v", bare.Failure)
+	// The parenthesis Kanopa adds around a bare attribute=value is not counted in the position.
+	bare := d.Quick(ctx, id, "uid=a(b")
+	if bare.Invalid == nil || bare.Invalid.Position != 5 {
+		t.Fatalf("got %+v", bare.Invalid)
 	}
-	if r := d.Search(ctx, id, SearchRequest{Scope: "deep", Filter: "(uid=ada)"}); r.Failure == nil {
-		t.Fatal("an unknown scope should be refused")
-	}
-	many := make([]string, 13)
-	for i := range many {
-		many[i] = "attr" + string(rune('a'+i))
-	}
-	if r := d.Search(ctx, id, SearchRequest{Scope: "sub", Filter: "(uid=ada)", Attributes: many}); r.Failure == nil {
-		t.Fatal("13 columns should be refused")
+	if one := d.Quick(ctx, id, "a"); len(one.Hits) != 0 || one.Invalid != nil || one.Failure != nil {
+		t.Fatalf("a single character is not searched: %+v", one)
 	}
 	if len(srv.Requests()) != before {
 		t.Fatalf("%d searches reached the server", len(srv.Requests())-before)
 	}
 }
 
-func TestSearchWordsServerErrorsAndStops(t *testing.T) {
-	srv := fakeldap.Start(t, fakeDirectory(5), fakeldap.Options{Paging: true})
-	d, id, _ := connectFake(t, srv)
-
-	missing := d.Search(context.Background(), id, SearchRequest{Base: "ou=nowhere," + fakeBase, Scope: "sub", Filter: "(uid=ada)"})
-	if missing.Failure == nil || missing.Failure.Code != 32 || missing.Failure.Lost {
-		t.Fatalf("got %+v", missing.Failure)
+func TestQuickFindOnAServerWithoutPaging(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(1200), fakeldap.Options{})
+	d, id, info := connectFake(t, srv)
+	if info.Paging {
+		t.Fatal("the server lists its controls without paging")
 	}
-	stopped, stop := context.WithCancel(context.Background())
-	stop()
-	r := d.Search(stopped, id, SearchRequest{Scope: "sub", Filter: "(uid=*)"})
-	if r.Failure == nil || r.Failure.Title != "Search stopped." {
-		t.Fatalf("got %+v", r.Failure)
+	r := d.Quick(context.Background(), id, "user")
+	if r.Failure != nil || r.Total != 200 || !r.More || r.ServerLimit || r.Paged {
+		t.Fatalf("total %d more %v serverLimit %v paged %v failure %+v", r.Total, r.More, r.ServerLimit, r.Paged, r.Failure)
 	}
-	// Stopping leaves the connection usable.
-	if again := d.Search(context.Background(), id, SearchRequest{Scope: "sub", Filter: "(uid=user0001)"}); again.Failure != nil || len(again.Rows) != 1 {
-		t.Fatalf("after a stop: %+v", again)
-	}
-	if r := d.Search(context.Background(), "nope", SearchRequest{Scope: "sub"}); r.Failure == nil || !r.Failure.Lost {
-		t.Fatalf("not connected: %+v", r.Failure)
+	last := srv.Requests()[len(srv.Requests())-1]
+	if last.Paged || last.SizeLimit != 201 {
+		t.Fatalf("one plain search asking for one more than the limit, got %+v", last)
 	}
 }
 
-func TestCheckFilterAndAttributeNames(t *testing.T) {
-	d := NewDirectoryService(nil, newTestService(t))
-	if c := d.CheckFilter("(&(uid=ada)"); c.OK || c.Position != 11 || c.Message == "" {
-		t.Fatalf("got %+v", c)
+func TestQuickFindKeepsWhatAServerSizeLimitReturned(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(1200), fakeldap.Options{SizeLimit: 50})
+	d, id, _ := connectFake(t, srv)
+	r := d.Quick(context.Background(), id, "user")
+	if r.Failure != nil {
+		t.Fatalf("a size limit is not a failure: %+v", r.Failure)
 	}
-	if c := d.CheckFilter("(uid=ada)"); !c.OK {
-		t.Fatalf("got %+v", c)
+	if r.Total != 50 || !r.More || !r.ServerLimit || len(r.Hits) != 10 {
+		t.Fatalf("total %d more %v serverLimit %v hits %d", r.Total, r.More, r.ServerLimit, len(r.Hits))
 	}
-	if names := d.AttributeNames("not-connected"); names == nil || len(names) != 0 {
-		t.Fatalf("got %v", names)
+}
+
+func TestQuickFindStopsAndNeedsAConnection(t *testing.T) {
+	srv := fakeldap.Start(t, fakeDirectory(5), fakeldap.Options{Paging: true})
+	d, id, _ := connectFake(t, srv)
+
+	stopped, stop := context.WithCancel(context.Background())
+	stop()
+	if r := d.Quick(stopped, id, "user"); r.Failure == nil || r.Failure.Title != "Search stopped." {
+		t.Fatalf("got %+v", r.Failure)
+	}
+	// Stopping leaves the connection usable.
+	if again := d.Quick(context.Background(), id, "user0001"); again.Failure != nil || len(again.Hits) != 1 {
+		t.Fatalf("after a stop: %+v", again)
+	}
+	if r := d.Quick(context.Background(), "nope", "user"); r.Failure == nil || !r.Failure.Lost {
+		t.Fatalf("not connected: %+v", r.Failure)
 	}
 }
 
@@ -217,7 +282,12 @@ func TestTreeOnAServerThatSaysNothingAboutChildren(t *testing.T) {
 		t.Fatalf("containers should offer to expand: %v", kinds)
 	}
 	groups := d.Children(context.Background(), id, "ou=groups,"+fakeBase, "")
-	if len(groups.Nodes) != 1 || groups.Nodes[0].HasChildren || groups.Nodes[0].Type != "group" {
-		t.Fatalf("a group is a leaf: %+v", groups.Nodes)
+	if len(groups.Nodes) != 2 {
+		t.Fatalf("got %d groups", len(groups.Nodes))
+	}
+	for _, g := range groups.Nodes {
+		if g.HasChildren || g.Type != "group" {
+			t.Fatalf("a group is a leaf: %+v", g)
+		}
 	}
 }
