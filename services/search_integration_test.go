@@ -36,6 +36,14 @@ func TestQuickFindAgainstTheFixture(t *testing.T) {
 		t.Fatalf("engineering: %+v", r.Hits)
 	}
 
+	// A DN pasted from Copy DN finds that entry, and a DN nobody has finds nothing.
+	if r := d.Quick(ctx, id, "uid=ada,ou=people,"+testldap.BaseDN); r.Mode != ModeDN || len(r.Hits) != 1 || r.Hits[0].Name != "Ada Lovelace" {
+		t.Fatalf("by DN: %+v", r)
+	}
+	if r := d.Quick(ctx, id, "uid=nobody,ou=people,"+testldap.BaseDN); r.Failure != nil || len(r.Hits) != 0 {
+		t.Fatalf("no such DN: %+v", r)
+	}
+
 	// 1,182 people: 200 are read, ranked, and 10 shown.
 	many := d.Quick(ctx, id, "ou=people")
 	if many.Mode != ModeFilter {

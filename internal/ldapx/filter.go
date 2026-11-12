@@ -2,7 +2,6 @@ package ldapx
 
 import (
 	"fmt"
-	"strings"
 	"unicode"
 )
 
@@ -11,8 +10,6 @@ type FilterError struct {
 	// Pos is the 0-based character index the problem points at; len(filter) for a filter that ends too soon.
 	Pos int
 	Msg string
-	// Suggestion is a corrected filter when the fix is obvious, such as wrapping a bare (uid=ada) in parentheses.
-	Suggestion string
 }
 
 func (e *FilterError) Error() string { return e.Msg }
@@ -27,11 +24,7 @@ func CheckFilter(s string) *FilterError {
 		return &FilterError{Pos: 0, Msg: "Type a filter, such as (objectClass=*)."}
 	}
 	if p.peek() != '(' {
-		err := &FilterError{Pos: p.i, Msg: "A filter is wrapped in parentheses, like (uid=ada)."}
-		if wrapped := "(" + strings.TrimSpace(s) + ")"; CheckFilter(wrapped) == nil {
-			err.Suggestion = wrapped
-		}
-		return err
+		return &FilterError{Pos: p.i, Msg: "A filter is wrapped in parentheses, like (uid=ada)."}
 	}
 	if err := p.filter(); err != nil {
 		return err

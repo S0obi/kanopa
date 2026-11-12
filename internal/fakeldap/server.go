@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/go-ldap/ldap/v3"
@@ -41,6 +42,8 @@ type Options struct {
 	SizeLimit int
 	// HideControls leaves supportedControl out of the root DSE, as servers that don't publish it do.
 	HideControls bool
+	// Delay makes every search answer late, for tests of cancellation and timeouts.
+	Delay time.Duration
 }
 
 // Request is a search the server received.
@@ -211,6 +214,9 @@ func (s *Server) search(c net.Conn, id int64, op *ber.Packet, ctrls map[string][
 			pageSize = int(v.Children[0].Value.(int64))
 			cookie = v.Children[1].Data.String()
 		}
+	}
+	if s.opts.Delay > 0 {
+		time.Sleep(s.opts.Delay)
 	}
 	f, _ := ldap.DecompileFilter(filter)
 	s.mu.Lock()

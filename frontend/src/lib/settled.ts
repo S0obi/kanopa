@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-/** The value once it has stopped changing for ms: a check on every keystroke would flash errors on half-typed text. */
+/** The value once it has stopped changing for ms: a read on every keystroke or arrow key would be wasted. */
 export function useSettled<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
   useEffect(() => {
