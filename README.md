@@ -30,13 +30,19 @@ Kanopa is a desktop app for looking after an LDAP directory. Connect, walk the t
 | **Windows 10 and 11** | The installer (`.exe`), or the portable `.zip` if you would rather not install | Windows SmartScreen may say it "protected your PC". Choose **More info**, then **Run anyway**. Kanopa is not code-signed yet. |
 | **macOS 12 or later** | The `.dmg` (Apple Silicon and Intel). Drag Kanopa to Applications | macOS may say it cannot verify the app. Open **System Settings → Privacy & Security** and choose **Open Anyway** next to Kanopa. |
 
+If Open Anyway does not appear, or macOS says the app is damaged, remove the download quarantine flag in Terminal and open Kanopa again:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Kanopa.app
+```
+
 macOS is newer and has had less testing than Windows, so please tell us what you run into.
 
 **2. Connect.** Open Kanopa, choose **New connection**, and fill in the server address (for example `ldaps://ldap.example.org`), how to secure it, and your bind DN and password. Use **Test connection** to check the details, then **Save and connect**.
 
 **3. Look around.** Open a branch of the tree, pick an entry, and read its attributes. To change something, hover a row and choose **Edit**. Review your pending changes, then **Apply**.
 
-> **This is an early release.** Kanopa writes to real directories, so try it on a test server first. Found a bug or have an idea? [Open an issue](https://github.com/S0obi/kanopa/issues/new). It helps most when you say what you did, what you expected, and what you saw. The **About Kanopa** dialog can copy diagnostics (versions only; no host names, DNs or secrets) to paste into your report.
+> **This is an early release.** Found a bug or have an idea? [Open an issue](https://github.com/S0obi/kanopa/issues/new). It helps most when you say what you did, what you expected, and what you saw. The **About Kanopa** dialog can copy diagnostics (versions only; no host names, DNs or secrets) to paste into your report.
 
 ## Your data
 
