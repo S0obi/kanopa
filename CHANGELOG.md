@@ -4,19 +4,12 @@ All notable changes to Kanopa are written here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
-### Added
-
-- The bind name of a connection can also be an Active Directory name: `DOMAIN\user` or `user@example.org`, not only a DN.
-
-### Fixed
-
-- A bind DN or base DN with an escaped comma, such as `CN=Soubiran\, Thibault,OU=Users,DC=example,DC=org` (how Active Directory names people), is no longer refused as "Invalid DN syntax".
-
 ## [0.1.1] - 2026-11-13
 
 ### Added
 
 - New entry offers a **POSIX user**: a person who is also a `posixAccount`. Kanopa suggests the next free `uidNumber` and warns when a number is already used, lets you pick the primary group from the POSIX groups on the server, and fills in `/home/<uid>` and `/bin/bash`, which you can edit.
+- The bind name of a connection can also be an Active Directory name: `DOMAIN\user` or `user@example.org`, not only a DN.
 
 ### Changed
 
@@ -26,6 +19,7 @@ All notable changes to Kanopa are written here. The format follows [Keep a Chang
 ### Fixed
 
 - Removing a member from a POSIX group no longer fails with "Unavailable critical extension" on servers that list the assertion control but refuse it for that attribute. Kanopa now sends the change without it, after checking the entry just before.
+- A bind DN or base DN with an escaped comma, such as `CN=Soubiran\, Thibault,OU=Users,DC=example,DC=org` (how Active Directory names people), is no longer refused as "Invalid DN syntax".
 
 ## [0.1.0] - 2026-11-13
 
