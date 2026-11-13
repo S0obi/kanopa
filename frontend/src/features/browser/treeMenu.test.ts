@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TreeNode } from "@/api/backend";
-import { blockedReason, treeMenu, type TreeMenuContext } from "./treeMenu";
+import { blockedReason, canHaveChildren, treeMenu, type TreeMenuContext } from "./treeMenu";
 
 const node = (dn: string, type: string, hasChildren = false): TreeNode => ({ dn, rdn: dn.split(",")[0], type, sub: "", hasChildren, count: -1, referral: false });
 const ctx = (patch: Partial<TreeMenuContext> = {}): TreeMenuContext => ({ canWrite: true, roots: ["dc=example,dc=org"], platform: "windows", ...patch });
@@ -39,5 +39,31 @@ describe("the tree's menu", () => {
     expect(item(p, "rename").shortcut).toEqual(["F2"]);
     expect(item(p, "delete").shortcut).toEqual(["delete"]);
     expect(item(p, "delete", ctx({ platform: "mac" })).shortcut).toEqual(["mod", "backspace"]);
+  });
+});
+
+describe("canHaveChildren", () => {
+  const can = (type: string, hasChildren = false, referral = false) => canHaveChildren({ type, hasChildren, referral });
+
+  it("takes the root, organizational units and other entries, such as an organizationalRole", () => {
+    expect(can("root")).toBe(true);
+    expect(can("ou")).toBe(true);
+    expect(can("entry")).toBe(true);
+  });
+
+  it("takes a person, group or device only when it already has children", () => {
+    for (const type of ["person", "group", "server"]) {
+      expect(can(type)).toBe(false);
+      expect(can(type, true)).toBe(true);
+    }
+  });
+
+  it("never takes a referral", () => {
+    expect(can("entry", false, true)).toBe(false);
+    expect(can("ou", true, true)).toBe(false);
+  });
+
+  it("puts New child entry in the menu of an organizationalRole", () => {
+    expect(treeMenu(node("cn=Group factory,dc=example,dc=org", "entry", true), ctx()).some((i) => "id" in i && i.id === "new")).toBe(true);
   });
 });

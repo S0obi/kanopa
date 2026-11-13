@@ -11,6 +11,7 @@ import { AddAttributeDialog, ValueEditor, targetOf, type EditTarget } from "./ed
 import { useSettled } from "@/lib/settled";
 import { useWindow } from "@/lib/useWindow";
 import { dnKey, useBrowser } from "./store";
+import { canHaveChildren } from "./treeMenu";
 
 export function EntryPane() {
   const backend = useBackend();
@@ -112,7 +113,7 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
   const memberOf = useMemberOf(id, e, !isGroup && !isNew);
   const [dialog, setDialog] = useState<"new" | "rename" | "delete" | null>(null);
   const root = sameDn(e.dn, session.baseDn) || (session.namingContexts ?? []).some((nc) => sameDn(nc, e.dn));
-  const container = e.type === "root" || e.type === "ou";
+  const container = canHaveChildren({ type: e.type, hasChildren: !!node?.hasChildren, referral: e.referral });
   const multiRdn = (splitDn(e.dn)[0] ?? "").replace(/\\./g, "").includes("+");
   const hasChildren = !!node?.hasChildren;
   const renameOff = !canWrite || isNew || deleted || root || multiRdn || hasChildren || e.type === "server" && !node;
