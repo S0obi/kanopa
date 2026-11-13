@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Banner, Button, Checkbox, Kbd, Logo, Segmented, Select, StatusIndicator, Switch, TextField, Tooltip } from "@/ui";
+import { Banner, Button, Checkbox, Dialog, Kbd, Logo, Segmented, Select, StatusIndicator, Switch, TextField, Tooltip } from "@/ui";
 
 describe("Button", () => {
   it("labels an icon-only button for screen readers and as a tooltip", () => {
@@ -41,9 +41,113 @@ describe("TextField", () => {
 });
 
 describe("Select", () => {
-  it("renders options with a label", () => {
-    render(<Select label="Bind method" options={[{ value: "simple", label: "Simple bind" }, "Anonymous"]} />);
-    expect(screen.getByLabelText("Bind method")).toHaveDisplayValue("Simple bind");
+  const options = [{ value: "simple", label: "Simple bind" }, { value: "anonymous", label: "Anonymous" }, { value: "sasl", label: "SASL", disabled: true }, "Zeta"];
+  const box = () => screen.getByRole("combobox", { name: "Bind method" });
+
+  it("shows the chosen option under its label", () => {
+    render(<Select label="Bind method" options={options} />);
+    expect(box()).toHaveTextContent("Simple bind");
+    expect(box()).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("opens a list, marks the chosen option, and a click chooses another", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(<Select label="Bind method" options={options} value="simple" onChange={onChange} />);
+    await user.click(box());
+    expect(box()).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("option")).toHaveLength(4);
+    expect(screen.getByRole("option", { name: "Simple bind" })).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("option", { name: "Anonymous" }));
+    expect(onChange).toHaveBeenCalledWith("anonymous");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(box()).toHaveFocus();
+  });
+
+  it("keeps its own value when it is not controlled", async () => {
+    const user = userEvent.setup();
+    render(<Select label="Bind method" options={options} />);
+    await user.click(box());
+    await user.click(screen.getByRole("option", { name: "Anonymous" }));
+    expect(box()).toHaveTextContent("Anonymous");
+  });
+
+  it("works from the keyboard: arrows skip a disabled option, Home and End, Enter chooses, Esc closes", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(<Select label="Bind method" options={options} value="simple" onChange={onChange} />);
+    box().focus();
+    await user.keyboard("{ArrowDown}");
+    expect(box()).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "Simple bind" }).id);
+    await user.keyboard("{ArrowDown}");
+    expect(box()).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "Anonymous" }).id);
+    await user.keyboard("{ArrowDown}");
+    expect(box()).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "Zeta" }).id);
+    await user.keyboard("{Home}");
+    expect(box()).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "Simple bind" }).id);
+    await user.keyboard("{End}{Enter}");
+    expect(onChange).toHaveBeenCalledWith("Zeta");
+    await user.keyboard("{ArrowDown}{Escape}");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not choose a disabled option", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(<Select label="Bind method" options={options} value="simple" onChange={onChange} />);
+    await user.click(box());
+    expect(screen.getByRole("option", { name: "SASL" })).toHaveAttribute("aria-disabled", "true");
+    await user.click(screen.getByRole("option", { name: "SASL" }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+  });
+
+  it("jumps to an option by typing its first letters", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(<Select label="Bind method" options={options} value="simple" onChange={onChange} />);
+    box().focus();
+    await user.keyboard("z{Enter}");
+    expect(onChange).toHaveBeenCalledWith("Zeta");
+  });
+
+  it("closes on an outside click", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <Select label="Bind method" options={options} />
+        <button type="button">Elsewhere</button>
+      </div>,
+    );
+    await user.click(box());
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("closes its list on Esc without closing the dialog around it", async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <Dialog title="New entry" onClose={onClose}>
+        <Select label="Bind method" options={options} />
+      </Dialog>,
+    );
+    await user.click(box());
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("can be disabled", async () => {
+    const user = userEvent.setup();
+    render(<Select label="Bind method" options={options} disabled />);
+    await user.click(box());
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 });
 

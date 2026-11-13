@@ -160,7 +160,9 @@ describe("WelcomeScreen — review fixes", () => {
     await screen.findByText("Production directory");
     await user.click(screen.getByRole("button", { name: "Actions for Staging" }));
     await user.click(screen.getByRole("menuitem", { name: "Edit…" }));
-    expect(fireEvent.keyDown(screen.getByLabelText("Bind method"), { key: "ArrowDown" })).toBe(true);
+    // The bind method takes the arrow key itself, and the highlighted row behind the dialog stays put.
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Bind method" }), { key: "ArrowDown" });
+    expect(screen.getByRole("listbox", { name: "Bind method" })).toBeInTheDocument();
     expect(row("Staging")).toHaveAttribute("data-active", "true");
   });
 

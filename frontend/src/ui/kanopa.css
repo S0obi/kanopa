@@ -48,11 +48,10 @@ body { margin: 0; font-family: var(--font-sans); font-size: 13px; line-height: 2
 .kn-input { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; height: var(--size-control); padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--ink); box-shadow: var(--shadow-sm); position: relative; }
 .kn-input:focus-within { border-color: var(--focus); box-shadow: var(--focus-ring); }
 .kn-input > .kn-icon { color: var(--ink-muted); }
-.kn-input input, .kn-input select { all: unset; flex: 1; min-width: 0; height: 100%; font: 400 13px/20px var(--font-sans); color: var(--ink); }
+.kn-input input { all: unset; flex: 1; min-width: 0; height: 100%; font: 400 13px/20px var(--font-sans); color: var(--ink); }
 .kn-input input::placeholder { color: var(--ink-faint); }
-.kn-input--mono input, .kn-input--mono select { font: 400 12px/20px var(--font-mono); }
+.kn-input--mono input { font: 400 12px/20px var(--font-mono); }
 .kn-field--error .kn-input { border-color: var(--danger-ink); }
-.kn-select select { padding-right: 20px; }
 .kn-select > .kn-icon { position: absolute; right: 10px; pointer-events: none; }
 :root, [data-theme="light"] { color-scheme: light; }
 [data-theme="dark"] { color-scheme: dark; }

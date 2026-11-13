@@ -841,7 +841,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Select label="Create under" mono value={parent} onChange={(e) => setParent(e.target.value)} options={containers.map((c) => ({ value: c.dn, label: c.dn }))} />
+        <Select label="Create under" mono value={parent} onChange={setParent} options={containers.map((c) => ({ value: c.dn, label: c.dn }))} />
         <DnPreview label="DN" rdn={rdn} parent={parent} />
       </div>
 
@@ -1027,7 +1027,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
           </div>
           {chosen.length > 0 && (
             <div className="flex flex-col gap-3">
-              <Select label="Naming attribute (RDN)" mono value={rdnAttr} onChange={(e) => setRdnAttr(e.target.value)} options={fields.filter((f) => f.kind !== "password").map((f) => f.name)} />
+              <Select label="Naming attribute (RDN)" mono value={rdnAttr} onChange={setRdnAttr} options={fields.filter((f) => f.kind !== "password").map((f) => f.name)} />
               <div className="grid grid-cols-2 gap-3">
                 {fields.map((f, i) =>
                   f.kind === "password" ? (
@@ -1062,8 +1062,8 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
                   label="Optional attributes"
                   mono
                   value=""
-                  onChange={(e) => {
-                    const a = mayOptions.find((x) => x.name === e.target.value);
+                  onChange={(name) => {
+                    const a = mayOptions.find((x) => x.name === name);
                     if (a) setFields([...fields, { name: a.name, kind: (a.kind as ValueKind) || "text", required: false, value: "" }]);
                   }}
                   options={[{ value: "", label: "Add an attribute…" }, ...mayOptions.map((a) => ({ value: a.name, label: a.name }))]}
