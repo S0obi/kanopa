@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/S0obi/kanopa/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/S0obi/kanopa?include_prereleases&color=6aa384"></a>
-  <a href="https://github.com/S0obi/kanopa/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/S0obi/kanopa/ci.yml?branch=main&label=CI"></a>
+  <a href="https://github.com/S0obi/kanopa/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/S0obi/kanopa?include_prereleases&color=6aa384&cacheSeconds=300"></a>
+  <a href="https://github.com/S0obi/kanopa/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/S0obi/kanopa/ci.yml?branch=main&label=CI&cacheSeconds=300"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-6aa384"></a>
 </p>
 
