@@ -4,6 +4,10 @@ All notable changes to Kanopa are written here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Changed
+
+- When the server lists an entry but refuses to open it, Kanopa now says so in plain words, shows the DN to copy for whoever runs the directory, and offers Try again.
+
 ### Fixed
 
 - Removing a member from a POSIX group no longer fails with "Unavailable critical extension" on servers that list the assertion control but refuse it for that attribute. Kanopa now sends the change without it, after checking the entry just before.

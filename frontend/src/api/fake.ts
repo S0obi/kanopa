@@ -276,6 +276,17 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
       const lost = check(id);
       const empty = { dn, title: "", subtitle: "", type: "entry", objectClasses: [], attributes: [], allowed: [], ldif: "", referral: false, elapsedMs: 0 };
       if (lost) return { ...empty, failure: lost };
+      if (dn.toLowerCase().startsWith("cn=unreadable,"))
+        return {
+          ...empty,
+          failure: {
+            title: "Can't read this entry.",
+            message:
+              "The server shows this entry in its folder but refuses to open it. The usual causes are an access rule that allows listing and not reading, or a damaged index on the server. Ask whoever runs the directory, and give them the DN. Other entries are not affected. No such object (32)",
+            code: 32,
+            lost: false,
+          },
+        };
       return (
         fakeEntry(dn) ?? {
           ...empty,
