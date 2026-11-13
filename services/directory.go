@@ -739,10 +739,8 @@ func (d *DirectoryService) MemberOf(ctx context.Context, id, dn string) RelatedR
 	if f != nil {
 		return RelatedResult{Failure: f}
 	}
-	uid := ""
-	if rdn := firstRDN(dn); strings.HasPrefix(strings.ToLower(rdn), "uid=") {
-		uid = rdn[4:]
-	}
+	// A posixGroup lists the uid, whatever the entry is named: read it from the entry when the RDN is not the uid.
+	uid := d.uidOf(ctx, l, dn)
 	l.paged.Lock()
 	groups, truncated, err := l.MemberOf(ctx, l.baseDN, dn, uid, memberOfLimit)
 	l.paged.Unlock()

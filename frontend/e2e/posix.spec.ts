@@ -74,8 +74,11 @@ test("a person's Member of lists the posixGroups by uid, and leaving one is a pe
   await row(page, /^ou=people/).click();
   await page.keyboard.press("ArrowRight");
   await row(page, /^uid=alan /).click();
+  // The tab says how many groups list him: research and vpn-users by DN, unix-staff by uid.
+  await expect(page.getByRole("tab", { name: /Member of/ })).toContainText("3");
   await page.getByRole("tab", { name: /Member of/ }).click();
   await expect(page.locator("main").getByText("unix-staff", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Remove unix-staff" }).click();
   await expect(bar(page)).toContainText("Pending change: memberUid on cn=unix-staff");
+  await expect(page.getByRole("tab", { name: /Member of/ })).toContainText("2");
 });

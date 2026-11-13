@@ -6,7 +6,7 @@ import { parentDn, rdnParts, sameDn, splitDn } from "@/lib/dn";
 import { plural } from "@/lib/time";
 import { Badge, Banner, Button, DnBreadcrumb, EmptyState, LdifView, MenuButton, Skeleton, Tabs, Tooltip, TypeTile, cx, useToasts } from "@/ui";
 import { cells, dropEntry, pendingOf, pendingView, toEntryChanges, undoDelete, undoRename, useChanges, valuesAfter, type ChangeSet, type PendingAttr } from "./changes";
-import { DeleteDialog, MemberOfPanel, MembersPanel, NewEntryDialog, PendingState, RenameDialog } from "./shape";
+import { DeleteDialog, MemberOfPanel, MembersPanel, NewEntryDialog, PendingState, RenameDialog, useMemberOf } from "./shape";
 import { AddAttributeDialog, ValueEditor, targetOf, type EditTarget } from "./editors";
 import { useSettled } from "@/lib/settled";
 import { useWindow } from "@/lib/useWindow";
@@ -108,6 +108,8 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
   const members = attrs
     .filter((a) => /^(member|uniqueMember|memberUid)$/i.test(a.name))
     .flatMap((a) => valuesAfter(a.values ?? [], pendingOf(pendingSet, e.dn, a.name))).length;
+  // The Member of tab shows how many groups list this entry, so the lookup runs when the entry opens.
+  const memberOf = useMemberOf(id, e, !isGroup && !isNew);
   const [dialog, setDialog] = useState<"new" | "rename" | "delete" | null>(null);
   const root = sameDn(e.dn, session.baseDn) || (session.namingContexts ?? []).some((nc) => sameDn(nc, e.dn));
   const container = e.type === "root" || e.type === "ou";
@@ -211,7 +213,7 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
           tabs={[
             { id: "attributes", label: "Attributes", count: attrs.filter((a) => !a.operational).length },
             { id: "ldif", label: "LDIF" },
-            ...(isNew ? [] : [isGroup ? { id: "members", label: "Members", count: members } : { id: "memberOf", label: "Member of" }]),
+            ...(isNew ? [] : [isGroup ? { id: "members", label: "Members", count: members } : { id: "memberOf", label: "Member of", count: memberOf.count }]),
           ]}
         />
       </div>
