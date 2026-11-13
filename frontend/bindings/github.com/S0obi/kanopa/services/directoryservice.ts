@@ -71,6 +71,15 @@ export function ObjectClasses(id: string): $CancellablePromise<$models.ClassesRe
 }
 
 /**
+ * POSIXInfo suggests the next free uidNumber for a new posixAccount (above every number in use, and
+ * at least 1000), names the accounts that already use uid when uid is more than 0, and lists the
+ * posixGroups the account can have as its primary group.
+ */
+export function POSIXInfo(id: string, uid: number): $CancellablePromise<$models.POSIXResult> {
+    return $Call.ByID(513414770, id, uid);
+}
+
+/**
  * Ping checks that the connection still answers. It returns nil when it does.
  */
 export function Ping(id: string): $CancellablePromise<$models.Failure | null> {

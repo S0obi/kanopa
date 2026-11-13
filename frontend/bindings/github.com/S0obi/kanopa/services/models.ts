@@ -329,6 +329,35 @@ export interface ListResult {
 }
 
 /**
+ * POSIXResult answers POSIXInfo.
+ */
+export interface POSIXResult {
+    /**
+     * the next free uidNumber
+     */
+    "nextUid": number;
+
+    /**
+     * accounts that already use the asked uidNumber
+     */
+    "uidTakenBy": string[] | null;
+
+    /**
+     * every posixGroup, by name
+     */
+    "groups": PosixGroup[] | null;
+    "failure": Failure | null;
+}
+
+/**
+ * PosixGroup is a posixGroup offered as the primary group of a new account.
+ */
+export interface PosixGroup {
+    "cn": string;
+    "gid": number;
+}
+
+/**
  * PreviewResult is the change set as LDIF, as Kanopa will send it.
  */
 export interface PreviewResult {

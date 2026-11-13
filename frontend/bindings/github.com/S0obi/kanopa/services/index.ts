@@ -34,6 +34,8 @@ export type {
     GIDResult,
     Layout,
     ListResult,
+    POSIXResult,
+    PosixGroup,
     PreviewResult,
     QuickHit,
     QuickResult,

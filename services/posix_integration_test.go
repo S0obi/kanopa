@@ -5,6 +5,8 @@ package services
 import (
 	"context"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/S0obi/kanopa/internal/testldap"
@@ -83,6 +85,64 @@ func TestApplyPosixMembership(t *testing.T) {
 			t.Fatalf("want an object class violation (65): %+v", f)
 		}
 	})
+}
+
+// A person can also be a posixAccount: the dialog suggests the next free uidNumber, offers the
+// posixGroups as primary group, and the entry holds both classes.
+func TestCreatePosixUser(t *testing.T) {
+	srv := testldap.New(t)
+	s := newTestService(t)
+	d := NewDirectoryService(nil, s)
+	c := NewChangeService(nil, s)
+	ctx := context.Background()
+	admin := connectPrivate(t, s, srv, testldap.AdminDN, testldap.AdminPassword)
+
+	info := d.POSIXInfo(ctx, admin, 3001)
+	if info.Failure != nil {
+		t.Fatalf("posix info: %+v", info.Failure)
+	}
+	if info.NextUID < 3002 || len(info.UIDTakenBy) != 1 || info.UIDTakenBy[0] != "casey" {
+		t.Fatalf("uid 3001 belongs to casey, and the next free one is above it: %+v", info)
+	}
+	var staff *PosixGroup
+	for i := range info.Groups {
+		if info.Groups[i].CN == "unix-staff" {
+			staff = &info.Groups[i]
+		}
+	}
+	if staff == nil || staff.GID == 0 {
+		t.Fatalf("unix-staff should be offered as a primary group: %+v", info.Groups)
+	}
+	if free := d.POSIXInfo(ctx, admin, 9_999_999); len(free.UIDTakenBy) != 0 {
+		t.Fatalf("nobody holds 9999999: %+v", free.UIDTakenBy)
+	}
+
+	dn := "uid=alovelace,ou=people," + testldap.BaseDN
+	text := func(name string, v ...string) AttributeChange {
+		return AttributeChange{Name: name, Kind: "text", After: v}
+	}
+	r := c.Apply(ctx, admin, []EntryChange{{Op: opAdd, DN: dn, Attributes: []AttributeChange{
+		text("objectClass", "inetOrgPerson", "organizationalPerson", "person", "posixAccount", "top"),
+		text("uid", "alovelace"), text("cn", "Ada Lovelace"), text("sn", "Lovelace"), text("givenName", "Ada"),
+		text("uidNumber", strconv.Itoa(info.NextUID)), text("gidNumber", strconv.Itoa(staff.GID)),
+		text("homeDirectory", "/home/alovelace"), text("loginShell", "/bin/bash"),
+	}}})
+	if r.Failure != nil || r.Applied != 1 {
+		t.Fatalf("apply %+v %+v", r.Failure, r.Results)
+	}
+	got := d.Entry(ctx, admin, dn)
+	if got.Failure != nil {
+		t.Fatalf("read back: %+v", got.Failure)
+	}
+	classes := strings.Join(got.ObjectClasses, ",")
+	if !strings.Contains(classes, "posixAccount") || !strings.Contains(classes, "inetOrgPerson") {
+		t.Fatalf("the entry should be both: %s", classes)
+	}
+	// The number is now in use, and the next suggestion moves past it.
+	after := d.POSIXInfo(ctx, admin, info.NextUID)
+	if len(after.UIDTakenBy) != 1 || after.UIDTakenBy[0] != "alovelace" || after.NextUID <= info.NextUID {
+		t.Fatalf("after the create: %+v", after)
+	}
 }
 
 // Any entry can hold children, not only an OU: some directories keep their groups below an

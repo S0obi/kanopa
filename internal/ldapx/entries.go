@@ -277,6 +277,67 @@ func (s *Session) ResolveUIDs(ctx context.Context, base string, uids []string) (
 	return out, nil
 }
 
+// PosixGroupRef is a posixGroup a new account can have as its primary group.
+type PosixGroupRef struct {
+	CN  string
+	GID int
+}
+
+// PosixInfo is what a new posixAccount needs to know about the directory.
+type PosixInfo struct {
+	NextUID    int             // above every uidNumber in use, and at least 1000
+	UIDTakenBy []string        // the accounts that already hold the asked uidNumber
+	Groups     []PosixGroupRef // every posixGroup with a numeric gidNumber, by name
+}
+
+// POSIXInfo reads the uidNumbers and posixGroups under base: the next free uidNumber, and the
+// posixAccounts that already hold uid (when uid is more than 0). It runs a paged search: see Children.
+func (s *Session) POSIXInfo(ctx context.Context, base string, uid int) (PosixInfo, error) {
+	req := ldap.NewSearchRequest(base, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, s.secs(), false,
+		"(|(uidNumber=*)(&(gidNumber=*)(objectClass=posixGroup)))", []string{"cn", "uid", "uidNumber", "gidNumber", "objectClass"}, nil)
+	entries, _, err := s.readAll(ctx, req, 500, 100_000)
+	if err != nil {
+		return PosixInfo{}, Classify(err, s.op())
+	}
+	info := PosixInfo{NextUID: 1000}
+	highest := 999
+	for _, e := range entries {
+		if n, convErr := strconv.Atoi(e.GetAttributeValue("uidNumber")); convErr == nil {
+			highest = max(highest, n)
+			if uid > 0 && n == uid {
+				name := e.GetAttributeValue("uid")
+				if name == "" {
+					name = e.GetAttributeValue("cn")
+				}
+				if name == "" {
+					name = e.DN
+				}
+				info.UIDTakenBy = append(info.UIDTakenBy, name)
+			}
+		}
+		isGroup := false
+		for _, oc := range e.GetAttributeValues("objectClass") {
+			if strings.EqualFold(oc, "posixGroup") {
+				isGroup = true
+			}
+		}
+		if !isGroup {
+			continue
+		}
+		if g, convErr := strconv.Atoi(e.GetAttributeValue("gidNumber")); convErr == nil {
+			name := e.GetAttributeValue("cn")
+			if name == "" {
+				name = e.DN
+			}
+			info.Groups = append(info.Groups, PosixGroupRef{CN: name, GID: g})
+		}
+	}
+	info.NextUID = highest + 1
+	sort.Strings(info.UIDTakenBy)
+	sort.Slice(info.Groups, func(i, j int) bool { return strings.ToLower(info.Groups[i].CN) < strings.ToLower(info.Groups[j].CN) })
+	return info, nil
+}
+
 // GIDInfo reads the gidNumbers under base: the next free one (above every number in use, and at
 // least 1000), and the posixGroups that already hold gid (when gid is more than 0).
 func (s *Session) GIDInfo(ctx context.Context, base string, gid int) (next int, takenBy []string, err error) {

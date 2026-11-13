@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 describe("shaping the tree", () => {
-  it("creates a person: uid and cn follow the names, then Apply writes it", async () => {
+  it("creates a person: uid is the first letter and the last name, cn follows the names, then Apply writes it", async () => {
     const { user, backend } = await open();
     await user.click(await item(/^ou=people/));
     await heading("people");
@@ -54,9 +54,9 @@ describe("shaping the tree", () => {
     const dialog = screen.getByRole("dialog", { name: "New entry" });
     await user.type(within(dialog).getByLabelText(/First name/), "Zoë");
     await user.type(within(dialog).getByLabelText(/Last name/), "Kanopa");
-    expect(within(dialog).getByLabelText(/User ID/)).toHaveValue("zoe");
+    expect(within(dialog).getByLabelText(/User ID/)).toHaveValue("zkanopa");
     expect(within(dialog).getByLabelText(/Full name/)).toHaveValue("Zoë Kanopa");
-    expect(within(dialog).getByText(`,${people}`).closest("code")).toHaveTextContent(`uid=zoe,${people}`);
+    expect(within(dialog).getByText(`,${people}`).closest("code")).toHaveTextContent(`uid=zkanopa,${people}`);
     await user.type(within(dialog).getByLabelText(/Initial password/), "zoe-Passw0rd");
     await user.click(within(dialog).getByRole("button", { name: "Create entry" }));
     // The initial password is typed twice too.
@@ -66,8 +66,8 @@ describe("shaping the tree", () => {
 
     expect(await heading("Zoë Kanopa")).toBeInTheDocument();
     expect(screen.getByText("Not on the server yet.")).toBeInTheDocument();
-    expect(await item(/^uid=zoe Zoë Kanopa new/)).toBeInTheDocument();
-    expect(bar()).toHaveTextContent("Pending change: new entry uid=zoe");
+    expect(await item(/^uid=zkanopa Zoë Kanopa new/)).toBeInTheDocument();
+    expect(bar()).toHaveTextContent("Pending change: new entry uid=zkanopa");
 
     await user.click(within(bar()).getByRole("button", { name: "Review LDIF" }));
     const ldif = await screen.findByRole("region", { name: "Pending changes as LDIF" });
@@ -76,7 +76,7 @@ describe("shaping the tree", () => {
 
     await user.click(within(bar()).getByRole("button", { name: /Apply/ }));
     expect(await screen.findByText("Saved 1 change to localhost.")).toBeInTheDocument();
-    const e = await backend.entry("prod", `uid=zoe,${people}`);
+    const e = await backend.entry("prod", `uid=zkanopa,${people}`);
     expect(e.failure).toBeNull();
     expect((e.attributes ?? []).find((a) => a.name === "userPassword")?.values?.[0]).toMatch(/^\{SSHA\}/);
   });
