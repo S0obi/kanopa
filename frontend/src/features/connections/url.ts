@@ -1,6 +1,6 @@
 export type Security = "ldaps" | "starttls" | "none";
 
-export interface LdapUrl {
+interface LdapUrl {
   scheme: "ldap" | "ldaps";
   host: string;
   /** The port as typed, or undefined when the URL has none. */
@@ -17,9 +17,9 @@ export function parseLdapUrl(raw: string): LdapUrl | null {
   return { scheme: m[1].toLowerCase() as LdapUrl["scheme"], host: m[2], port };
 }
 
-export const defaultPort = (scheme: LdapUrl["scheme"]) => (scheme === "ldaps" ? 636 : 389);
+const defaultPort = (scheme: LdapUrl["scheme"]) => (scheme === "ldaps" ? 636 : 389);
 
-export function formatLdapUrl(u: LdapUrl): string {
+function formatLdapUrl(u: LdapUrl): string {
   return `${u.scheme}://${u.host}:${u.port ?? defaultPort(u.scheme)}`;
 }
 

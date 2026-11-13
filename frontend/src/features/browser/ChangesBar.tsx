@@ -10,7 +10,7 @@ import { useBrowser } from "./store";
 
 const changesText = (n: number) => `${n} ${n === 1 ? "change" : "changes"}`;
 
-export interface ApplyFailure {
+interface ApplyFailure {
   failure: Failure;
   dn: string; // the entry that was refused, "" for the connection
   applied: number; // changes written before the failure

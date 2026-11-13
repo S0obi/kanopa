@@ -20,7 +20,7 @@ type DialogState =
   | { kind: "consent"; id: string }
   | { kind: "password"; id: string };
 
-export const CONNECTIONS_KEY = ["connections"];
+const CONNECTIONS_KEY = ["connections"];
 
 /** The welcome screen from the design: saved connections, filter, connect. */
 export function WelcomeScreen({ platform = detectPlatform() }: { platform?: Platform }) {
