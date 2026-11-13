@@ -4,7 +4,7 @@ import { Icon, type IconName } from "./icons";
 import { rdnParts, splitDn } from "@/lib/dn";
 import { useWindow } from "@/lib/useWindow";
 
-export type EntryType = "root" | "server" | "ou" | "person" | "group" | "entry";
+type EntryType = "root" | "server" | "ou" | "person" | "group" | "entry";
 
 const TYPE_ICON: Record<EntryType, IconName> = { root: "database", server: "server", ou: "folder", person: "user", group: "users", entry: "entry" };
 
@@ -24,7 +24,7 @@ export function TypeTile({ type, size = 18, className }: { type: string; size?: 
 
 /* ---------- Tabs: roving tabindex, arrows move between tabs ---------- */
 
-export interface TabsProps {
+interface TabsProps {
   tabs: Array<{ id: string; label: string; count?: number }>;
   value: string;
   onChange: (id: string) => void;
@@ -104,7 +104,7 @@ type Token = [kind: string, text: string];
 const LDIF_KEYWORDS = /^(version|changetype|control|add|delete|replace|increment|newrdn|deleteoldrdn|newsuperior)$/i;
 
 /** Colours one LDIF line; prev is the value class of the line it continues. */
-export function tokenizeLdifLine(line: string, prev: string | null): Token[] {
+function tokenizeLdifLine(line: string, prev: string | null): Token[] {
   if (line.startsWith("#")) return [["comment", line]];
   if (line === "-") return [["operator", line]];
   if (line.startsWith(" ")) return [[prev === "dn" ? "dn" : prev === "encoded" ? "encoded" : "value", line]];
@@ -158,7 +158,7 @@ export function LdifView({ value, label = "LDIF", className }: { value: string; 
 
 /* ---------- SplitPane: two panes and a draggable, keyboard-operable divider ---------- */
 
-export interface SplitPaneProps {
+interface SplitPaneProps {
   start: ReactNode;
   end: ReactNode;
   defaultSize?: number;

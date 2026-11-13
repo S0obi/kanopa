@@ -19,7 +19,7 @@ export interface NodeState {
 }
 
 /** What the tree's menu opens in the entry view: a dialog, or the member picker. */
-export interface EntryRequest {
+interface EntryRequest {
   action: "new" | "rename" | "delete" | "addMember";
   dn: string;
 }

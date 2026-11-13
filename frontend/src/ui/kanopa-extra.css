@@ -163,3 +163,17 @@ hr.kn-menu__sep { border: 0; }
 .kn-hsearch__foot { margin-top: var(--space-1); padding: 6px var(--space-3) 4px; border-top: 1px solid var(--line); font-size: 12px; line-height: 16px; color: var(--ink-muted); }
 .kn-hsearch mark { background: color-mix(in srgb, var(--moss) 38%, transparent); color: inherit; border-radius: 2px; }
 .kn-attrs__more-note { padding-top: 4px; font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+
+/* Small windows and zoom: the left side of the status bar gives way first; long values wrap instead of widening the table. */
+.kn-statusbar__side:first-child { flex: 0 1 auto; overflow: hidden; }
+.kn-statusbar__side:last-child { flex: none; }
+.kn-attrs__values { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .kn-attrs__name > span:first-child { min-width: 0; }
+  .kn-attrs__name { white-space: normal; overflow-wrap: normal; }
+}
+
+/* Short windows: the dialog's body scrolls and the title and buttons stay in view. */
+.kn-dialog > div { display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
+.kn-dialog__head, .kn-dialog__desc, .kn-dialog__foot { flex: none; }
+.kn-dialog__body { min-height: 0; overflow-y: auto; }

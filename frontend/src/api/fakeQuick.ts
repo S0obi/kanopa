@@ -19,7 +19,7 @@ const ASSERTION = /^[A-Za-z][A-Za-z0-9._;-]*[~<>]?=/;
 
 const escape = (w: string) => w.replace(/[\\*()\0]/g, (c) => `\\${c.charCodeAt(0).toString(16).padStart(2, "0")}`);
 
-export function quickFilter(text: string): { mode: "names" | "filter" | "dn"; filter: string; words: string[] } {
+function quickFilter(text: string): { mode: "names" | "filter" | "dn"; filter: string; words: string[] } {
   const t = text.trim();
   if (t.startsWith("(")) return { mode: "filter", filter: t, words: [] };
   if (DN.test(t)) return { mode: "dn", filter: "(objectClass=*)", words: [] };

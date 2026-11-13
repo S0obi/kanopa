@@ -8,7 +8,7 @@ const TONE_ICON: Record<string, IconName> = { success: "success", warning: "warn
 
 /* ---------- Banner ---------- */
 
-export interface BannerProps {
+interface BannerProps {
   tone?: "info" | "success" | "warning" | "danger";
   title?: ReactNode;
   children?: ReactNode;
@@ -39,7 +39,7 @@ export function Banner({ tone = "info", title, children, actions, onDismiss, bus
 
 /* ---------- Badge ---------- */
 
-export interface BadgeProps {
+interface BadgeProps {
   tone?: "neutral" | "moss" | "success" | "warning" | "danger" | "info" | "heather" | "lichen" | "bark";
   mono?: boolean;
   icon?: IconName | false;
@@ -62,7 +62,7 @@ export function Badge({ tone = "neutral", mono, icon, children, title, className
 
 const STATUS = { connected: "Connected", connecting: "Connecting…", disconnected: "Disconnected", error: "Bind failed" };
 
-export interface StatusIndicatorProps {
+interface StatusIndicatorProps {
   status: keyof typeof STATUS;
   label?: string;
   detail?: string;
@@ -81,7 +81,7 @@ export function StatusIndicator({ status, label, detail, className }: StatusIndi
 
 /* ---------- Tooltip ---------- */
 
-export interface TooltipProps {
+interface TooltipProps {
   content: ReactNode;
   children: ReactElement<{ "aria-describedby"?: string }>;
   shortcut?: string[];

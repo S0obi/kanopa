@@ -20971,6 +20971,176 @@ cn: mail69
 description: Internal mail server
 ipHostNumber: 10.0.6.29
 
+dn: ou=edge,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: edge
+description: Awkward names, values and depth
+
+dn: cn=Smith\, John,ou=edge,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: top
+cn: Smith, John
+sn: Smith
+givenName: John
+
+dn: cn=Plus\+Equals\=Hash\#,ou=edge,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: top
+cn: Plus+Equals=Hash#
+sn: Characters
+
+dn: cn=Twin+uid=twin,ou=edge,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: top
+cn: Twin
+uid: twin
+sn: Twin
+
+dn: cn=Zoe Mueller,ou=edge,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: top
+sn:: TcO8bGxlcg==
+givenName:: Wm/Dqw==
+description:: w4Zyw7gsIG5hw692ZSBjYWbDqSwg5pel5pys6Kqe
+
+dn: cn=Long description,ou=edge,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: top
+sn: Long
+description: A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. A long sentence that keeps going. 
+
+dn: cn=Many values,ou=edge,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: top
+sn: Many
+mail: many.01@example.org
+mail: many.02@example.org
+mail: many.03@example.org
+mail: many.04@example.org
+mail: many.05@example.org
+mail: many.06@example.org
+mail: many.07@example.org
+mail: many.08@example.org
+mail: many.09@example.org
+mail: many.10@example.org
+mail: many.11@example.org
+mail: many.12@example.org
+mail: many.13@example.org
+mail: many.14@example.org
+mail: many.15@example.org
+mail: many.16@example.org
+mail: many.17@example.org
+mail: many.18@example.org
+mail: many.19@example.org
+mail: many.20@example.org
+mail: many.21@example.org
+mail: many.22@example.org
+mail: many.23@example.org
+mail: many.24@example.org
+mail: many.25@example.org
+mail: many.26@example.org
+mail: many.27@example.org
+mail: many.28@example.org
+mail: many.29@example.org
+mail: many.30@example.org
+mail: many.31@example.org
+mail: many.32@example.org
+mail: many.33@example.org
+mail: many.34@example.org
+mail: many.35@example.org
+mail: many.36@example.org
+mail: many.37@example.org
+mail: many.38@example.org
+mail: many.39@example.org
+mail: many.40@example.org
+mail: many.41@example.org
+mail: many.42@example.org
+mail: many.43@example.org
+mail: many.44@example.org
+mail: many.45@example.org
+mail: many.46@example.org
+mail: many.47@example.org
+mail: many.48@example.org
+mail: many.49@example.org
+mail: many.50@example.org
+mail: many.51@example.org
+mail: many.52@example.org
+mail: many.53@example.org
+mail: many.54@example.org
+mail: many.55@example.org
+mail: many.56@example.org
+mail: many.57@example.org
+mail: many.58@example.org
+mail: many.59@example.org
+mail: many.60@example.org
+mail: many.61@example.org
+mail: many.62@example.org
+mail: many.63@example.org
+mail: many.64@example.org
+mail: many.65@example.org
+mail: many.66@example.org
+mail: many.67@example.org
+mail: many.68@example.org
+mail: many.69@example.org
+mail: many.70@example.org
+mail: many.71@example.org
+mail: many.72@example.org
+mail: many.73@example.org
+mail: many.74@example.org
+mail: many.75@example.org
+mail: many.76@example.org
+mail: many.77@example.org
+mail: many.78@example.org
+mail: many.79@example.org
+mail: many.80@example.org
+
+dn: cn=With photo,ou=edge,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: top
+sn: Photo
+jpegPhoto:: /9j/2wCEAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRQBAwQEBQQFCQUFCRQNCw0UFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFP/AABEIAGAAYAMBIgACEQEDEQH/xAGiAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgsQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+gEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoLEQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2gAMAwEAAhEDEQA/APoNRTlWlAzTwK+XPBixFFPUUoGacBmqNkxAMU4DFOAzTlFM3TEC08DFKq04CmjdMQDFPAxSqKcopm0WIBTwKUDFOC1SN0zHAwaeBQop6rWB8xFiAYp4GKVRTlFUbxYgFOAzTgMU4DFM2TEAp4FKFp4GKZvFjQM08DNKBinAYpm6YgGaeBSgU4CqRsmY4GaeBQBg08CsD5mLEAzTwM0oGKcBiqN4sQDNPUUoFOAzTN0xFWngUoFPApo2ixFFOUUoGaeBmmbpjQMU8LSgZpwFUbJmOop6rSgZpwFYHzKYKKcopQM08DNUbxY0DFPAxSgZpyimbpiBaeBilVaeBTRsmIBinAYpVFPUUzeLGgU8ClAxTwtUjZMxgMGngUqinKtYHzSYAYpwGKVRT1FUbJjQKeBmlAxTgMUzdMAKcBShaeBimbJiAZpwGaUDFPAxTNosQDNOUUoFOAzVI3TMcDNPApQMGngVgfMxYgGacBmlAxTwMVRumIBmnKKUCnAZpmyYKtOApQM08CmjdMRRTlFKBmngZpmyYgGKcBilAzT1FUbpn//Z
+
+dn: ou=level1,ou=edge,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: level1
+
+dn: ou=level2,ou=level1,ou=edge,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: level2
+
+dn: ou=level3,ou=level2,ou=level1,ou=edge,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: level3
+
+dn: ou=level4,ou=level3,ou=level2,ou=level1,ou=edge,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: level4
+
+dn: ou=level5,ou=level4,ou=level3,ou=level2,ou=level1,ou=edge,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: level5
+
+dn: ou=level6,ou=level5,ou=level4,ou=level3,ou=level2,ou=level1,ou=edge,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: level6
+
+dn: ou=level7,ou=level6,ou=level5,ou=level4,ou=level3,ou=level2,ou=level1,ou=edge,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: level7
+
+dn: ou=level8,ou=level7,ou=level6,ou=level5,ou=level4,ou=level3,ou=level2,ou=level1,ou=edge,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: level8
+
 dn: ou=partners,dc=example,dc=org
 objectClass: referral
 objectClass: extensibleObject

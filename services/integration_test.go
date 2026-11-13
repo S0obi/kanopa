@@ -4,6 +4,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -137,7 +138,7 @@ func TestBrowseTheFixture(t *testing.T) {
 	for _, n := range top.Nodes {
 		names[n.RDN] = n
 	}
-	if top.Total != 5 || names["ou=people"].Type != "ou" || names["ou=people"].Sub != "People and their login accounts" || !names["ou=people"].HasChildren {
+	if top.Total != 6 || names["ou=people"].Type != "ou" || names["ou=people"].Sub != "People and their login accounts" || !names["ou=people"].HasChildren {
 		t.Fatalf("top level %+v", top)
 	}
 	if p := names["ou=partners"]; !p.Referral || p.HasChildren {
@@ -226,5 +227,58 @@ func TestLostConnection(t *testing.T) {
 	}
 	if again := d.Entry(context.Background(), c.ID, testldap.BaseDN).Failure; again == nil || !again.Lost {
 		t.Fatalf("the session should be gone: %+v", again)
+	}
+}
+
+// ou=edge holds the awkward cases: escaped and multi-valued names, non-ASCII and very long values,
+// an attribute with many values and a binary one, and eight levels of depth.
+func TestEdgeCasesInTheFixture(t *testing.T) {
+	s := newTestService(t)
+	d := NewDirectoryService(nil, s)
+	id := connectFixture(t, s, "show")
+	ctx := context.Background()
+	edge := "ou=edge," + testldap.BaseDN
+
+	kids := d.Children(ctx, id, edge, "")
+	if kids.Failure != nil || kids.Total != 8 {
+		t.Fatalf("children of ou=edge: total %d, failure %+v", kids.Total, kids.Failure)
+	}
+	byRDN := map[string]TreeNode{}
+	for _, n := range kids.Nodes {
+		byRDN[n.RDN] = n
+	}
+	// The server hands names back in its own escaped form.
+	for _, rdn := range []string{`cn=Smith\2C John`, `cn=Plus\2BEquals\3DHash#`, "cn=Twin+uid=twin"} {
+		n, ok := byRDN[rdn]
+		if !ok {
+			t.Fatalf("%q is not listed under ou=edge (%d children)", rdn, len(kids.Nodes))
+		}
+		if e := d.Entry(ctx, id, n.DN); e.Failure != nil || e.DN != n.DN {
+			t.Fatalf("read %q: %+v", n.DN, e.Failure)
+		}
+	}
+
+	many := d.Entry(ctx, id, "cn=Many values,"+edge)
+	for _, a := range many.Attributes {
+		if a.Name == "mail" && len(a.Values) != 80 {
+			t.Fatalf("mail has %d values", len(a.Values))
+		}
+	}
+	if long := d.Entry(ctx, id, "cn=Long description,"+edge); long.Failure != nil {
+		t.Fatalf("long description: %+v", long.Failure)
+	}
+	if e := d.Entry(ctx, id, "cn=Zoe Mueller,"+edge); e.Failure != nil || !strings.Contains(e.LDIF, "givenName:: ") {
+		t.Fatalf("non-ASCII values: %+v", e.Failure)
+	}
+	if e := d.Entry(ctx, id, "cn=With photo,"+edge); e.Failure != nil || !strings.Contains(e.LDIF, "jpegPhoto:: ") {
+		t.Fatalf("binary value: %+v", e.Failure)
+	}
+
+	deep := edge
+	for i := 1; i <= 8; i++ {
+		deep = fmt.Sprintf("ou=level%d,%s", i, deep)
+	}
+	if e := d.Entry(ctx, id, deep); e.Failure != nil || e.Title != "level8" {
+		t.Fatalf("deepest unit: %+v", e.Failure)
 	}
 }

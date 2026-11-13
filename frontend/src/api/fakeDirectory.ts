@@ -156,7 +156,7 @@ const ALLOWED: Record<string, Array<[string, string, boolean]>> = {
 };
 
 /** A stand-in for Go's value fingerprint. */
-export function valueId(v: string): string {
+function valueId(v: string): string {
   let h = 5381;
   for (let i = 0; i < v.length; i++) h = ((h * 33) ^ v.charCodeAt(i)) >>> 0;
   return `v${h.toString(16)}${v.length.toString(16)}`;
@@ -241,7 +241,7 @@ function missingRequired(type: string, attrs: Attrs): Failure | null {
 }
 
 /** Applies one entry's changes like OpenLDAP would, or says why it refuses them. */
-export function fakeModify(ch: EntryChange): Failure | null {
+function fakeModify(ch: EntryChange): Failure | null {
   const n = directory().get(key(ch.dn));
   if (!n) return notFound();
   const type = typeOf(n.attrs.objectClass ?? [], ch.dn);

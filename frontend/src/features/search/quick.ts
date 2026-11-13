@@ -1,7 +1,7 @@
 import type { QuickResult } from "@/api/backend";
 
 /** A piece of a name, and whether it is what the person typed. */
-export interface Segment {
+interface Segment {
   text: string;
   hit: boolean;
 }

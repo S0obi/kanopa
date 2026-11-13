@@ -1,69 +1,60 @@
-# Kanopa
+<p align="center">
+  <img src="docs/screenshots/banner.png" alt="Kanopa: a calm, exact LDAP client for Windows and macOS" width="100%">
+</p>
 
-A calm, exact LDAP client for Windows and macOS. The road to v0.1.0 is in [docs/plan.html](docs/plan.html).
+<p align="center">
+  <a href="https://github.com/S0obi/kanopa/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/S0obi/kanopa?include_prereleases&color=6aa384"></a>
+  <a href="https://github.com/S0obi/kanopa/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/S0obi/kanopa/ci.yml?branch=main&label=CI"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-6aa384"></a>
+</p>
 
-## Stack
+Kanopa is a desktop app for looking after an LDAP directory. Connect, walk the tree, read an entry, change it, and see exactly what will be sent before anything is.
 
-| Layer | Choice |
-|---|---|
-| Shell | Wails 3 (Go) |
-| LDAP | `github.com/go-ldap/ldap/v3`, wrapped in `internal/ldapx` |
-| Frontend | React 19 + TypeScript 7 + Vite 8 |
-| Components | The Kanopa design system ported to TSX in `frontend/src/ui` |
-| Style | Tailwind CSS 4, themed from `frontend/src/theme/tokens.json` |
-| Forms | React Hook Form + Zod |
-| Tests | Go (unit + testcontainers), Vitest + Testing Library, Playwright |
+<p align="center">
+  <img src="docs/screenshots/demo.gif" alt="Kanopa: connect, browse the tree, change a title, save, disconnect" width="880">
+</p>
 
-## Layout
+## What you get
 
-```
-main.go                 app, window, services
-services/               Go services exposed to the frontend (bindings in frontend/bindings)
-internal/ldapx/         dial, TLS, bind, root DSE, errors worded with result codes
-internal/applog/        rotating log file, secrets dropped
-internal/testldap/      starts the OpenLDAP fixture for integration tests
-test/ldap/              the OpenLDAP fixture (see its README for accounts)
-frontend/src/ui/        Kanopa components
-frontend/src/features/  screens
-frontend/src/api/       backend interface: Wails bindings, or a fake for tests
-build/                  packaging; app name, id and version in build/config.yml
-```
+- **A directory that stays easy to read.** The tree loads as you open it, and long lists (an OU with 10,000 children, a group with 5,000 members) only draw what is on screen, so they stay quick.
+- **Changes you can check.** Edits pile up as pending changes. Read them as LDIF, then apply them together. Nothing reaches the server until you do, and you can discard them at any time.
+- **Saved connections, kept safe.** Passwords go to the Windows Credential Manager or the macOS Keychain, never to a settings file.
+- **Easy on the eyes.** A light theme (Clearing) and a dark one (Night forest), following your system or set by hand. Everything works from the keyboard.
 
-## Develop
+## Quick start
 
-```bash
-wails3 task ldap:up
-```
+**1. Download** the latest build from the [Releases page](https://github.com/S0obi/kanopa/releases/latest).
+
+| System | Download | First launch |
+|---|---|---|
+| **Windows 10 and 11** | The installer (`.exe`), or the portable `.zip` if you would rather not install | Windows SmartScreen may say it "protected your PC". Choose **More info**, then **Run anyway**. Kanopa is not code-signed yet. |
+| **macOS 12 or later** | The `.dmg` (Apple Silicon and Intel). Drag Kanopa to Applications | macOS may say it cannot verify the app. Open **System Settings → Privacy & Security** and choose **Open Anyway** next to Kanopa. |
+
+If Open Anyway does not appear, or macOS says the app is damaged, remove the download quarantine flag in Terminal and open Kanopa again:
 
 ```bash
-wails3 dev
+xattr -dr com.apple.quarantine /Applications/Kanopa.app
 ```
 
-`wails3 dev` starts Vite on port 9245 and opens the app window with hot reload. To work on the UI in a plain browser against the fake backend, run `npm run dev -- --mode fake` in `frontend/`.
+macOS is newer and has had less testing than Windows, so please tell us what you run into.
 
-Kanopa keeps its files in `%AppData%\Kanopa` on Windows and `~/Library/Application Support/Kanopa` on macOS: `connections.json` (saved connections, never passwords) and `logs/`. Passwords are in the Windows Credential Manager or the macOS Keychain, under "Kanopa".
+**2. Connect.** Open Kanopa, choose **New connection**, and fill in the server address (for example `ldaps://ldap.example.org`), how to secure it, and your bind DN and password. Use **Test connection** to check the details, then **Save and connect**.
 
-## Test
+**3. Look around.** Open a branch of the tree, pick an entry, and read its attributes. To change something, hover a row and choose **Edit**. Review your pending changes, then **Apply**.
 
-```bash
-wails3 task test
-```
+> **This is an early release.** Found a bug or have an idea? [Open an issue](https://github.com/S0obi/kanopa/issues/new). It helps most when you say what you did, what you expected, and what you saw. The **About Kanopa** dialog can copy diagnostics (versions only; no host names, DNs or secrets) to paste into your report.
 
-That runs `test:go` (Go unit), `test:web` (Vitest), `test:e2e` (Playwright, fake backend) and `test:it` (Go against OpenLDAP in Docker). On Windows, Docker runs inside WSL: see [test/ldap/README.md](test/ldap/README.md). The first Playwright run needs `npx playwright install chromium` in `frontend/`.
+## Your data
 
-After changing a Go service's methods, regenerate the bindings with `wails3 generate bindings -clean=true -ts -i` (or run `wails3 dev`/`wails3 build`). After editing `tokens.json`, run `npm run tokens` in `frontend/`.
+- Kanopa keeps its settings, your saved connections (without passwords) and its log in `%AppData%\Kanopa` on Windows and `~/Library/Application Support/Kanopa` on macOS. **Open log folder** in the app menu takes you there.
+- Passwords live in the Windows Credential Manager or the macOS Keychain, under "Kanopa".
+- Kanopa talks to the directories you connect to, and nothing else. There is no account and no telemetry.
+- Uninstalling removes the app and leaves your settings behind, so you can come back to them.
 
-## Build
+## Contributing
 
-```bash
-wails3 build
-```
+Kanopa is built with Go and React on [Wails](https://wails.io). Ideas and fixes are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) for how to run it, test it and build it.
 
-This produces `bin/kanopa.exe` on Windows. Packaging (`wails3 package`, `wails3 task darwin:package:dmg`) comes in stage 6.
+## License
 
-## Prerequisites
-
-- Go 1.26+, Node.js 22+
-- `wails3` CLI: `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0`
-- Docker (on Windows: Docker Engine in WSL, see test/ldap/README.md)
-- Windows: WebView2 (ships with Windows 11). macOS: Xcode Command Line Tools
+[MIT](LICENSE)
