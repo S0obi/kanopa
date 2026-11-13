@@ -121,7 +121,8 @@ test("a server that is not running is Can't contact LDAP server (-1)", async ({ 
   await page.goto("/?empty");
   await page.getByRole("button", { name: "New connection" }).first().click();
   await fillNew(page, "Down", "ldap://localhost:10389");
-  await page.getByLabel("Bind method").selectOption("anonymous");
+  await page.getByRole("combobox", { name: "Bind method" }).click();
+  await page.getByRole("option", { name: "Anonymous" }).click();
   await page.getByRole("button", { name: "None" }).click();
   await page.getByRole("button", { name: "Test connection" }).click();
   await expect(dialog(page, "New connection").getByRole("alert")).toContainText("Start the LDAP server on this computer, then try again. Can't contact LDAP server (-1)");

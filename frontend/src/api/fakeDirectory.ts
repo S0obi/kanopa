@@ -1,10 +1,10 @@
-import type { AllowedAttribute, ClassInfo, EntryAttribute, EntryChange, EntryView, Failure, FindResult, RelatedEntry, TreeNode } from "./backend";
+import type { AllowedAttribute, ClassInfo, EntryAttribute, EntryChange, EntryView, Failure, FindResult, GIDResult, RelatedEntry, TreeNode, UIDMatch } from "./backend";
 import type { AttributeChange, EntryResult } from "../../bindings/github.com/S0obi/kanopa/services/models";
 import { parentDn, rdnParts, splitDn } from "@/lib/dn";
 
 /**
  * The test server's sample directory (test/ldap/seedgen), for the fake backend:
- * dc=example,dc=org with 1,182 people, 24 groups, 3 service accounts, 70 hosts and a referral.
+ * dc=example,dc=org with 1,182 people, 24 groups and 3 POSIX groups, 3 service accounts, 70 hosts and a referral.
  */
 export const BASE = "dc=example,dc=org";
 export const SUBSCHEMA = "cn=Subschema";
@@ -82,6 +82,13 @@ function build(): Map<string, Node> {
     const members = namedMembers[cn] ?? Array.from({ length: 3 + (i % 6) }, (_, j) => generated[(i * 37 + j * 11) % generated.length]);
     add(`cn=${cn},ou=groups,${BASE}`, { objectClass: ["groupOfNames", "top"], cn: [cn], description: [desc], member: members.map(person), ...stamps });
   });
+  // POSIX groups list their members by uid (memberUid). unix-devs lists a uid nobody carries, and a service account's.
+  for (const [cn, desc, gid, uids] of [
+    ["unix-staff", "Unix group of the staff", "2001", ["ada", "alan", "grace"]],
+    ["unix-devs", "Unix group of the developers", "2002", ["ada", "margaret", "ghost.user", "svc-mail"]],
+    ["unix-empty", "Unix group with no member yet", "2003", []],
+  ] as Array<[string, string, string, string[]]>)
+    add(`cn=${cn},ou=groups,${BASE}`, { objectClass: ["posixGroup", "top"], cn: [cn], description: [desc], gidNumber: [gid], ...(uids.length ? { memberUid: uids } : {}), ...stamps });
   for (const [uid, desc] of [["svc-kanopa", "Kanopa read-only service account"], ["svc-backup", "Nightly directory backup"], ["svc-mail", "Mail server address lookups"]])
     add(`uid=${uid},ou=services,${BASE}`, { objectClass: ["account", "simpleSecurityObject", "top"], uid: [uid], description: [desc], userPassword: ["{SSHA}yyyy"], ...stamps });
   const hosts: Array<[string, string, string]> = [["web01", "Public web server", "10.0.4.11"], ["db01", "Primary database server", "10.0.4.21"]];
@@ -135,7 +142,7 @@ const has = (oc: string[], ...names: string[]) => names.some((n) => oc.some((c) 
 export function typeOf(oc: string[], dn: string): string {
   if (key(dn) === key(BASE) || has(oc, "dcObject", "organization")) return "root";
   if (has(oc, "organizationalUnit")) return "ou";
-  if (has(oc, "groupOfNames")) return "group";
+  if (has(oc, "groupOfNames", "groupOfUniqueNames", "posixGroup")) return "group";
   if (has(oc, "inetOrgPerson", "person")) return "person";
   if (has(oc, "device", "ipHost", "subschema")) return "server";
   return "entry";
@@ -144,14 +151,17 @@ export function typeOf(oc: string[], dn: string): string {
 const DN_ATTRS = new Set(["member", "uniquemember", "manager", "owner", "seealso", "creatorsname"]);
 const OPERATIONAL = new Set(["createtimestamp", "creatorsname", "entryuuid"]);
 const SINGLE = new Set(["displayname", "employeenumber"]);
-const REQUIRED: Record<string, string[]> = { person: ["objectclass", "cn", "sn"], group: ["objectclass", "cn", "member"], ou: ["objectclass", "ou"] };
-const STRUCTURAL: Record<string, string> = { person: "inetOrgPerson", group: "groupOfNames", ou: "organizationalUnit" };
+const REQUIRED: Record<string, string[]> = { person: ["objectclass", "cn", "sn"], group: ["objectclass", "cn", "member"], posix: ["objectclass", "cn", "gidnumber"], ou: ["objectclass", "ou"] };
+const STRUCTURAL: Record<string, string> = { person: "inetOrgPerson", group: "groupOfNames", posix: "posixGroup", ou: "organizationalUnit" };
+/** The schema kind of an entry: a posixGroup is a group that lists uids, and has its own rules. */
+const schemaOf = (oc: string[], type: string) => (type === "group" && has(oc, "posixGroup") && !has(oc, "groupOfNames", "groupOfUniqueNames") ? "posix" : type);
 // What the object classes allow, as the fixture's schema would say (a sample, not the whole schema).
 const ALLOWED: Record<string, Array<[string, string, boolean]>> = {
   person: [["cn", "text", false], ["sn", "text", false], ["description", "text", false], ["displayName", "text", true], ["employeeNumber", "text", true],
     ["givenName", "text", false], ["l", "text", false], ["mail", "text", false], ["manager", "dn", false], ["mobile", "text", false],
     ["roomNumber", "text", false], ["seeAlso", "dn", false], ["telephoneNumber", "text", false], ["title", "text", false], ["userPassword", "password", false]],
   group: [["businessCategory", "text", false], ["description", "text", false], ["o", "text", false], ["owner", "dn", false], ["seeAlso", "dn", false]],
+  posix: [["description", "text", false], ["gidNumber", "text", true], ["memberUid", "text", false], ["userPassword", "password", false]],
   ou: [["description", "text", false], ["l", "text", false], ["postalCode", "text", false], ["seeAlso", "dn", false], ["telephoneNumber", "text", false]],
 };
 
@@ -188,7 +198,8 @@ export function fakeEntry(dn: string): EntryView | null {
   if (!n) return null;
   const oc = n.attrs.objectClass ?? [];
   const type = typeOf(oc, dn);
-  const required = new Set(REQUIRED[type] ?? ["objectclass"]);
+  const schema = schemaOf(oc, type);
+  const required = new Set(REQUIRED[schema] ?? ["objectclass"]);
   const attributes: EntryAttribute[] = Object.entries(n.attrs).map(([name, values]) => {
     const lower = name.toLowerCase();
     const kind = lower.includes("password") ? "password" : DN_ATTRS.has(lower) ? "dn" : lower === "jpegphoto" ? "binary" : "text";
@@ -197,7 +208,7 @@ export function fakeEntry(dn: string): EntryView | null {
     return { name, values: shown, ids, kind, operational: OPERATIONAL.has(lower), singleValue: SINGLE.has(lower), required: required.has(lower) };
   });
   const present = new Set(Object.keys(n.attrs).map((a) => a.toLowerCase()));
-  const allowed: AllowedAttribute[] = (ALLOWED[type] ?? [])
+  const allowed: AllowedAttribute[] = (ALLOWED[schema] ?? [])
     .filter(([name]) => !present.has(name.toLowerCase()))
     .map(([name, kind, singleValue]) => ({ name, kind, singleValue, required: required.has(name.toLowerCase()) }));
   const ldif = [ldifLine("dn", n.dn)];
@@ -240,14 +251,19 @@ function missingRequired(type: string, attrs: Attrs): Failure | null {
   return null;
 }
 
+/** How two values of an attribute are compared: memberUid exactly (caseExactIA5Match), the rest as DNs are. */
+const sameValue = (attr: string) => (attr.toLowerCase() === "memberuid" ? (a: string, b: string) => a === b : (a: string, b: string) => key(a) === key(b));
+
 /** Applies one entry's changes like OpenLDAP would, or says why it refuses them. */
 function fakeModify(ch: EntryChange): Failure | null {
   const n = directory().get(key(ch.dn));
   if (!n) return notFound();
-  const type = typeOf(n.attrs.objectClass ?? [], ch.dn);
+  const oc = n.attrs.objectClass ?? [];
+  const type = schemaOf(oc, typeOf(oc, ch.dn));
   const changed = (ch.attributes ?? []).filter((a) => {
     const now = valuesOf(n.attrs, a.name);
-    if (isDelta(a)) return (a.remove ?? []).some((v) => !now.some((x) => key(x) === key(v)));
+    const same = sameValue(a.name);
+    if (isDelta(a)) return (a.remove ?? []).some((v) => !now.some((x) => same(x, v)));
     const ids = a.kind === "binary" || a.kind === "password" ? now.map(valueId) : now;
     const before = a.before ?? [];
     return ids.length !== before.length || !before.every((v) => ids.includes(v));
@@ -260,8 +276,9 @@ function fakeModify(ch: EntryChange): Failure | null {
     const hidden = a.kind === "binary" || a.kind === "password";
     let values: string[];
     if (isDelta(a)) {
-      values = now.filter((v) => !(a.remove ?? []).some((r) => key(r) === key(v)));
-      for (const v of a.add ?? []) if (!values.some((x) => key(x) === key(v))) values.push(v);
+      const same = sameValue(a.name);
+      values = now.filter((v) => !(a.remove ?? []).some((r) => same(r, v)));
+      for (const v of a.add ?? []) if (!values.some((x) => same(x, v))) values.push(v);
     } else {
       const after = a.after ?? [];
       values = hidden ? now.filter((v) => after.includes(valueId(v))) : after;
@@ -292,7 +309,7 @@ function fakeAdd(ch: EntryChange): Failure | null {
     const vals = (a.after ?? []).filter((v) => v.trim());
     if (vals.length) attrs[a.name] = vals;
   }
-  const missing = missingRequired(typeOf(attrs.objectClass ?? [], ch.dn), attrs);
+  const missing = missingRequired(schemaOf(attrs.objectClass ?? [], typeOf(attrs.objectClass ?? [], ch.dn)), attrs);
   if (missing) return missing;
   d.set(key(ch.dn), { dn: ch.dn, attrs: { ...attrs, createTimestamp: ["20261111120000Z"], creatorsName: [`cn=admin,${BASE}`], entryUUID: [crypto.randomUUID()] }, children: [] });
   d.get(key(parent))!.children.push(ch.dn);
@@ -447,17 +464,53 @@ export function fakePreview(changes: EntryChange[]): string {
   return records.join("\n");
 }
 
+/** The entry's uid: what a posixGroup's memberUid holds. */
+const uidOf = (dn: string) => directory().get(key(dn))?.attrs.uid?.[0] ?? "";
+
 export function fakeMemberOf(dn: string): RelatedEntry[] {
+  const uid = uidOf(dn);
   const out: RelatedEntry[] = [];
-  for (const n of directory().values())
-    if ((n.attrs.member ?? []).some((m) => key(m) === key(dn)))
-      out.push({ dn: n.dn, name: n.attrs.cn[0], type: "group", description: n.attrs.description?.[0] ?? "", memberAttr: "member" });
+  for (const n of directory().values()) {
+    const byDn = (n.attrs.member ?? []).some((m) => key(m) === key(dn));
+    const byUid = !!uid && (n.attrs.memberUid ?? []).includes(uid);
+    if (byDn || byUid)
+      out.push({ dn: n.dn, name: n.attrs.cn[0], type: "group", description: n.attrs.description?.[0] ?? "", memberAttr: byDn ? "member" : "memberUid", uid: "" });
+  }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Groups that list dn, as Go's Referrers finds them. */
+/** Groups that list dn, as Go's Referrers finds them: by DN, and by uid unless another entry carries the same uid. */
 export function fakeReferrers(dn: string): RelatedEntry[] {
-  return fakeMemberOf(dn).map((g) => ({ ...g, description: "" }));
+  const uid = uidOf(dn);
+  let shared = false;
+  if (uid) for (const n of directory().values()) if (key(n.dn) !== key(dn) && (n.attrs.uid ?? []).includes(uid)) shared = true;
+  return fakeMemberOf(dn)
+    .filter((g) => g.memberAttr !== "memberUid" || !shared)
+    .map((g) => ({ ...g, description: "", uid: g.memberAttr === "memberUid" ? uid : "" }));
+}
+
+/** What each uid stands for, as Go's ResolveUIDs: the first entry that carries it, and how many do. */
+export function fakeResolveUids(uids: string[]): UIDMatch[] {
+  return uids.map((uid) => {
+    const l = uid.toLowerCase();
+    const hits = [...directory().values()].filter((n) => (n.attrs.uid ?? []).some((v) => v.toLowerCase() === l));
+    const first = hits[0];
+    if (!first) return { uid, dn: "", name: "", type: "", matches: 0 };
+    return { uid, dn: first.dn, name: first.attrs.cn?.[0] ?? splitDn(first.dn)[0], type: typeOf(first.attrs.objectClass ?? [], first.dn), matches: hits.length };
+  });
+}
+
+/** The next free gidNumber, and the posixGroups that already use gid, as Go's GIDCheck. */
+export function fakeGidCheck(gid: number): GIDResult {
+  let highest = 999;
+  const takenBy: string[] = [];
+  for (const n of directory().values()) {
+    const g = Number(n.attrs.gidNumber?.[0]);
+    if (!Number.isFinite(g)) continue;
+    highest = Math.max(highest, g);
+    if (gid > 0 && g === gid && has(n.attrs.objectClass ?? [], "posixGroup")) takenBy.push(n.attrs.cn?.[0] ?? n.dn);
+  }
+  return { next: highest + 1, takenBy: takenBy.sort(), failure: null };
 }
 
 /** Picker search, as Go's DirectoryService.Find. */
@@ -465,8 +518,8 @@ export function fakeFind(kind: "people" | "groups", q: string): FindResult {
   const t = q.trim();
   const filter =
     kind === "people"
-      ? `(&(objectClass=inetOrgPerson)(|(uid=${t}*)(cn=*${t}*)(mail=${t}*)))`
-      : `(&(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames))(cn=*${t}*))`;
+      ? `(&(|(objectClass=inetOrgPerson)(objectClass=posixAccount))(|(uid=${t}*)(cn=*${t}*)(mail=${t}*)))`
+      : `(&(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames)(objectClass=posixGroup))(cn=*${t}*))`;
   if ([...t].length < 2) return { entries: [], total: 0, more: false, filter, base: BASE, failure: null };
   const l = t.toLowerCase();
   const hits: RelatedEntry[] = [];
@@ -474,14 +527,17 @@ export function fakeFind(kind: "people" | "groups", q: string): FindResult {
     const oc = n.attrs.objectClass ?? [];
     const cn = n.attrs.cn?.[0] ?? "";
     if (kind === "people") {
-      if (!has(oc, "inetOrgPerson")) continue;
+      if (!has(oc, "inetOrgPerson", "posixAccount")) continue;
       const uid = n.attrs.uid?.[0] ?? "";
       const mail = n.attrs.mail?.[0] ?? "";
       if (!(uid.toLowerCase().startsWith(l) || cn.toLowerCase().includes(l) || mail.toLowerCase().startsWith(l))) continue;
-      hits.push({ dn: n.dn, name: cn, type: "person", description: mail, memberAttr: "" });
+      hits.push({ dn: n.dn, name: cn, type: "person", description: mail, memberAttr: "", uid });
     } else {
-      if (!has(oc, "groupOfNames", "groupOfUniqueNames") || !cn.toLowerCase().includes(l)) continue;
-      hits.push({ dn: n.dn, name: cn, type: "group", description: n.attrs.description?.[0] ?? "", memberAttr: has(oc, "groupOfNames") ? "member" : "uniqueMember" });
+      if (!has(oc, "groupOfNames", "groupOfUniqueNames", "posixGroup") || !cn.toLowerCase().includes(l)) continue;
+      hits.push({
+        dn: n.dn, name: cn, type: "group", description: n.attrs.description?.[0] ?? "", uid: "",
+        memberAttr: has(oc, "groupOfNames") ? "member" : has(oc, "groupOfUniqueNames") ? "uniqueMember" : "memberUid",
+      });
     }
   }
   hits.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
@@ -513,6 +569,7 @@ export function fakeClasses(): ClassInfo[] {
     { name: "ipHost", kind: "AUXILIARY", desc: "Abstraction of a host, an IP device", must: [...must("cn"), { ...a("ipHostNumber"), required: true }], may: [a("description"), a("l"), a("manager", "dn")] },
     { name: "organizationalUnit", kind: "STRUCTURAL", desc: "RFC2256: an organizational unit", must: must("ou"), may: [a("description"), a("l"), a("postalCode"), a("seeAlso", "dn"), a("telephoneNumber")] },
     { name: "person", kind: "STRUCTURAL", desc: "RFC2256: a person", must: must("sn", "cn"), may: personMay },
+    { name: "posixGroup", kind: "STRUCTURAL", desc: "Abstraction of a group of accounts", must: [...must("cn"), { ...a("gidNumber"), required: true }], may: [a("description"), a("memberUid"), a("userPassword", "password")] },
     { name: "simpleSecurityObject", kind: "AUXILIARY", desc: "RFC1274: simple security object", must: [{ ...a("userPassword", "password"), required: true }], may: [] },
   ];
 }

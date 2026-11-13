@@ -52,8 +52,8 @@ test("Ada: attributes, LDIF, member of, DN links, breadcrumb", async ({ page }) 
   await expect(page.getByRole("region", { name: /^LDIF of uid=ada/ })).toContainText("dn: uid=ada,ou=people,dc=example,dc=org");
 
   await page.getByRole("tab", { name: /Member of/ }).click();
-  await expect(page.getByText("Member of 3 groups")).toBeVisible();
-  await expect(page.locator("main li")).toHaveText([/admins/, /engineering/, /research/]);
+  await expect(page.getByText("Member of 5 groups")).toBeVisible();
+  await expect(page.locator("main li")).toHaveText([/admins/, /engineering/, /research/, /unix-devs/, /unix-staff/]);
 
   await page.getByRole("tab", { name: /Attributes/ }).click();
   await page.getByRole("button", { name: "uid=grace,ou=people,dc=example,dc=org" }).click();

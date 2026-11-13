@@ -14,6 +14,7 @@ import type {
   Failure,
   FilterCheck,
   FindResult,
+  GIDResult,
   Layout,
   ListResult,
   PreviewResult,
@@ -22,6 +23,8 @@ import type {
   RelatedEntry,
   RelatedResult,
   SavedConnection,
+  UIDMatch,
+  UIDResult,
   SaveRequest,
   SessionInfo,
   TestResult,
@@ -31,7 +34,7 @@ import type {
 
 export type {
   About, Layout, AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
-  QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection,
+  GIDResult, QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection, UIDMatch, UIDResult,
   SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
 };
 
@@ -67,8 +70,12 @@ export interface Backend {
   countChildren(id: string, dn: string): Promise<CountResult>;
   /** Structural and auxiliary object classes of the server's schema, for the New entry form. */
   objectClasses(id: string): Promise<ClassesResult>;
-  /** Groups whose member or uniqueMember lists dn, with the attribute that lists it. */
+  /** Groups whose member, uniqueMember or memberUid lists dn (or its uid), with the attribute that lists it. */
   referrers(id: string, dn: string): Promise<RelatedResult>;
+  /** The entry each uid stands for (a posixGroup's memberUid), in the order given; matches is 0 when none carries it. */
+  resolveUids(id: string, uids: string[]): Promise<UIDResult>;
+  /** The next free gidNumber for a new posixGroup, and the posixGroups that already use gid (when it is more than 0). */
+  gidCheck(id: string, gid: number): Promise<GIDResult>;
   /** null while the connection answers. */
   ping(id: string): Promise<Failure | null>;
   /**

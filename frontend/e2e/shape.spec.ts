@@ -72,13 +72,13 @@ test("delete with cleanup; a container with children is blocked", async ({ page 
   await expect(title(page, "Alan Turing")).toBeVisible();
   await menu(page, /Delete entry/);
   const ask = page.getByRole("alertdialog", { name: /Delete uid=alan/ });
-  await expect(ask).toContainText("The entry and its 2 group memberships are removed");
+  await expect(ask).toContainText("The entry and its 3 group memberships are removed");
   await expect(ask.getByRole("checkbox")).toBeChecked();
   await ask.getByRole("button", { name: "Delete entry" }).click();
   await expect(page.getByText("Marked for deletion.")).toBeVisible();
   await expect(row(page, /^uid=alan Alan Turing delete/)).toBeVisible();
   await bar(page).getByRole("button", { name: /Apply/ }).click();
-  await expect(page.getByText("Saved 3 changes to localhost.")).toBeVisible();
+  await expect(page.getByText("Saved 4 changes to localhost.")).toBeVisible();
   await expect(row(page, /^uid=alan /)).toHaveCount(0);
 
   await page.getByRole("button", { name: "Collapse all" }).click();

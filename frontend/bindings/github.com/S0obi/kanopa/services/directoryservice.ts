@@ -40,10 +40,19 @@ export function Entry(id: string, dn: string): $CancellablePromise<$models.Entry
 
 /**
  * Find searches the connection's base DN for a picker: kind "people" (inetOrgPerson by uid, cn
- * or mail) or "groups" (groupOfNames and groupOfUniqueNames by cn). q needs 2 characters.
+ * or mail; posixAccount too) or "groups" (groupOfNames, groupOfUniqueNames and posixGroup by cn).
+ * q needs 2 characters.
  */
 export function Find(id: string, kind: string, q: string): $CancellablePromise<$models.FindResult> {
     return $Call.ByID(3176954184, id, kind, q);
+}
+
+/**
+ * GIDCheck suggests the next free gidNumber for a new posixGroup (above every number in use, and
+ * at least 1000), and names the posixGroups that already use gid when gid is more than 0.
+ */
+export function GIDCheck(id: string, gid: number): $CancellablePromise<$models.GIDResult> {
+    return $Call.ByID(3539391259, id, gid);
 }
 
 /**
@@ -80,11 +89,21 @@ export function Quick(id: string, text: string): $CancellablePromise<$models.Qui
 }
 
 /**
- * Referrers lists the groups under the base DN whose member or uniqueMember holds dn, with the
- * attribute that holds it: what a rename or a delete with cleanup updates.
+ * Referrers lists the groups under the base DN whose member or uniqueMember holds dn, or whose
+ * memberUid holds the entry's uid (unless another entry shares it), with the attribute that holds
+ * it: what a rename or a delete with cleanup updates.
  */
 export function Referrers(id: string, dn: string): $CancellablePromise<$models.RelatedResult> {
     return $Call.ByID(1657277225, id, dn);
+}
+
+/**
+ * ResolveUIDs finds the entry each uid stands for, under the base DN: a posixGroup lists its members
+ * by uid. The answer has one match for each uid asked, in the order asked. A uid nothing carries has
+ * Matches 0.
+ */
+export function ResolveUIDs(id: string, uids: string[] | null): $CancellablePromise<$models.UIDResult> {
+    return $Call.ByID(3615079514, id, uids);
 }
 
 /**

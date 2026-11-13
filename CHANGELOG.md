@@ -10,6 +10,7 @@ The first public release, for Windows and macOS.
 
 ### Added
 
+- POSIX groups. A group that lists its members by uid (`memberUid`) now has a Members tab like any other: add and remove people, see who each uid stands for, and spot a uid no entry carries. A person's Member of tab can join and leave them, deleting or renaming a user keeps `memberUid` in step, and New entry can create a POSIX group with the next free `gidNumber`.
 - A context menu on the tree, with the actions that fit the entry.
 - A confirmation field when you set a password, so a typo cannot lock someone out.
 - Find an entry from the header search: type a name, a mail address, a DN or an LDAP filter, and open the result in the tree.
@@ -26,6 +27,7 @@ The first public release, for Windows and macOS.
 
 - Long lists (an OU with thousands of children, a group with thousands of members, the LDIF view) draw only the rows on screen. An attribute with many values shows the first 25, with a button to show them all.
 - Every screen and dialog is checked against WCAG 2.2 AA in both themes on each test run. Rows and buttons carry names that include their visible text.
+- Dropdowns use a list in Kanopa's own style, in both themes, instead of the system list. They work with the mouse and the keyboard (arrows, Home, End, Enter, Esc, and typing to jump).
 - A right click on the tree opens the menu without selecting the entry. Only a left click selects.
 - Interface text follows one voice: sentence case, no "please" or "successfully", and errors that name the LDAP result code.
 - Small windows and zoom: the status bar, attribute table and dialogs now fit instead of overflowing.

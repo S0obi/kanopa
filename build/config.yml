@@ -9,7 +9,7 @@ info:
   productName: "Kanopa" # The name of the application
   productIdentifier: "app.kanopa.desktop" # The unique product identifier
   description: "A calm, exact LDAP client" # The application description
-  copyright: "(c) 2026, Thibault" # Copyright text
+  copyright: "(c) 2026, Thibault Soubiran" # Copyright text
   comments: "Kanopa" # Comments
   version: "0.1.0" # The application version
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)

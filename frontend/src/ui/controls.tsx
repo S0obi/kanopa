@@ -1,4 +1,5 @@
-import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { createPortal } from "react-dom";
 import { cx } from "./cx";
 import { Icon, type IconName } from "./icons";
 import { detectPlatform, type Platform } from "@/lib/platform";
@@ -147,32 +148,227 @@ export function TextField({ label, hint, error, mono, icon, trailing, className,
   );
 }
 
-interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-  ref?: Ref<HTMLSelectElement>;
+interface SelectOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+interface SelectProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange" | "value" | "defaultValue" | "children"> {
+  ref?: Ref<HTMLButtonElement>;
   label?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
   mono?: boolean;
-  options: Array<string | { value: string; label: string; disabled?: boolean }>;
+  options: Array<string | SelectOption>;
+  /** The chosen value. Leave it out to let the field keep its own (starting at defaultValue, else the first option). */
+  value?: string;
+  defaultValue?: string;
+  onChange?: (value: string) => void;
   fieldClassName?: string;
 }
 
-export function Select({ label, hint, error, mono, options, className, fieldClassName, id, ...rest }: SelectProps) {
+/** Where the list sits: below the field, or above it when the window is too short. */
+type ListPlace = { left: number; minWidth: number; top?: number; bottom?: number };
+
+/**
+ * A dropdown drawn in Kanopa's own style (the browser's list could not be themed). It follows the
+ * select-only combobox pattern: the button keeps focus, the list is a listbox of options chosen with
+ * the arrow keys, Home, End, Enter or a click, and typing a letter jumps to an option. The list is
+ * drawn in a layer of its own, so a dialog never clips it. Esc closes the list, not the dialog.
+ */
+export function Select({ label, hint, error, mono, options, className, fieldClassName, id, value, defaultValue, onChange, disabled, onKeyDown, onBlur, ref, ...rest }: SelectProps) {
   const autoId = useId();
   const fid = id ?? autoId;
-  const opts = options.map((o) => (typeof o === "string" ? { value: o, label: o, disabled: false } : o));
+  const listId = `${fid}-list`;
+  const opts: SelectOption[] = options.map((o) => (typeof o === "string" ? { value: o, label: o } : o));
+  const [inner, setInner] = useState(defaultValue ?? opts[0]?.value ?? "");
+  const current = value ?? inner;
+  const selected = opts.findIndex((o) => o.value === current);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [place, setPlace] = useState<ListPlace | null>(null);
+  const field = useRef<HTMLDivElement>(null);
+  const layer = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement | null>(null);
+  const typed = useRef({ text: "", at: 0 });
+
+  const enabled = (i: number) => i >= 0 && i < opts.length && !opts[i].disabled;
+  /** The next enabled option from i in a direction, staying put at either end. */
+  const step = (i: number, dir: 1 | -1) => {
+    for (let k = i + dir; k >= 0 && k < opts.length; k += dir) if (enabled(k)) return k;
+    return i;
+  };
+  const firstEnabled = () => step(-1, 1);
+  const lastEnabled = () => step(opts.length, -1);
+
+  function openList() {
+    setActive(enabled(selected) ? selected : firstEnabled());
+    setOpen(true);
+  }
+  function choose(i: number) {
+    if (!enabled(i)) return;
+    if (value === undefined) setInner(opts[i].value);
+    onChange?.(opts[i].value);
+    setOpen(false);
+  }
+
+  // Below the field, as wide as it; flipped above when the window is too short.
+  useLayoutEffect(() => {
+    if (!open || !field.current) return setPlace(null);
+    const r = field.current.getBoundingClientRect();
+    const height = layer.current?.offsetHeight ?? 0;
+    const below = r.bottom + 4;
+    const flip = height > 0 && below + height > window.innerHeight - 8 && r.top - 4 - height > 8;
+    setPlace({ left: r.left, minWidth: r.width, ...(flip ? { bottom: window.innerHeight - r.top + 4 } : { top: below }) });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!field.current?.contains(t) && !layer.current?.contains(t)) setOpen(false);
+    };
+    const dismiss = (e: Event) => {
+      if (e.type === "scroll" && layer.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    window.addEventListener("pointerdown", away);
+    window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("resize", dismiss);
+    return () => {
+      window.removeEventListener("pointerdown", away);
+      window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("resize", dismiss);
+    };
+  }, [open]);
+
+  function onKey(e: KeyboardEvent<HTMLButtonElement>) {
+    onKeyDown?.(e);
+    if (e.defaultPrevented || disabled || e.altKey || e.ctrlKey || e.metaKey) return;
+    const k = e.key;
+    if (k === "Tab") return setOpen(false);
+    const printable = k.length === 1 && k !== " ";
+    if (printable) {
+      // Typing "an" jumps to the first option that starts with it.
+      const now = Date.now();
+      const text = now - typed.current.at > 600 ? k.toLowerCase() : typed.current.text + k.toLowerCase();
+      typed.current = { text, at: now };
+      const from = open ? active : selected;
+      const order = [...opts.keys()].map((i) => (i + Math.max(from, 0) + (text.length === 1 ? 1 : 0)) % opts.length);
+      const hit = order.find((i) => enabled(i) && opts[i].label.toLowerCase().startsWith(text));
+      if (hit === undefined) return;
+      if (!open) setOpen(true);
+      setActive(hit);
+      return;
+    }
+    if (!open) {
+      if (k === "ArrowDown" || k === "ArrowUp" || k === "Enter" || k === " ") {
+        e.preventDefault();
+        openList();
+      }
+      return;
+    }
+    switch (k) {
+      case "ArrowDown":
+        e.preventDefault();
+        setActive(step(active, 1));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setActive(step(active, -1));
+        break;
+      case "Home":
+        e.preventDefault();
+        setActive(firstEnabled());
+        break;
+      case "End":
+        e.preventDefault();
+        setActive(lastEnabled());
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        if (enabled(active)) choose(active);
+        else setOpen(false);
+        break;
+      case "Escape":
+        // Closes the list and nothing else: a dialog around the field stays open.
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+        break;
+    }
+  }
+
   return (
     <Field id={fid} label={label} hint={hint} error={error} className={fieldClassName}>
-      <div className={cx("kn-input", "kn-select", mono && "kn-input--mono", className)} style={{ position: "relative" }}>
-        <select id={fid} aria-describedby={error || hint ? `${fid}-msg` : undefined} {...rest}>
-          {opts.map((o) => (
-            <option key={o.value} value={o.value} disabled={o.disabled}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+      <div ref={field} className={cx("kn-input", "kn-select", mono && "kn-input--mono", open && "is-open", className)} style={{ position: "relative" }}>
+        <button
+          {...rest}
+          ref={(el) => {
+            button.current = el;
+            if (typeof ref === "function") ref(el);
+            else if (ref) ref.current = el;
+          }}
+          type="button"
+          id={fid}
+          role="combobox"
+          className="kn-select__trigger"
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
+          aria-describedby={error || hint ? `${fid}-msg` : undefined}
+          onClick={() => (open ? setOpen(false) : openList())}
+          onKeyDown={onKey}
+          onBlur={(e) => {
+            setOpen(false);
+            onBlur?.(e);
+          }}
+        >
+          {opts[selected]?.label ?? ""}
+        </button>
         <Icon name="chevron-down" size={14} />
       </div>
+      {open &&
+        createPortal(
+          <div ref={layer} className="fixed z-40" style={place ?? { top: 0, left: 0, visibility: "hidden" }}>
+            <div role="listbox" id={listId} aria-label={typeof label === "string" ? label : undefined} className={cx("kn-listbox", mono && "kn-listbox--mono")}>
+              {opts.map((o, i) => (
+                <div
+                  key={o.value}
+                  id={`${listId}-${i}`}
+                  role="option"
+                  aria-selected={i === selected}
+                  aria-disabled={o.disabled || undefined}
+                  data-active={i === active || undefined}
+                  className="kn-listbox__option"
+                  // The option the arrow keys are on stays in view.
+                  ref={(el) => {
+                    if (i === active) el?.scrollIntoView?.({ block: "nearest" });
+                  }}
+                  // Focus stays on the button (the list names the active option), so a mouse press must not move it.
+                  tabIndex={-1}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseMove={() => enabled(i) && setActive(i)}
+                  onClick={() => choose(i)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      choose(i);
+                    }
+                  }}
+                >
+                  <span>{o.label}</span>
+                  {i === selected && <Icon name="check" size={14} />}
+                </div>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
     </Field>
   );
 }

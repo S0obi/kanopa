@@ -35,8 +35,16 @@ export interface PendingAttr {
 export interface Link {
   group: string;
   title: string;
-  attr: string; // member or uniqueMember
+  attr: string; // member, uniqueMember or memberUid
+  /** For memberUid: the uid the group lists for this entry (memberUid holds uids, not DNs). */
+  uid?: string;
 }
+
+/** A posixGroup lists uids in memberUid, compared exactly; the other member attributes list DNs. */
+export const isUidAttr = (attr: string) => attr.toLowerCase() === "memberuid";
+
+/** True when the entry is named by its uid, so a rename changes the uid a posixGroup lists. */
+const namedByUid = (dn: string) => rdnParts(rdnOf(dn))[0].toLowerCase() === "uid=";
 
 export interface PendingEntry {
   /** The entry's DN on the server (for a new entry, the DN it will have). */
@@ -118,7 +126,11 @@ export function dropEntry(set: ChangeSet, dn: string): ChangeSet {
 /** Marks an entry for deletion; its other pending changes go. links remove it from those groups. */
 export function markDelete(set: ChangeSet, entry: Pick<EntryView, "dn" | "title">, links: Link[]): ChangeSet {
   let next = dropEntry(set, entry.dn);
-  for (const l of links) next = membership(next, { dn: l.group, title: l.title }, l.attr, { remove: entry.dn });
+  for (const l of links) {
+    if (isUidAttr(l.attr)) {
+      if (l.uid) next = membership(next, { dn: l.group, title: l.title }, l.attr, { remove: l.uid });
+    } else next = membership(next, { dn: l.group, title: l.title }, l.attr, { remove: entry.dn });
+  }
   return put(next, { dn: entry.dn, title: entry.title, op: "delete", links, attrs: [] });
 }
 
@@ -136,6 +148,14 @@ export function renameEntry(set: ChangeSet, entry: Pick<EntryView, "dn" | "title
   if (value === unescapeRdnValue(current)) return next;
   const to = renamedDn(entry.dn, value);
   for (const l of links) {
+    if (isUidAttr(l.attr)) {
+      // Only a rename of the uid changes what a posixGroup lists.
+      if (l.uid && namedByUid(entry.dn) && value !== l.uid) {
+        next = membership(next, { dn: l.group, title: l.title }, l.attr, { remove: l.uid });
+        next = membership(next, { dn: l.group, title: l.title }, l.attr, { add: value });
+      }
+      continue;
+    }
     next = membership(next, { dn: l.group, title: l.title }, l.attr, { remove: entry.dn });
     next = membership(next, { dn: l.group, title: l.title }, l.attr, { add: to });
   }
@@ -154,6 +174,12 @@ export function undoRename(set: ChangeSet, dn: string): ChangeSet {
 function unlink(set: ChangeSet, e: PendingEntry, links: Link[]): ChangeSet {
   let next = set;
   for (const l of links) {
+    if (isUidAttr(l.attr)) {
+      if (!l.uid) continue;
+      next = membership(next, { dn: l.group, title: l.title }, l.attr, { add: l.uid }, true);
+      if (e.rename !== undefined && namedByUid(e.dn)) next = membership(next, { dn: l.group, title: l.title }, l.attr, { remove: e.rename }, true);
+      continue;
+    }
     next = membership(next, { dn: l.group, title: l.title }, l.attr, { add: e.dn }, true);
     if (e.rename !== undefined) next = membership(next, { dn: l.group, title: l.title }, l.attr, { remove: renamedDn(e.dn, e.rename) }, true);
   }
@@ -175,8 +201,9 @@ export function renamedDn(dn: string, value: string): string {
 export function membership(set: ChangeSet, group: { dn: string; title: string }, attr: string, change: { add?: string; remove?: string }, undo = false): ChangeSet {
   const g = set[dnKey(group.dn)] ?? { dn: group.dn, title: group.title, attrs: [] };
   const existing = g.attrs.find((a) => lower(a.name) === lower(attr));
-  const same = (a: string, b: string) => dnKey(a) === dnKey(b);
-  let a: PendingAttr = existing ?? { name: attr, kind: "dn", before: [], after: [], add: [], remove: [] };
+  // memberUid values are uids, matched exactly (caseExactIA5Match); the others are DNs.
+  const same = isUidAttr(attr) ? (a: string, b: string) => a === b : (a: string, b: string) => dnKey(a) === dnKey(b);
+  let a: PendingAttr = existing ?? { name: attr, kind: isUidAttr(attr) ? "text" : "dn", before: [], after: [], add: [], remove: [] };
   if (!isDelta(a)) {
     // The attribute was edited as a whole set: change that set.
     let after = a.after;

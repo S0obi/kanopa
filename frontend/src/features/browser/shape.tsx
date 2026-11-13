@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useBackend, type ClassInfo, type EntryView, type RelatedEntry, type SessionInfo } from "@/api/backend";
 import { hostOf } from "@/features/connections/url";
 import { parentDn, rdnParts, sameDn, splitDn } from "@/lib/dn";
@@ -7,7 +7,7 @@ import { plural } from "@/lib/time";
 import { useWindow } from "@/lib/useWindow";
 import { Banner, Button, Checkbox, ConfirmDialog, Dialog, EmptyState, Select, Skeleton, TextField, TypeTile, cx } from "@/ui";
 import {
-  addEntry, escapeRdnValue, isDelta, isDnSyntax, markDelete, membership, renameEntry, renamedDn, unescapeRdnValue, useChanges, valuesAfter,
+  addEntry, cells, escapeRdnValue, isDelta, isDnSyntax, isUidAttr, markDelete, membership, renameEntry, renamedDn, unescapeRdnValue, useChanges, valuesAfter,
   type ChangeSet, type Link, type PendingAttr, type ValueKind,
 } from "./changes";
 import { PasswordPair, passwordErrors, passwordHint } from "./editors";
@@ -15,7 +15,7 @@ import { dnKey, useBrowser } from "./store";
 
 /* ---------- shared lookups ---------- */
 
-/** Groups that list dn (member / uniqueMember), as links a rename or delete updates. */
+/** Groups that list dn (member / uniqueMember), or its uid (memberUid), as links a rename or delete updates. */
 function useReferrers(id: string, dn: string, enabled = true) {
   const backend = useBackend();
   return useQuery({
@@ -26,7 +26,8 @@ function useReferrers(id: string, dn: string, enabled = true) {
   });
 }
 
-const linksOf = (groups: RelatedEntry[]): Link[] => groups.filter((g) => g.memberAttr).map((g) => ({ group: g.dn, title: g.name, attr: g.memberAttr }));
+const linksOf = (groups: RelatedEntry[]): Link[] =>
+  groups.filter((g) => g.memberAttr && (!isUidAttr(g.memberAttr) || g.uid)).map((g) => ({ group: g.dn, title: g.name, attr: g.memberAttr, uid: g.uid || undefined }));
 
 /** The RDN value of a DN, unescaped: "uid=ada,…" → "ada". */
 const rdnValue = (dn: string) => unescapeRdnValue(rdnParts(splitDn(dn)[0] ?? "")[1]);
@@ -59,7 +60,8 @@ export function RenameDialog({ id, entry, onClose }: { id: string; entry: EntryV
   const taken = useTaken(id);
   const parent = parentDn(entry.dn);
   const to = renamedDn(entry.dn, value.trim());
-  const groups = refs.data?.entries ?? [];
+  // A posixGroup lists a uid, so only the rename of a uid changes what it holds.
+  const groups = (refs.data?.entries ?? []).filter((g) => !isUidAttr(g.memberAttr) || attr.toLowerCase() === "uid");
   // Without the groups that list it, a rename would leave them pointing at the old DN.
   const lookup = refs.data?.failure ? `Kanopa couldn't find the groups that list this entry, so it can't keep them in step. ${refs.data.failure.message}` : "";
 
@@ -162,7 +164,7 @@ export function DeleteDialog({ id, entry, host, onClose }: { id: string; entry: 
   const lookup = refs.data?.failure ?? (count.data?.failure || undefined);
   const rdn = rdnOf(entry.dn);
   const isGroup = entry.type === "group";
-  const members = (entry.attributes ?? []).filter((a) => /^(member|uniqueMember)$/i.test(a.name)).flatMap((a) => a.values ?? []).length;
+  const members = (entry.attributes ?? []).filter((a) => /^(member|uniqueMember|memberUid)$/i.test(a.name)).flatMap((a) => a.values ?? []).length;
   const blocked = (below ?? 0) > 0;
   const loading = !lookup && (below === undefined || refs.isPending);
 
@@ -222,14 +224,16 @@ export function DeleteDialog({ id, entry, host, onClose }: { id: string; entry: 
 interface PickerProps {
   id: string;
   kind: "people" | "groups";
-  exclude: (dn: string) => boolean;
+  exclude: (dn: string, e: RelatedEntry) => boolean;
+  /** Why a hit can't be added, shown beside it; the Add button is off. */
+  disabled?: (e: RelatedEntry) => string | undefined;
   onPick: (e: RelatedEntry) => void;
   onDone?: () => void;
   label?: string;
 }
 
 /** Search the base DN for people or groups; the first 8 hits, with the total and the filter. */
-function Picker({ id, kind, exclude, onPick, onDone, label }: PickerProps) {
+function Picker({ id, kind, exclude, disabled, onPick, onDone, label }: PickerProps) {
   const backend = useBackend();
   const [q, setQ] = useState("");
   const [settled, setSettled] = useState("");
@@ -244,7 +248,7 @@ function Picker({ id, kind, exclude, onPick, onDone, label }: PickerProps) {
     staleTime: 10_000,
   });
   const r = search.data;
-  const hits = (r?.entries ?? []).filter((e) => !exclude(e.dn));
+  const hits = (r?.entries ?? []).filter((e) => !exclude(e.dn, e));
   const what = kind === "people" ? "people" : "groups";
   const placeholder = label ?? (kind === "people" ? "Search people by name, uid or mail" : "Search groups by name");
   return (
@@ -268,18 +272,22 @@ function Picker({ id, kind, exclude, onPick, onDone, label }: PickerProps) {
       ) : (
         <>
           <ul className="kn-picker__list" aria-label={`Matching ${what}`}>
-            {hits.map((e) => (
-              <li key={e.dn} className="kn-picker__row">
-                <TypeTile type={e.type} size={22} />
-                <span className="font-semibold">{e.name}</span>
-                <code className="kn-picker__dn" title={e.dn}>
-                  {e.dn}
-                </code>
-                <Button size="sm" onClick={() => onPick(e)} aria-label={`Add ${e.name}`} disabled={kind === "groups" && !e.memberAttr}>
-                  Add
-                </Button>
-              </li>
-            ))}
+            {hits.map((e) => {
+              const why = disabled?.(e);
+              return (
+                <li key={e.dn} className="kn-picker__row">
+                  <TypeTile type={e.type} size={22} />
+                  <span className="font-semibold">{e.name}</span>
+                  <code className="kn-picker__dn" title={e.dn}>
+                    {e.dn}
+                  </code>
+                  {why && <span className="shrink-0 text-[12px] leading-4 text-warning-ink">{why}</span>}
+                  <Button size="sm" onClick={() => onPick(e)} aria-label={`Add ${e.name}`} disabled={!!why || (kind === "groups" && !e.memberAttr)}>
+                    Add
+                  </Button>
+                </li>
+              );
+            })}
             {hits.length === 0 && <li className="kn-picker__note">{kind === "people" ? "No one else matches" : "No other group matches"} “{settled}”.</li>}
           </ul>
           <div className="kn-picker__foot">
@@ -336,8 +344,37 @@ function RelList({ rows, onOpen, onRemove, onUndo, editable }: { rows: RelRow[];
   );
 }
 
-/** A group's members, with pending adds and removals; Add member searches people. */
-export function MembersPanel({ id, group, editable, onOpen, picking = 0 }: { id: string; group: EntryView; editable: boolean; onOpen: (dn: string) => void; /** Bumped to open the picker (the tree's Add member). */ picking?: number }) {
+interface MembersProps {
+  id: string;
+  group: EntryView;
+  editable: boolean;
+  onOpen: (dn: string) => void;
+  /** Bumped to open the picker (the tree's Add member). */
+  picking?: number;
+}
+
+/**
+ * A group's members, with pending adds and removals. A group lists them by DN (member, uniqueMember),
+ * a posixGroup by uid (memberUid), and one that is both gets a section for each.
+ */
+export function MembersPanel(props: MembersProps) {
+  const attrs = props.group.attributes ?? [];
+  const classes = props.group.objectClasses ?? [];
+  const isClass = (...names: string[]) => classes.some((c) => names.some((n) => n.toLowerCase() === c.toLowerCase()));
+  const byUid = attrs.some((a) => isUidAttr(a.name)) || isClass("posixGroup");
+  const byDn = attrs.some((a) => /^(member|uniqueMember)$/i.test(a.name)) || isClass("groupOfNames", "groupOfUniqueNames", "groupOfMembers") || !byUid;
+  if (byDn && byUid)
+    return (
+      <div className="flex flex-col gap-6">
+        <DnMembers {...props} heading="member" />
+        <UidMembers {...props} picking={0} heading="memberUid" />
+      </div>
+    );
+  return byUid ? <UidMembers {...props} /> : <DnMembers {...props} />;
+}
+
+/** The members a group lists by DN. */
+function DnMembers({ id, group, editable, onOpen, picking = 0, heading }: MembersProps & { /** Names the attribute when the group has two member lists. */ heading?: string }) {
   const update = useChanges((s) => s.update);
   const set = useChanges((s) => s.byConnection[id]);
   const [adding, setAdding] = useState(picking > 0);
@@ -357,7 +394,10 @@ export function MembersPanel({ id, group, editable, onOpen, picking = 0 }: { id:
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="type-heading m-0">{plural(now.length, "member")}</h3>
+        <h3 className="type-heading m-0">
+          {plural(now.length, "member")}
+          {heading && <code className="ml-2 text-[12px] font-normal text-ink-muted">{heading}</code>}
+        </h3>
         {editable && !adding && (
           <Button icon="plus" onClick={() => setAdding(true)}>
             Add member
@@ -393,6 +433,130 @@ export function MembersPanel({ id, group, editable, onOpen, picking = 0 }: { id:
   );
 }
 
+
+/** One member of a posixGroup: the uid it lists, and whether a pending change adds or removes it. */
+interface UidRow {
+  uid: string;
+  state: "same" | "added" | "removed";
+}
+
+function uidRows(values: string[], pending: PendingAttr | undefined): UidRow[] {
+  return cells(values, pending).map((c) => ({ uid: c.value, state: c.state === "added" ? "added" : c.state === "removed" ? "removed" : "same" }));
+}
+
+/** The members a posixGroup lists by uid (memberUid), each looked up as the person it stands for. */
+function UidMembers({ id, group, editable, onOpen, picking = 0, heading }: MembersProps & { heading?: string }) {
+  const update = useChanges((s) => s.update);
+  const set = useChanges((s) => s.byConnection[id]);
+  const [adding, setAdding] = useState(picking > 0);
+  const [seen, setSeen] = useState(picking);
+  if (seen !== picking) {
+    setSeen(picking);
+    if (picking > 0) setAdding(true);
+  }
+  const attr = (group.attributes ?? []).find((a) => isUidAttr(a.name));
+  const values = attr?.values ?? [];
+  const pending = set?.[dnKey(group.dn)]?.attrs.find((a) => isUidAttr(a.name));
+  const rows = uidRows(values, pending);
+  const now = rows.filter((r) => r.state !== "removed").map((r) => r.uid);
+  const target = { dn: group.dn, title: group.title };
+  const name = attr?.name ?? "memberUid";
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="type-heading m-0">
+          {plural(now.length, "member")}
+          {heading && <code className="ml-2 text-[12px] font-normal text-ink-muted">{heading}</code>}
+        </h3>
+        {editable && !adding && (
+          <Button icon="plus" onClick={() => setAdding(true)}>
+            Add member
+          </Button>
+        )}
+      </div>
+      {adding && (
+        <Picker
+          id={id}
+          kind="people"
+          exclude={(_, p) => !!p.uid && now.includes(p.uid)}
+          disabled={(p) => (p.uid ? undefined : "has no uid")}
+          onPick={(p) => update(id, (s) => membership(s, target, name, { add: p.uid }))}
+          onDone={() => setAdding(false)}
+        />
+      )}
+      {rows.length === 0 ? (
+        <EmptyState icon="users" tone="group" title="No members">
+          This group lists no member.
+        </EmptyState>
+      ) : (
+        <UidList
+          id={id}
+          rows={rows}
+          editable={editable}
+          onOpen={onOpen}
+          onRemove={(uid) => update(id, (s) => membership(s, target, name, { remove: uid }))}
+          onUndo={(r) => update(id, (s) => membership(s, target, name, r.state === "added" ? { remove: r.uid } : { add: r.uid }, true))}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The uids of a posixGroup as rows. The people they stand for are looked up for the rows in view only. */
+function UidList({ id, rows, onOpen, onRemove, onUndo, editable }: { id: string; rows: UidRow[]; onOpen: (dn: string) => void; onRemove: (uid: string) => void; onUndo: (r: UidRow) => void; editable: boolean }) {
+  const backend = useBackend();
+  const { attach, start, end, before, after, windowed } = useWindow<HTMLUListElement>(rows.length, REL_ROW);
+  const shown = rows.slice(start, end);
+  const asked = shown.map((r) => r.uid);
+  const found = useQuery({
+    queryKey: ["uids", id, asked],
+    queryFn: () => backend.resolveUids(id, asked),
+    enabled: asked.length > 0,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+  const byUid = new Map((found.data?.matches ?? []).map((m) => [m.uid, m]));
+  return (
+    <ul ref={attach} className="m-0 list-none overflow-hidden rounded-md border border-line bg-surface-raised p-0" style={windowed ? { paddingTop: before, paddingBottom: after } : undefined}>
+      {shown.map((r, k) => {
+        const m = byUid.get(r.uid);
+        const missing = !!m && m.matches === 0;
+        return (
+          <li key={r.uid} aria-posinset={start + k + 1} aria-setsize={rows.length} className={cx("box-border flex h-10 items-center gap-2.5 px-3", start + k > 0 && "border-t border-line", r.state === "added" && "bg-moss-soft")}>
+            <TypeTile type={m && m.matches > 0 ? m.type : "entry"} size={24} />
+            <span className={cx("truncate font-semibold", r.state === "removed" && "kn-attrs__removed")}>{m && m.matches > 0 ? m.name : r.uid}</span>
+            {m && m.matches > 0 && <code className="shrink-0 text-[12px] text-ink-muted">{r.uid}</code>}
+            {r.state !== "same" && <span className={cx("kn-attrs__mark", r.state === "removed" && "is-removed")}>{r.state === "added" ? "Added" : "Removed"}</span>}
+            {m && m.matches > 1 && (
+              <span className="kn-attrs__mark" title={`${plural(m.matches, "entry", "entries")} carry the uid ${r.uid}. The first is shown.`}>
+                {`matches ${m.matches} entries`}
+              </span>
+            )}
+            {missing ? (
+              <span className="ml-auto shrink-0 text-[12px] leading-4 text-warning-ink">No entry has this uid</span>
+            ) : (
+              m && (
+                <button type="button" className="kn-attrs__link ml-auto min-w-0 max-w-[50%] shrink-0 font-mono text-[12px]" title={`Open ${m.dn}`} onClick={() => onOpen(m.dn)}>
+                  {m.dn}
+                </button>
+              )
+            )}
+            {editable &&
+              (r.state === "same" ? (
+                <Button variant="ghost" size="sm" icon="x" label={`Remove ${m && m.matches > 0 ? m.name : r.uid}`} onClick={() => onRemove(r.uid)} />
+              ) : (
+                <Button variant="ghost" size="sm" onClick={() => onUndo(r)}>
+                  Undo
+                </Button>
+              ))}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function cellsToRows(values: string[], pending: PendingAttr | undefined): RelRow[] {
   const kept = valuesAfter(values, pending);
   const rows: RelRow[] = [];
@@ -422,7 +586,9 @@ export function MemberOfPanel({ id, entry, editable, onOpen }: { id: string; ent
     },
     staleTime: 30_000,
   });
-  const rows = useMemo(() => memberOfRows(q.data?.entries ?? [], set, entry.dn), [q.data, set, entry.dn]);
+  // A posixGroup lists the uid, not the DN, so a person with no uid cannot join one.
+  const uid = (entry.attributes ?? []).find((a) => /^uid$/i.test(a.name))?.values?.[0] ?? "";
+  const rows = useMemo(() => memberOfRows(q.data?.entries ?? [], set, entry.dn, uid), [q.data, set, entry.dn, uid]);
   if (q.isPending) return <Skeleton variant="table" rows={3} label="Finding groups" />;
   const r = q.data!;
   if (r.failure && !r.failure.lost)
@@ -433,6 +599,8 @@ export function MemberOfPanel({ id, entry, editable, onOpen }: { id: string; ent
     );
   const now = rows.filter((g) => g.state !== "removed");
   const attrOf = (dn: string) => rows.find((g) => sameDn(g.dn, dn))?.attr ?? "member";
+  /** What a group lists for this person: the DN, or the uid for a posixGroup. */
+  const valueFor = (attr: string) => (isUidAttr(attr) ? uid : entry.dn);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
@@ -451,7 +619,8 @@ export function MemberOfPanel({ id, entry, editable, onOpen }: { id: string; ent
           id={id}
           kind="groups"
           exclude={(dn) => now.some((g) => sameDn(g.dn, dn))}
-          onPick={(g) => update(id, (s) => membership(s, { dn: g.dn, title: g.name }, g.memberAttr || "member", { add: entry.dn }))}
+          disabled={(g) => (isUidAttr(g.memberAttr) && !uid ? "this entry has no uid" : undefined)}
+          onPick={(g) => update(id, (s) => membership(s, { dn: g.dn, title: g.name }, g.memberAttr || "member", { add: valueFor(g.memberAttr || "member") }))}
           onDone={() => setAdding(false)}
         />
       )}
@@ -464,25 +633,26 @@ export function MemberOfPanel({ id, entry, editable, onOpen }: { id: string; ent
           rows={rows}
           editable={editable}
           onOpen={onOpen}
-          onRemove={(dn) => update(id, (s) => membership(s, { dn, title: rows.find((g) => sameDn(g.dn, dn))?.name ?? rdnOf(dn) }, attrOf(dn), { remove: entry.dn }))}
-          onUndo={(g) => update(id, (s) => membership(s, { dn: g.dn, title: g.name }, attrOf(g.dn), g.state === "added" ? { remove: entry.dn } : { add: entry.dn }, true))}
+          onRemove={(dn) => update(id, (s) => membership(s, { dn, title: rows.find((g) => sameDn(g.dn, dn))?.name ?? rdnOf(dn) }, attrOf(dn), { remove: valueFor(attrOf(dn)) }))}
+          onUndo={(g) => update(id, (s) => membership(s, { dn: g.dn, title: g.name }, attrOf(g.dn), g.state === "added" ? { remove: valueFor(attrOf(g.dn)) } : { add: valueFor(attrOf(g.dn)) }, true))}
         />
       )}
     </div>
   );
 }
 
-function memberOfRows(groups: RelatedEntry[], set: ChangeSet | undefined, dn: string): Array<RelRow & { attr: string }> {
+function memberOfRows(groups: RelatedEntry[], set: ChangeSet | undefined, dn: string, uid: string): Array<RelRow & { attr: string }> {
   const rows: Array<RelRow & { attr: string }> = [];
   const pendingFor = (g: string) => Object.values(set ?? {}).find((e) => sameDn(e.dn, g))?.attrs ?? [];
-  const holds = (list: string[] | undefined) => (list ?? []).some((v) => sameDn(v, dn));
+  // What an attribute lists for this entry: its DN, or its uid in memberUid.
+  const holdsIn = (name: string, list: string[] | undefined) => (list ?? []).some((v) => (isUidAttr(name) ? !!uid && v === uid : sameDn(v, dn)));
   for (const g of groups) {
-    const removed = pendingFor(g.dn).some((a) => holds(a.remove) || (!a.add && a.before.some((v) => sameDn(v, dn)) && !holds(a.after)));
+    const removed = pendingFor(g.dn).some((a) => holdsIn(a.name, a.remove) || (!a.add && holdsIn(a.name, a.before) && !holdsIn(a.name, a.after)));
     rows.push({ dn: g.dn, name: g.name, type: g.type, state: removed ? "removed" : "same", canRemove: !!g.memberAttr, attr: g.memberAttr || "member" });
   }
   for (const e of Object.values(set ?? {})) {
     if (groups.some((g) => sameDn(g.dn, e.dn))) continue;
-    const a = e.attrs.find((x) => holds(x.add) || (!isDelta(x) && x.kind === "dn" && holds(x.after) && !holds(x.before)));
+    const a = e.attrs.find((x) => holdsIn(x.name, x.add) || (!isDelta(x) && (x.kind === "dn" || isUidAttr(x.name)) && holdsIn(x.name, x.after) && !holdsIn(x.name, x.before)));
     if (a) rows.push({ dn: e.dn, name: e.title || rdnValue(e.dn), type: "group", state: "added", canRemove: false, attr: a.name });
   }
   return rows;
@@ -490,10 +660,11 @@ function memberOfRows(groups: RelatedEntry[], set: ChangeSet | undefined, dn: st
 
 /* ---------- New entry ---------- */
 
-type EntryKind = "person" | "group" | "other";
+type EntryKind = "person" | "group" | "posix" | "other";
 const KINDS: Array<{ id: EntryKind; label: string; oc: string; type: string }> = [
   { id: "person", label: "Person", oc: "inetOrgPerson", type: "person" },
   { id: "group", label: "Group", oc: "groupOfNames", type: "group" },
+  { id: "posix", label: "POSIX group", oc: "posixGroup", type: "group" },
   { id: "other", label: "Other", oc: "from the schema", type: "entry" },
 ];
 
@@ -523,6 +694,15 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
   // Group
   const [g, setG] = useState({ cn: "", description: "" });
   const [members, setMembers] = useState<RelatedEntry[]>([]);
+  // POSIX group: members are listed by uid, and gidNumber is required. Empty gid follows the suggestion.
+  const [px, setPx] = useState<{ cn: string; gid: string | null; description: string }>({ cn: "", gid: null, description: "" });
+  const [uidMembers, setUidMembers] = useState<RelatedEntry[]>([]);
+  const suggestion = useQuery({ queryKey: ["gid", id], queryFn: () => backend.gidCheck(id, 0), enabled: kind === "posix", staleTime: 0, gcTime: 0 });
+  // null until the person edits it: then the number follows the suggestion, and an emptied field stays empty.
+  const gid = px.gid !== null ? px.gid.trim() : suggestion.data && !suggestion.data.failure ? String(suggestion.data.next) : "";
+  const gidValid = /^\d+$/.test(gid);
+  const gidUse = useQuery({ queryKey: ["gidUse", id, gid], queryFn: () => backend.gidCheck(id, Number(gid)), enabled: kind === "posix" && gidValid, staleTime: 10_000 });
+  const gidTakenBy = gidUse.data && !gidUse.data.failure ? gidUse.data.takenBy ?? [] : [];
   // Other
   const classes = useQuery({ queryKey: ["classes", id], queryFn: () => backend.objectClasses(id), enabled: kind === "other", staleTime: Infinity });
   const [chosen, setChosen] = useState<ClassInfo[]>([]);
@@ -547,10 +727,11 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
   // The entry as it would be added.
   const otherFields = fields;
   const rdn =
-    kind === "person" ? `uid=${escapeRdnValue(p.uid.trim())}` : kind === "group" ? `cn=${escapeRdnValue(g.cn.trim())}` : `${rdnAttr}=${escapeRdnValue(otherFields.find((f) => f.name === rdnAttr)?.value.trim() ?? "")}`;
+    kind === "person" ? `uid=${escapeRdnValue(p.uid.trim())}` : kind === "group" ? `cn=${escapeRdnValue(g.cn.trim())}` : kind === "posix" ? `cn=${escapeRdnValue(px.cn.trim())}` : `${rdnAttr}=${escapeRdnValue(otherFields.find((f) => f.name === rdnAttr)?.value.trim() ?? "")}`;
   const dn = `${rdn},${parent}`;
   const structural = chosen.find((c) => c.kind === "STRUCTURAL");
-  const ocs = kind === "person" ? ["inetOrgPerson", "organizationalPerson", "person", "top"] : kind === "group" ? ["groupOfNames", "top"] : [...chosen.map((c) => c.name), "top"];
+  const ocs =
+    kind === "person" ? ["inetOrgPerson", "organizationalPerson", "person", "top"] : kind === "group" ? ["groupOfNames", "top"] : kind === "posix" ? ["posixGroup", "top"] : [...chosen.map((c) => c.name), "top"];
 
   const errors: string[] = [];
   if (kind === "person") {
@@ -561,6 +742,10 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
   } else if (kind === "group") {
     if (!g.cn.trim()) errors.push("Naming violation (64) — enter a group name: cn names the entry.");
     if (members.length === 0) errors.push("Object class violation (65) — groupOfNames requires the attribute member. Add a member.");
+  } else if (kind === "posix") {
+    if (!px.cn.trim()) errors.push("Naming violation (64) — enter a group name: cn names the entry.");
+    if (!gid) errors.push("Object class violation (65) — posixGroup requires the attribute gidNumber.");
+    else if (!gidValid) errors.push("Invalid syntax (21) — gidNumber must be a whole number.");
   } else {
     if (!structural) errors.push("Object class violation (65) — pick one structural object class.");
     for (const f of otherFields) if (f.required && !f.value.trim()) errors.push(`Object class violation (65) — ${structural?.name ?? "the entry"} requires the attribute ${f.name}.`);
@@ -587,6 +772,11 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
       title = g.cn.trim();
       attrs = [attr("objectClass", ocs), attr("cn", [g.cn]), attr("member", members.map((m) => m.dn), "dn")];
       if (g.description.trim()) attrs.push(attr("description", [g.description]));
+    } else if (kind === "posix") {
+      title = px.cn.trim();
+      attrs = [attr("objectClass", ocs), attr("cn", [px.cn]), attr("gidNumber", [gid])];
+      if (uidMembers.length) attrs.push(attr("memberUid", uidMembers.map((m) => m.uid)));
+      if (px.description.trim()) attrs.push(attr("description", [px.description]));
     } else {
       title = otherFields.find((f) => f.name === rdnAttr)?.value.trim() ?? rdnValue(dn);
       attrs = [attr("objectClass", ocs)];
@@ -651,7 +841,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Select label="Create under" mono value={parent} onChange={(e) => setParent(e.target.value)} options={containers.map((c) => ({ value: c.dn, label: c.dn }))} />
+        <Select label="Create under" mono value={parent} onChange={setParent} options={containers.map((c) => ({ value: c.dn, label: c.dn }))} />
         <DnPreview label="DN" rdn={rdn} parent={parent} />
       </div>
 
@@ -727,6 +917,58 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
         </div>
       )}
 
+      {kind === "posix" && (
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <TextField label={label("Group name", "cn", true)} mono value={px.cn} autoFocus onChange={(e) => setPx({ ...px, cn: e.target.value })} />
+            <TextField
+              label={label("Group ID", "gidNumber", true)}
+              mono
+              inputMode="numeric"
+              value={gid}
+              aria-invalid={tried && (!gid || !gidValid)}
+              hint={
+                gidTakenBy.length
+                  ? `Already used by ${gidTakenBy.join(", ")}. Two groups can share a gidNumber, but file ownership will not tell them apart.`
+                  : px.gid === null && gid
+                    ? "The next free number on the server. Change it if you need another."
+                    : undefined
+              }
+              onChange={(e) => setPx({ ...px, gid: e.target.value })}
+            />
+            <TextField label={label("Description", "description")} value={px.description} className="col-span-2" onChange={(e) => setPx({ ...px, description: e.target.value })} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-baseline justify-between">
+              <span className="type-label" id="ne-uids">
+                Members <code>memberUid</code>
+              </span>
+              <span className="text-[12px] text-ink-muted">{plural(uidMembers.length, "member")}</span>
+            </div>
+            {uidMembers.length > 0 && (
+              <div role="list" aria-labelledby="ne-uids" className="flex flex-wrap gap-1.5">
+                {uidMembers.map((m) => (
+                  <span role="listitem" key={m.uid} className="kn-chip">
+                    <TypeTile type="person" size={18} />
+                    {m.name}
+                    <code className="text-[11px] text-ink-muted">{m.uid}</code>
+                    <Button variant="ghost" size="sm" icon="x" label={`Remove ${m.name}`} onClick={() => setUidMembers(uidMembers.filter((x) => x.uid !== m.uid))} />
+                  </span>
+                ))}
+              </div>
+            )}
+            <Picker
+              id={id}
+              kind="people"
+              exclude={(_, m) => !!m.uid && uidMembers.some((x) => x.uid === m.uid)}
+              disabled={(m) => (m.uid ? undefined : "has no uid")}
+              onPick={(m) => setUidMembers([...uidMembers, m])}
+            />
+            <span className="text-[12px] leading-4 text-ink-muted">A posixGroup may have no member. It lists people by their uid; add more later from the Members tab.</span>
+          </div>
+        </div>
+      )}
+
       {kind === "other" && (
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
@@ -785,7 +1027,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
           </div>
           {chosen.length > 0 && (
             <div className="flex flex-col gap-3">
-              <Select label="Naming attribute (RDN)" mono value={rdnAttr} onChange={(e) => setRdnAttr(e.target.value)} options={fields.filter((f) => f.kind !== "password").map((f) => f.name)} />
+              <Select label="Naming attribute (RDN)" mono value={rdnAttr} onChange={setRdnAttr} options={fields.filter((f) => f.kind !== "password").map((f) => f.name)} />
               <div className="grid grid-cols-2 gap-3">
                 {fields.map((f, i) =>
                   f.kind === "password" ? (
@@ -820,8 +1062,8 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
                   label="Optional attributes"
                   mono
                   value=""
-                  onChange={(e) => {
-                    const a = mayOptions.find((x) => x.name === e.target.value);
+                  onChange={(name) => {
+                    const a = mayOptions.find((x) => x.name === name);
                     if (a) setFields([...fields, { name: a.name, kind: (a.kind as ValueKind) || "text", required: false, value: "" }]);
                   }}
                   options={[{ value: "", label: "Add an attribute…" }, ...mayOptions.map((a) => ({ value: a.name, label: a.name }))]}

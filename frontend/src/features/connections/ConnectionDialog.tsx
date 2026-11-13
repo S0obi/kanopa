@@ -281,14 +281,23 @@ export function ConnectionDialog({ mode, connection, reason = "", platform = det
             <h3 id={`${titleId}-auth`} className="type-heading m-0">
               Authentication
             </h3>
-            <Select
-              fieldClassName="max-w-[320px]"
-              label="Bind method"
-              options={[
-                { value: "simple", label: "Simple bind" },
-                { value: "anonymous", label: "Anonymous" },
-              ]}
-              {...register("bind")}
+            <Controller
+              control={control}
+              name="bind"
+              render={({ field }) => (
+                <Select
+                  fieldClassName="max-w-[320px]"
+                  label="Bind method"
+                  options={[
+                    { value: "simple", label: "Simple bind" },
+                    { value: "anonymous", label: "Anonymous" },
+                  ]}
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                />
+              )}
             />
             {bind === "simple" ? (
               <>
@@ -355,14 +364,23 @@ export function ConnectionDialog({ mode, connection, reason = "", platform = det
                   {...register("timeoutSeconds", { valueAsNumber: true })}
                 />
                 <TextField label="Page size" type="number" min={1} error={errors.pageSize?.message} {...register("pageSize", { valueAsNumber: true })} />
-                <Select
-                  label="Referrals"
-                  options={[
-                    { value: "show", label: "Show as entries" },
-                    { value: "ignore", label: "Ignore" },
-                    { value: "follow", label: "Follow (coming later)", disabled: true },
-                  ]}
-                  {...register("referrals")}
+                <Controller
+                  control={control}
+                  name="referrals"
+                  render={({ field }) => (
+                    <Select
+                      label="Referrals"
+                      options={[
+                        { value: "show", label: "Show as entries" },
+                        { value: "ignore", label: "Ignore" },
+                        { value: "follow", label: "Follow (coming later)", disabled: true },
+                      ]}
+                      value={field.value}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  )}
                 />
                 <Checkbox className="col-span-3" label="Open read-only — Kanopa never sends changes over this connection" {...register("readOnly")} />
                 <Checkbox className="col-span-3" label="Verify the server certificate against the system trust store" {...register("verifyCert")} />

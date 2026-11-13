@@ -185,7 +185,8 @@ describe("ConnectionDialog — review fixes", () => {
 
   it("leaves arrow keys to the fields inside the dialog", () => {
     setup();
-    // fireEvent returns false when a handler called preventDefault().
-    expect(fireEvent.keyDown(screen.getByLabelText("Bind method"), { key: "ArrowDown" })).toBe(true);
+    // The bind method takes the arrow key itself: its list opens.
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Bind method" }), { key: "ArrowDown" });
+    expect(screen.getByRole("listbox", { name: "Bind method" })).toBeInTheDocument();
   });
 });

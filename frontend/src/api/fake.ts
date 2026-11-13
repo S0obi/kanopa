@@ -1,5 +1,5 @@
 import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName } from "./backend";
-import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeMemberOf, fakeNode, fakePreview, fakeReferrers } from "./fakeDirectory";
+import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeGidCheck, fakeMemberOf, fakeNode, fakePreview, fakeReferrers, fakeResolveUids } from "./fakeDirectory";
 import { fakeQuick } from "./fakeQuick";
 
 /**
@@ -337,6 +337,15 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
       if (FAKE.failReferrers)
         return { entries: [], truncated: false, failure: { title: "Request refused.", message: "Administrative limit exceeded (11) — the server stopped the search.", code: 11, lost: false } };
       return { entries: fakeReferrers(dn), truncated: false, failure: null };
+    },
+    async resolveUids(id, uids) {
+      await wait(FAKE.delayMs / 2);
+      const lost = check(id);
+      return lost ? { matches: [], failure: lost } : { matches: fakeResolveUids(uids), failure: null };
+    },
+    async gidCheck(id, gid) {
+      const lost = check(id);
+      return lost ? { next: 0, takenBy: [], failure: lost } : fakeGidCheck(gid);
     },
     async quick(id, text, signal) {
       await wait(FAKE.delayMs, signal);

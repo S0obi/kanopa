@@ -106,9 +106,11 @@ type RelatedEntry struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
-	// MemberAttr is, for a group, the attribute that lists its members (member or uniqueMember);
-	// empty when Kanopa can't edit its membership (a posixGroup lists uids).
+	// MemberAttr is, for a group, the attribute that lists its members: member, uniqueMember, or
+	// memberUid for a posixGroup (it lists uids, not DNs).
 	MemberAttr string `json:"memberAttr"`
+	// UID is the entry's uid, for a person: what a posixGroup's memberUid holds. Empty when it has none.
+	UID string `json:"uid"`
 }
 
 // FindResult is one search for a picker: the first hits and how many match in all.
@@ -134,12 +136,15 @@ func memberAttrOf(classes []string) string {
 		return "member"
 	case hasClass(classes, "groupOfUniqueNames"):
 		return "uniqueMember"
+	case hasClass(classes, "posixGroup"):
+		return "memberUid"
 	}
 	return ""
 }
 
 // Find searches the connection's base DN for a picker: kind "people" (inetOrgPerson by uid, cn
-// or mail) or "groups" (groupOfNames and groupOfUniqueNames by cn). q needs 2 characters.
+// or mail; posixAccount too) or "groups" (groupOfNames, groupOfUniqueNames and posixGroup by cn).
+// q needs 2 characters.
 func (d *DirectoryService) Find(ctx context.Context, id, kind, q string) FindResult {
 	l, f := d.session(id)
 	if f != nil {
@@ -150,9 +155,9 @@ func (d *DirectoryService) Find(ctx context.Context, id, kind, q string) FindRes
 	e := ldapx.EscapeFilter(q)
 	switch kind {
 	case "people":
-		out.Filter = "(&(objectClass=inetOrgPerson)(|(uid=" + e + "*)(cn=*" + e + "*)(mail=" + e + "*)))"
+		out.Filter = "(&(|(objectClass=inetOrgPerson)(objectClass=posixAccount))(|(uid=" + e + "*)(cn=*" + e + "*)(mail=" + e + "*)))"
 	case "groups":
-		out.Filter = "(&(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames))(cn=*" + e + "*))"
+		out.Filter = "(&(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames)(objectClass=posixGroup))(cn=*" + e + "*))"
 	default:
 		out.Failure = &Failure{Title: "Search failed.", Message: fmt.Sprintf("Kanopa can't search for %q.", kind)}
 		return out
@@ -178,7 +183,7 @@ func (d *DirectoryService) Find(ctx context.Context, id, kind, q string) FindRes
 			desc = h.Description
 		}
 		out.Entries = append(out.Entries, RelatedEntry{DN: h.DN, Name: name, Type: typeOf(h.ObjectClasses, false), Description: desc,
-			MemberAttr: memberAttrOf(h.ObjectClasses)})
+			MemberAttr: memberAttrOf(h.ObjectClasses), UID: h.UID})
 	}
 	return out
 }
@@ -261,15 +266,17 @@ func (d *DirectoryService) ObjectClasses(id string) ClassesResult {
 	return out
 }
 
-// Referrers lists the groups under the base DN whose member or uniqueMember holds dn, with the
-// attribute that holds it: what a rename or a delete with cleanup updates.
+// Referrers lists the groups under the base DN whose member or uniqueMember holds dn, or whose
+// memberUid holds the entry's uid (unless another entry shares it), with the attribute that holds
+// it: what a rename or a delete with cleanup updates.
 func (d *DirectoryService) Referrers(ctx context.Context, id, dn string) RelatedResult {
 	l, f := d.session(id)
 	if f != nil {
 		return RelatedResult{Failure: f, Entries: []RelatedEntry{}}
 	}
+	uid := d.uidOf(ctx, l, dn)
 	l.paged.Lock()
-	refs, truncated, err := l.Referrers(ctx, l.baseDN, dn, memberOfLimit)
+	refs, truncated, err := l.Referrers(ctx, l.baseDN, dn, uid, memberOfLimit)
 	l.paged.Unlock()
 	if err != nil {
 		return RelatedResult{Failure: d.fail(l, err), Entries: []RelatedEntry{}}
@@ -280,9 +287,35 @@ func (d *DirectoryService) Referrers(ctx context.Context, id, dn string) Related
 		if name == "" {
 			name = firstRDN(r.DN)
 		}
-		out.Entries = append(out.Entries, RelatedEntry{DN: r.DN, Name: name, Type: typeOf(r.ObjectClasses, false), MemberAttr: r.Attr})
+		out.Entries = append(out.Entries, RelatedEntry{DN: r.DN, Name: name, Type: typeOf(r.ObjectClasses, false), MemberAttr: r.Attr, UID: uidIf(r.Attr, uid)})
 	}
 	return out
+}
+
+// uidIf is the uid a referrer lists, when it lists one.
+func uidIf(attr, uid string) string {
+	if attr == "memberUid" {
+		return uid
+	}
+	return ""
+}
+
+// uidOf is the entry's uid: its RDN value when it is named by uid, else its first uid value.
+// Empty when it has none or can't be read: the groups that list it by DN are still found.
+func (d *DirectoryService) uidOf(ctx context.Context, l *liveSession, dn string) string {
+	if rdn := firstRDN(dn); strings.HasPrefix(strings.ToLower(rdn), "uid=") {
+		return unescapeRDN(rdn[4:])
+	}
+	l.paged.Lock()
+	raw, err := l.ReadEntry(ctx, dn, l.referrals)
+	l.paged.Unlock()
+	if err != nil || raw == nil {
+		return ""
+	}
+	if v := raw.Get("uid"); len(v) > 0 {
+		return v[0]
+	}
+	return ""
 }
 
 // RelatedResult lists related entries.
@@ -726,6 +759,109 @@ func (d *DirectoryService) MemberOf(ctx context.Context, id, dn string) RelatedR
 			MemberAttr: memberAttrOf(g.ObjectClasses)})
 	}
 	return out
+}
+
+// unescapeRDN undoes RFC 4514 escaping in an RDN value: a backslash and a comma give a comma, and a backslash and 2C give a comma too.
+func unescapeRDN(v string) string {
+	if !strings.Contains(v, `\`) {
+		return v
+	}
+	var out []byte
+	for i := 0; i < len(v); i++ {
+		if v[i] != '\\' || i+1 >= len(v) {
+			out = append(out, v[i])
+			continue
+		}
+		if i+2 < len(v) {
+			if n, err := strconv.ParseUint(v[i+1:i+3], 16, 8); err == nil {
+				out = append(out, byte(n))
+				i += 2
+				continue
+			}
+		}
+		i++
+		out = append(out, v[i])
+	}
+	return string(out)
+}
+
+// UIDMatch is what one memberUid value stands for: the first entry that carries the uid, and how
+// many do. Matches is 0 when none does.
+type UIDMatch struct {
+	UID     string `json:"uid"`
+	DN      string `json:"dn"`
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Matches int    `json:"matches"`
+}
+
+// UIDResult answers ResolveUIDs.
+type UIDResult struct {
+	Matches []UIDMatch `json:"matches"`
+	Failure *Failure   `json:"failure"`
+}
+
+// maxResolve bounds how many uids one call looks up.
+const maxResolve = 500
+
+// ResolveUIDs finds the entry each uid stands for, under the base DN: a posixGroup lists its members
+// by uid. The answer has one match for each uid asked, in the order asked. A uid nothing carries has
+// Matches 0.
+func (d *DirectoryService) ResolveUIDs(ctx context.Context, id string, uids []string) UIDResult {
+	l, f := d.session(id)
+	if f != nil {
+		return UIDResult{Failure: f, Matches: []UIDMatch{}}
+	}
+	if len(uids) > maxResolve {
+		uids = uids[:maxResolve]
+	}
+	l.paged.Lock()
+	found, err := l.ResolveUIDs(ctx, l.baseDN, uids)
+	l.paged.Unlock()
+	if err != nil {
+		return UIDResult{Failure: d.fail(l, err), Matches: []UIDMatch{}}
+	}
+	out := UIDResult{Matches: make([]UIDMatch, 0, len(found))}
+	for _, m := range found {
+		um := UIDMatch{UID: m.UID, Matches: len(m.Entries)}
+		if len(m.Entries) > 0 {
+			e := m.Entries[0]
+			um.DN = e.DN
+			um.Name = e.CN
+			if um.Name == "" {
+				um.Name = firstRDN(e.DN)
+			}
+			um.Type = typeOf(e.ObjectClasses, false)
+		}
+		out.Matches = append(out.Matches, um)
+	}
+	return out
+}
+
+// GIDResult answers GIDCheck.
+type GIDResult struct {
+	Next    int      `json:"next"`    // the next free gidNumber
+	TakenBy []string `json:"takenBy"` // posixGroups that already use the asked gidNumber
+	Failure *Failure `json:"failure"`
+}
+
+// GIDCheck suggests the next free gidNumber for a new posixGroup (above every number in use, and
+// at least 1000), and names the posixGroups that already use gid when gid is more than 0.
+func (d *DirectoryService) GIDCheck(ctx context.Context, id string, gid int) GIDResult {
+	l, f := d.session(id)
+	if f != nil {
+		return GIDResult{Failure: f, TakenBy: []string{}}
+	}
+	l.paged.Lock()
+	next, taken, err := l.GIDInfo(ctx, l.baseDN, gid)
+	l.paged.Unlock()
+	if err != nil {
+		return GIDResult{Failure: d.fail(l, err), TakenBy: []string{}}
+	}
+	if taken == nil {
+		taken = []string{}
+	}
+	return GIDResult{Next: next, TakenBy: taken}
 }
 
 // Ping checks that the connection still answers. It returns nil when it does.
