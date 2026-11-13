@@ -177,3 +177,12 @@ hr.kn-menu__sep { border: 0; }
 .kn-dialog > div { display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
 .kn-dialog__head, .kn-dialog__desc, .kn-dialog__foot { flex: none; }
 .kn-dialog__body { min-height: 0; overflow-y: auto; }
+
+/*
+ * The list a <select> opens is drawn by the browser from the colors of the select and its options. The select is
+ * reset with `all: unset`, which leaves it transparent, so the list came up white with the field's light text in
+ * Night forest. Give both the theme's own surface and ink.
+ */
+.kn-select select { background-color: var(--surface-raised); }
+.kn-select option { background-color: var(--surface-raised); color: var(--ink); }
+.kn-select option:disabled { color: var(--ink-faint); }
