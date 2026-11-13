@@ -91,7 +91,16 @@ jobs:
         shell: pwsh
         run: |
           go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
-          choco install nsis --version ${{ env.NSIS_VERSION }} --no-progress -y
+          # The Chocolatey feed answers 503 now and then. Try again a few times, and stop here, with a
+          # clear message, rather than build without an installer tool.
+          $installed = $false
+          foreach ($attempt in 1..4) {
+            choco install nsis --version ${{ env.NSIS_VERSION }} --no-progress -y
+            if ($LASTEXITCODE -eq 0 -and (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe")) { $installed = $true; break }
+            Write-Host "NSIS did not install (attempt $attempt of 4)."
+            Start-Sleep -Seconds (15 * $attempt)
+          }
+          if (-not $installed) { throw "NSIS could not be installed from Chocolatey after 4 attempts." }
           "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
           "$(go env GOPATH)\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
