@@ -1,4 +1,4 @@
-import type { AllowedAttribute, ClassInfo, EntryAttribute, EntryChange, EntryView, Failure, FindResult, GIDResult, RelatedEntry, TreeNode, UIDMatch } from "./backend";
+import type { AllowedAttribute, ClassInfo, EntryAttribute, EntryChange, EntryView, Failure, FindResult, GIDResult, POSIXResult, RelatedEntry, TreeNode, UIDMatch } from "./backend";
 import type { AttributeChange, EntryResult } from "../../bindings/github.com/S0obi/kanopa/services/models";
 import { parentDn, rdnParts, splitDn } from "@/lib/dn";
 
@@ -511,6 +511,25 @@ export function fakeGidCheck(gid: number): GIDResult {
     if (gid > 0 && g === gid && has(n.attrs.objectClass ?? [], "posixGroup")) takenBy.push(n.attrs.cn?.[0] ?? n.dn);
   }
   return { next: highest + 1, takenBy: takenBy.sort(), failure: null };
+}
+
+/** The next free uidNumber, who holds uid, and the posixGroups to pick from, as Go's POSIXInfo. */
+export function fakePosixInfo(uid: number): POSIXResult {
+  let highest = 999;
+  const uidTakenBy: string[] = [];
+  const groups: Array<{ cn: string; gid: number }> = [];
+  for (const n of directory().values()) {
+    const oc = n.attrs.objectClass ?? [];
+    const u = Number(n.attrs.uidNumber?.[0]);
+    if (Number.isFinite(u)) {
+      highest = Math.max(highest, u);
+      if (uid > 0 && u === uid) uidTakenBy.push(n.attrs.uid?.[0] ?? n.attrs.cn?.[0] ?? n.dn);
+    }
+    const g = Number(n.attrs.gidNumber?.[0]);
+    if (has(oc, "posixGroup") && Number.isFinite(g)) groups.push({ cn: n.attrs.cn?.[0] ?? n.dn, gid: g });
+  }
+  groups.sort((a, b) => a.cn.toLowerCase().localeCompare(b.cn.toLowerCase()));
+  return { nextUid: highest + 1, uidTakenBy: uidTakenBy.sort(), groups, failure: null };
 }
 
 /** Picker search, as Go's DirectoryService.Find. */

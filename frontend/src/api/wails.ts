@@ -28,6 +28,7 @@ export const wailsBackend: Backend = {
   referrers: (id, dn) => DirectoryService.Referrers(id, dn),
   resolveUids: (id, uids) => DirectoryService.ResolveUIDs(id, uids),
   gidCheck: (id, gid) => DirectoryService.GIDCheck(id, gid),
+  posixInfo: (id, uid) => DirectoryService.POSIXInfo(id, uid),
   objectClasses: (id) => DirectoryService.ObjectClasses(id),
   countChildren: (id, dn) => DirectoryService.CountChildren(id, dn),
   ping: (id) => DirectoryService.Ping(id),

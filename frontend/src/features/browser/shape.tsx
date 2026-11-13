@@ -674,15 +674,19 @@ function memberOfRows(groups: RelatedEntry[], set: ChangeSet | undefined, dn: st
 
 /* ---------- New entry ---------- */
 
-type EntryKind = "person" | "group" | "posix" | "other";
+type EntryKind = "person" | "posixuser" | "group" | "posix" | "other";
 const KINDS: Array<{ id: EntryKind; label: string; oc: string; type: string }> = [
   { id: "person", label: "Person", oc: "inetOrgPerson", type: "person" },
+  { id: "posixuser", label: "POSIX user", oc: "posixAccount", type: "person" },
   { id: "group", label: "Group", oc: "groupOfNames", type: "group" },
   { id: "posix", label: "POSIX group", oc: "posixGroup", type: "group" },
   { id: "other", label: "Other", oc: "from the schema", type: "entry" },
 ];
 
 const slugUid = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9.]+/g, ".").replace(/^\.+|\.+$/g, "");
+
+/** The uid a new person starts with: the first letter of the first name, then the last name ("Ada Lovelace" is "alovelace"). */
+export const loginOf = (given: string, sn: string) => slugUid(given).charAt(0) + slugUid(sn).replace(/\./g, "");
 
 interface Field {
   name: string;
@@ -705,6 +709,20 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
   // Person
   const [p, setP] = useState({ given: "", sn: "", uid: "", cn: "", mail: "", title: "", pw: "", pw2: "" });
   const [edited, setEdited] = useState({ uid: false, cn: false });
+  // POSIX user: a person who is also a posixAccount. A null field follows its default until it is edited.
+  const [pu, setPu] = useState<{ uidNumber: string | null; group: string | null; gid: string; home: string | null; shell: string }>({ uidNumber: null, group: null, gid: "", home: null, shell: "/bin/bash" });
+  const posix = useQuery({ queryKey: ["posix", id], queryFn: () => backend.posixInfo(id, 0), enabled: kind === "posixuser", staleTime: 0, gcTime: 0 });
+  const posixInfo = posix.data && !posix.data.failure ? posix.data : null;
+  const primaryGroups = posixInfo?.groups ?? [];
+  const uidNumber = pu.uidNumber !== null ? pu.uidNumber.trim() : posixInfo ? String(posixInfo.nextUid) : "";
+  const uidNumberValid = /^\d+$/.test(uidNumber);
+  const uidNumberUse = useQuery({ queryKey: ["uidUse", id, uidNumber], queryFn: () => backend.posixInfo(id, Number(uidNumber)), enabled: kind === "posixuser" && uidNumberValid, staleTime: 10_000 });
+  const uidNumberTakenBy = uidNumberUse.data && !uidNumberUse.data.failure ? uidNumberUse.data.uidTakenBy ?? [] : [];
+  // With posixGroups on the server the primary group is picked by name; without, the number is typed.
+  const groupKey = (gr: { cn: string; gid: number }) => `${gr.gid}:${gr.cn}`;
+  const primaryKey = pu.group ?? (primaryGroups[0] ? groupKey(primaryGroups[0]) : "");
+  const primaryGid = primaryGroups.length > 0 ? primaryKey.split(":")[0] : pu.gid.trim();
+  const primaryGidValid = /^\d+$/.test(primaryGid);
   // Group
   const [g, setG] = useState({ cn: "", description: "" });
   const [members, setMembers] = useState<RelatedEntry[]>([]);
@@ -733,26 +751,35 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
   const setPerson = (k: keyof typeof p, v: string) =>
     setP((cur) => {
       const next = { ...cur, [k]: v };
-      if (k === "given" && !edited.uid) next.uid = slugUid(v);
+      if ((k === "given" || k === "sn") && !edited.uid) next.uid = loginOf(k === "given" ? v : cur.given, k === "sn" ? v : cur.sn);
       if ((k === "given" || k === "sn") && !edited.cn) next.cn = `${k === "given" ? v : cur.given} ${k === "sn" ? v : cur.sn}`.trim();
       return next;
     });
 
   // The entry as it would be added.
   const otherFields = fields;
+  const isPerson = kind === "person" || kind === "posixuser";
+  const home = pu.home !== null ? pu.home.trim() : p.uid.trim() ? `/home/${p.uid.trim()}` : "";
   const rdn =
-    kind === "person" ? `uid=${escapeRdnValue(p.uid.trim())}` : kind === "group" ? `cn=${escapeRdnValue(g.cn.trim())}` : kind === "posix" ? `cn=${escapeRdnValue(px.cn.trim())}` : `${rdnAttr}=${escapeRdnValue(otherFields.find((f) => f.name === rdnAttr)?.value.trim() ?? "")}`;
+    isPerson ? `uid=${escapeRdnValue(p.uid.trim())}` : kind === "group" ? `cn=${escapeRdnValue(g.cn.trim())}` : kind === "posix" ? `cn=${escapeRdnValue(px.cn.trim())}` : `${rdnAttr}=${escapeRdnValue(otherFields.find((f) => f.name === rdnAttr)?.value.trim() ?? "")}`;
   const dn = `${rdn},${parent}`;
   const structural = chosen.find((c) => c.kind === "STRUCTURAL");
   const ocs =
-    kind === "person" ? ["inetOrgPerson", "organizationalPerson", "person", "top"] : kind === "group" ? ["groupOfNames", "top"] : kind === "posix" ? ["posixGroup", "top"] : [...chosen.map((c) => c.name), "top"];
+    kind === "posixuser" ? ["inetOrgPerson", "organizationalPerson", "person", "posixAccount", "top"] : kind === "person" ? ["inetOrgPerson", "organizationalPerson", "person", "top"] : kind === "group" ? ["groupOfNames", "top"] : kind === "posix" ? ["posixGroup", "top"] : [...chosen.map((c) => c.name), "top"];
 
   const errors: string[] = [];
-  if (kind === "person") {
+  if (isPerson) {
     if (!p.sn.trim()) errors.push("Object class violation (65) — inetOrgPerson requires the attribute sn.");
     if (!p.uid.trim()) errors.push("Naming violation (64) — enter a uid: it names the entry.");
     if (!p.cn.trim()) errors.push("Object class violation (65) — inetOrgPerson requires the attribute cn.");
     errors.push(...passwordErrors(p.pw, p.pw2, false));
+    if (kind === "posixuser") {
+      if (!uidNumber) errors.push("Object class violation (65) — posixAccount requires the attribute uidNumber.");
+      else if (!uidNumberValid) errors.push("Invalid syntax (21) — uidNumber must be a whole number.");
+      if (!primaryGid) errors.push("Object class violation (65) — posixAccount requires the attribute gidNumber. Choose the primary group.");
+      else if (!primaryGidValid) errors.push("Invalid syntax (21) — gidNumber must be a whole number.");
+      if (!home) errors.push("Object class violation (65) — posixAccount requires the attribute homeDirectory.");
+    }
   } else if (kind === "group") {
     if (!g.cn.trim()) errors.push("Naming violation (64) — enter a group name: cn names the entry.");
     if (members.length === 0) errors.push("Object class violation (65) — groupOfNames requires the attribute member. Add a member.");
@@ -775,13 +802,17 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
     const attr = (name: string, values: string[], k: ValueKind = "text"): PendingAttr => ({ name, kind: k, before: [], after: values.map((v) => v.trim()).filter(Boolean) });
     let attrs: PendingAttr[];
     let title: string;
-    if (kind === "person") {
+    if (isPerson) {
       title = p.cn.trim();
       attrs = [attr("objectClass", ocs), attr("uid", [p.uid]), attr("cn", [p.cn]), attr("sn", [p.sn])];
       if (p.given.trim()) attrs.push(attr("givenName", [p.given]));
       if (p.mail.trim()) attrs.push(attr("mail", [p.mail]));
       if (p.title.trim()) attrs.push(attr("title", [p.title]));
       if (p.pw) attrs.push({ name: "userPassword", kind: "password", before: [], after: [], password: p.pw });
+      if (kind === "posixuser") {
+        attrs.push(attr("uidNumber", [uidNumber]), attr("gidNumber", [primaryGid]), attr("homeDirectory", [home]));
+        if (pu.shell.trim()) attrs.push(attr("loginShell", [pu.shell]));
+      }
     } else if (kind === "group") {
       title = g.cn.trim();
       attrs = [attr("objectClass", ocs), attr("cn", [g.cn]), attr("member", members.map((m) => m.dn), "dn")];
@@ -859,7 +890,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
         <DnPreview label="DN" rdn={rdn} parent={parent} />
       </div>
 
-      {kind === "person" && (
+      {isPerson && (
         <div className="grid grid-cols-2 gap-3">
           <TextField label={label("First name", "givenName")} value={p.given} autoFocus onChange={(e) => setPerson("given", e.target.value)} />
           <TextField label={label("Last name", "sn", true)} value={p.sn} required onChange={(e) => setPerson("sn", e.target.value)} />
@@ -867,7 +898,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
             label={label("User ID", "uid", true)}
             mono
             value={p.uid}
-            hint="Names the entry. Follows the first name until you edit it."
+            hint="Names the entry. The first letter of the first name and the last name, until you edit it."
             onChange={(e) => {
               setEdited((x) => ({ ...x, uid: true }));
               setPerson("uid", e.target.value);
@@ -897,6 +928,54 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
                 : "Optional. This connection is not encrypted: the password crosses the network as plain text."
             }
           />
+        </div>
+      )}
+
+      {kind === "posixuser" && (
+        <div className="grid grid-cols-2 gap-3">
+          <TextField
+            label={label("User number", "uidNumber", true)}
+            mono
+            inputMode="numeric"
+            value={uidNumber}
+            aria-invalid={tried && (!uidNumber || !uidNumberValid)}
+            hint={
+              uidNumberTakenBy.length
+                ? `Already used by ${uidNumberTakenBy.join(", ")}. Two accounts with the same uidNumber share their files.`
+                : pu.uidNumber === null && uidNumber
+                  ? "The next free number on the server. Change it if you need another."
+                  : undefined
+            }
+            onChange={(e) => setPu({ ...pu, uidNumber: e.target.value })}
+          />
+          {primaryGroups.length > 0 ? (
+            <Select
+              label={label("Primary group", "gidNumber", true)}
+              mono
+              value={primaryKey}
+              onChange={(v) => setPu({ ...pu, group: v })}
+              options={primaryGroups.map((gr) => ({ value: groupKey(gr), label: `${gr.cn} (${gr.gid})` }))}
+            />
+          ) : (
+            <TextField
+              label={label("Primary group ID", "gidNumber", true)}
+              mono
+              inputMode="numeric"
+              value={pu.gid}
+              aria-invalid={tried && (!primaryGid || !primaryGidValid)}
+              hint={posix.isPending ? "Looking for the POSIX groups." : "The server has no POSIX group yet: enter the gidNumber."}
+              onChange={(e) => setPu({ ...pu, gid: e.target.value })}
+            />
+          )}
+          <TextField
+            label={label("Home directory", "homeDirectory", true)}
+            mono
+            value={home}
+            aria-invalid={tried && !home}
+            hint={pu.home === null ? "Follows the User ID until you edit it." : undefined}
+            onChange={(e) => setPu({ ...pu, home: e.target.value })}
+          />
+          <TextField label={label("Login shell", "loginShell")} mono value={pu.shell} onChange={(e) => setPu({ ...pu, shell: e.target.value })} />
         </div>
       )}
 

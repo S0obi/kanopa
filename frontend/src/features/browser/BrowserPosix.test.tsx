@@ -319,4 +319,71 @@ describe("keeping memberUid in step", () => {
     const refs = (await backend.referrers("prod", `uid=svc-mail,${services}`)).entries ?? [];
     expect(refs.filter((x) => x.memberAttr === "memberUid")).toEqual([]);
   });
+
+  it("creates a person who is also a posixAccount, with the next free number and a group picked by name", async () => {
+    const { user, backend } = await open();
+    await user.click(await item(/^ou=people/));
+    await heading("people");
+    await user.click(screen.getByRole("button", { name: "New entry" }));
+    const dialog = screen.getByRole("dialog", { name: "New entry" });
+    await user.click(within(dialog).getByRole("button", { name: /^POSIX user/ }));
+    await user.type(within(dialog).getByLabelText(/First name/), "Mary");
+    await user.type(within(dialog).getByLabelText(/Last name/), "Jackson");
+    // The uid is the first letter of the first name and the last name; the home follows it.
+    expect(within(dialog).getByLabelText(/User ID/)).toHaveValue("mjackson");
+    expect(within(dialog).getByLabelText(/Home directory/)).toHaveValue("/home/mjackson");
+    expect(within(dialog).getByLabelText(/Login shell/)).toHaveValue("/bin/bash");
+    await waitFor(() => expect(within(dialog).getByLabelText(/User number/)).toHaveValue("1000"));
+    expect(within(dialog).getByRole("combobox", { name: /Primary group/ })).toHaveTextContent("unix-devs (2002)");
+    expect(within(dialog).getByText(/objectClass: inetOrgPerson, organizationalPerson, person, posixAccount, top/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Create entry" }));
+
+    await user.click(within(bar()).getByRole("button", { name: /Apply/ }));
+    await screen.findByText("Saved 1 change to localhost.");
+    const e = await backend.entry("prod", `uid=mjackson,ou=people,${base}`);
+    expect(e.failure).toBeNull();
+    expect(e.objectClasses).toEqual(expect.arrayContaining(["inetOrgPerson", "posixAccount"]));
+    for (const [name, value] of [["uidNumber", "1000"], ["gidNumber", "2002"], ["homeDirectory", "/home/mjackson"], ["loginShell", "/bin/bash"]]) {
+      expect(e.attributes?.find((a) => a.name === name)?.values).toEqual([value]);
+    }
+    // The number is now in use.
+    expect((await backend.posixInfo("prod", 1000)).uidTakenBy).toEqual(["mjackson"]);
+  });
+
+  it("refuses a POSIX user without a number or a home directory", async () => {
+    const { user } = await open();
+    await user.click(await item(/^ou=people/));
+    await heading("people");
+    await user.click(screen.getByRole("button", { name: "New entry" }));
+    const dialog = screen.getByRole("dialog", { name: "New entry" });
+    await user.click(within(dialog).getByRole("button", { name: /^POSIX user/ }));
+    await user.type(within(dialog).getByLabelText(/Last name/), "Hopper");
+    await waitFor(() => expect(within(dialog).getByLabelText(/User number/)).toHaveValue("1000"));
+    await user.clear(within(dialog).getByLabelText(/User number/));
+    await user.clear(within(dialog).getByLabelText(/Home directory/));
+    await user.click(within(dialog).getByRole("button", { name: "Create entry" }));
+    const alerts = within(dialog).getAllByRole("alert").map((a) => a.textContent).join(" ");
+    expect(alerts).toMatch(/requires the attribute uidNumber/);
+    expect(alerts).toMatch(/1 more problem/);
+  });
+
+  it("starts a person's uid as the first letter of the first name and the last name, until it is edited", async () => {
+    const { user } = await open();
+    await user.click(await item(/^ou=people/));
+    await heading("people");
+    await user.click(screen.getByRole("button", { name: "New entry" }));
+    const dialog = screen.getByRole("dialog", { name: "New entry" });
+    const uid = within(dialog).getByLabelText(/User ID/);
+    await user.type(within(dialog).getByLabelText(/First name/), "Ada");
+    expect(uid).toHaveValue("a");
+    await user.type(within(dialog).getByLabelText(/Last name/), "Lovelace");
+    expect(uid).toHaveValue("alovelace");
+    await user.clear(within(dialog).getByLabelText(/First name/));
+    await user.type(within(dialog).getByLabelText(/First name/), "Augusta");
+    expect(uid).toHaveValue("alovelace");
+    await user.clear(uid);
+    await user.type(uid, "countess");
+    await user.type(within(dialog).getByLabelText(/Last name/), "-King");
+    expect(uid).toHaveValue("countess");
+  });
 });

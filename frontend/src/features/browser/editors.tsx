@@ -56,7 +56,7 @@ interface PasswordPairProps {
 export function PasswordPair({ label = "New password", value, confirm, onChange, onConfirm, hint, invalid, autoFocus, className }: PasswordPairProps) {
   const mismatch = !!confirm && value !== confirm;
   return (
-    <div className={cx("grid grid-cols-2 gap-3", className)}>
+    <div className={cx("kn-pair", className)}>
       <TextField
         label={label}
         type="password"

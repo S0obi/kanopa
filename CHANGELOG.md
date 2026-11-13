@@ -4,8 +4,13 @@ All notable changes to Kanopa are written here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+
+- New entry offers a **POSIX user**: a person who is also a `posixAccount`. Kanopa suggests the next free `uidNumber` and warns when a number is already used, lets you pick the primary group from the POSIX groups on the server, and fills in `/home/<uid>` and `/bin/bash`, which you can edit.
+
 ### Changed
 
+- A new person's User ID now starts as the first letter of the first name followed by the last name ("Ada Lovelace" is `alovelace`), until you edit it.
 - When the server lists an entry but refuses to open it, Kanopa now says so in plain words, shows the DN to copy for whoever runs the directory, and offers Try again.
 
 ### Fixed

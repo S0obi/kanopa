@@ -27,7 +27,7 @@ test("create a person, add them to a group, rename them, apply", async ({ page }
   const dialog = page.getByRole("dialog", { name: "New entry" });
   await dialog.getByLabel(/First name/).fill("Zoë");
   await dialog.getByLabel(/Last name/).fill("Kanopa");
-  await expect(dialog.getByLabel(/User ID/)).toHaveValue("zoe");
+  await expect(dialog.getByLabel(/User ID/)).toHaveValue("zkanopa");
   await dialog.getByLabel(/Initial password/).fill("zoe-Passw0rd");
   await dialog.getByLabel("Confirm password").fill("zoe-Passw0rd");
   await dialog.getByRole("button", { name: "Create entry" }).click();
@@ -46,7 +46,7 @@ test("create a person, add them to a group, rename them, apply", async ({ page }
   await expect(bar(page)).toContainText("Pending change: member on cn=research");
 
   await menu(page, /Rename/);
-  const rename = page.getByRole("dialog", { name: /Rename uid=zoe/ });
+  const rename = page.getByRole("dialog", { name: /Rename uid=zkanopa/ });
   // The research membership is pending, not on the server yet: Apply sends it with the new DN.
   await rename.getByRole("textbox", { name: /New name/ }).fill("zoe.kanopa");
   await rename.getByRole("button", { name: "Rename entry" }).click();
@@ -90,4 +90,17 @@ test("delete with cleanup; a container with children is blocked", async ({ page 
   const blocked = page.getByRole("alertdialog", { name: /Delete ou=hosts/ });
   await expect(blocked).toContainText("ou=hosts still has 70 entries below it.");
   await expect(blocked.getByRole("button", { name: "Delete entry" })).toBeDisabled();
+});
+
+test("the two password fields stay level, whatever the labels and hints do", async ({ page }) => {
+  await connect(page);
+  await row(page, /^ou=people/).click();
+  await expect(title(page, "people")).toBeVisible();
+  await page.getByRole("button", { name: "New entry" }).click();
+  const dialog = page.getByRole("dialog", { name: "New entry" });
+  for (const width of [900, 520]) {
+    await page.setViewportSize({ width, height: 800 });
+    const [a, b] = await Promise.all([dialog.getByLabel(/Initial password/).boundingBox(), dialog.getByLabel("Confirm password").boundingBox()]);
+    expect(a && b && Math.abs(a.y - b.y) < 1).toBe(true);
+  }
 });

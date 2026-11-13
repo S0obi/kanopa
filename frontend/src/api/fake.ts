@@ -1,5 +1,5 @@
 import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName } from "./backend";
-import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeGidCheck, fakeMemberOf, fakeNode, fakePreview, fakeReferrers, fakeResolveUids } from "./fakeDirectory";
+import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeGidCheck, fakeMemberOf, fakePosixInfo, fakeNode, fakePreview, fakeReferrers, fakeResolveUids } from "./fakeDirectory";
 import { fakeQuick } from "./fakeQuick";
 
 /**
@@ -357,6 +357,10 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     async gidCheck(id, gid) {
       const lost = check(id);
       return lost ? { next: 0, takenBy: [], failure: lost } : fakeGidCheck(gid);
+    },
+    async posixInfo(id, uid) {
+      const lost = check(id);
+      return lost ? { nextUid: 0, uidTakenBy: [], groups: [], failure: lost } : fakePosixInfo(uid);
     },
     async quick(id, text, signal) {
       await wait(FAKE.delayMs, signal);

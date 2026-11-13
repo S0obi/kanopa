@@ -862,6 +862,44 @@ func (d *DirectoryService) GIDCheck(ctx context.Context, id string, gid int) GID
 	return GIDResult{Next: next, TakenBy: taken}
 }
 
+// PosixGroup is a posixGroup offered as the primary group of a new account.
+type PosixGroup struct {
+	CN  string `json:"cn"`
+	GID int    `json:"gid"`
+}
+
+// POSIXResult answers POSIXInfo.
+type POSIXResult struct {
+	NextUID    int          `json:"nextUid"`    // the next free uidNumber
+	UIDTakenBy []string     `json:"uidTakenBy"` // accounts that already use the asked uidNumber
+	Groups     []PosixGroup `json:"groups"`     // every posixGroup, by name
+	Failure    *Failure     `json:"failure"`
+}
+
+// POSIXInfo suggests the next free uidNumber for a new posixAccount (above every number in use, and
+// at least 1000), names the accounts that already use uid when uid is more than 0, and lists the
+// posixGroups the account can have as its primary group.
+func (d *DirectoryService) POSIXInfo(ctx context.Context, id string, uid int) POSIXResult {
+	l, f := d.session(id)
+	if f != nil {
+		return POSIXResult{Failure: f, UIDTakenBy: []string{}, Groups: []PosixGroup{}}
+	}
+	l.paged.Lock()
+	info, err := l.POSIXInfo(ctx, l.baseDN, uid)
+	l.paged.Unlock()
+	if err != nil {
+		return POSIXResult{Failure: d.fail(l, err), UIDTakenBy: []string{}, Groups: []PosixGroup{}}
+	}
+	out := POSIXResult{NextUID: info.NextUID, UIDTakenBy: info.UIDTakenBy, Groups: make([]PosixGroup, 0, len(info.Groups))}
+	if out.UIDTakenBy == nil {
+		out.UIDTakenBy = []string{}
+	}
+	for _, g := range info.Groups {
+		out.Groups = append(out.Groups, PosixGroup{CN: g.CN, GID: g.GID})
+	}
+	return out
+}
+
 // Ping checks that the connection still answers. It returns nil when it does.
 func (d *DirectoryService) Ping(ctx context.Context, id string) *Failure {
 	l, f := d.session(id)

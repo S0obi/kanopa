@@ -115,6 +115,10 @@ for (const scheme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "New entry" }).click();
       await expect(page.getByRole("dialog", { name: "New entry" })).toBeVisible();
       await scan(page, "new entry dialog");
+      // A POSIX user shows the account fields and a primary group picked by name.
+      await page.getByRole("button", { name: /^POSIX user/ }).click();
+      await expect(page.getByRole("combobox", { name: /Primary group/ })).toBeVisible();
+      await scan(page, "new POSIX user");
       // The dropdown is drawn by the app, so axe reads it too: open, with an option highlighted.
       await page.getByRole("combobox", { name: "Create under" }).focus();
       await page.keyboard.press("ArrowDown");

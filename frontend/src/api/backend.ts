@@ -16,6 +16,8 @@ import type {
   FindResult,
   GIDResult,
   Layout,
+  POSIXResult,
+  PosixGroup,
   ListResult,
   PreviewResult,
   QuickHit,
@@ -34,7 +36,7 @@ import type {
 
 export type {
   About, Layout, AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
-  GIDResult, QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection, UIDMatch, UIDResult,
+  GIDResult, POSIXResult, PosixGroup, QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection, UIDMatch, UIDResult,
   SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
 };
 
@@ -76,6 +78,8 @@ export interface Backend {
   resolveUids(id: string, uids: string[]): Promise<UIDResult>;
   /** The next free gidNumber for a new posixGroup, and the posixGroups that already use gid (when it is more than 0). */
   gidCheck(id: string, gid: number): Promise<GIDResult>;
+  /** For a new posixAccount: the next free uidNumber, the accounts that use uid (when it is more than 0) and the posixGroups to pick as primary group. */
+  posixInfo(id: string, uid: number): Promise<POSIXResult>;
   /** null while the connection answers. */
   ping(id: string): Promise<Failure | null>;
   /**
