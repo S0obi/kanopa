@@ -338,7 +338,15 @@ func (c *ChangeService) applyEntry(ctx context.Context, l *liveSession, ch Entry
 		if l.assertion {
 			assertion = p.assertion
 		}
-		if err := l.Modify(ctx, ch.DN, mods, assertion); err != nil {
+		err := l.Modify(ctx, ch.DN, mods, assertion)
+		if assertion != "" && isCode(err, 12) {
+			// The server lists the assertion control but will not use it for this entry or
+			// attribute (some refuse it on attributes such as memberUid). The entry was
+			// read and compared just above, and removing a named value fails if it is gone,
+			// so send the change without it rather than refuse it.
+			err = l.Modify(ctx, ch.DN, mods, "")
+		}
+		if err != nil {
 			return nameConflict(ctx, l, ch, err)
 		}
 	}
@@ -378,6 +386,12 @@ func holds(kind string, values [][]byte, v string) bool {
 		}
 	}
 	return false
+}
+
+// isCode reports whether err is an LDAP error with the given result code.
+func isCode(err error, code int) bool {
+	var le *ldapx.Error
+	return errors.As(err, &le) && le.Code == code
 }
 
 // nameConflict turns the server's assertion failure (122) into one that names the attributes

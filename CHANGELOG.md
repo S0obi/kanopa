@@ -4,6 +4,10 @@ All notable changes to Kanopa are written here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Fixed
+
+- Removing a member from a POSIX group no longer fails with "Unavailable critical extension" on servers that list the assertion control but refuse it for that attribute. Kanopa now sends the change without it, after checking the entry just before.
+
 ## [0.1.0] - 2026-11-13
 
 The first public release, for Windows and macOS.
