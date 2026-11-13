@@ -57,14 +57,42 @@ export function EntryPane() {
   const e = entry.data;
   if (e.failure && !e.failure.lost)
     return (
-      <div className="p-4">
+      <div className="flex flex-col gap-3 p-4">
         <Banner tone="danger" title={e.failure.title}>
           {e.failure.message}
         </Banner>
+        <UnreadableActions dn={dn} onRetry={() => void entry.refetch()} retrying={entry.isFetching} />
       </div>
     );
   if (e.failure) return null; // the lost-connection banner says it
   return <Entry key={e.dn} entry={e} session={session!} editable={!session!.readOnly && connection === "connected"} onOpen={open} />;
+}
+
+/** Under a failed read: the DN to hand to whoever runs the server, and a way to try again. */
+function UnreadableActions({ dn, onRetry, retrying }: { dn: string; onRetry: () => void; retrying: boolean }) {
+  const backend = useBackend();
+  const toast = useToasts((s) => s.show);
+  const copy = async () => {
+    try {
+      await backend.copyText(dn);
+      toast("Copied the DN.");
+    } catch {
+      toast("Kanopa couldn't copy the DN.", "danger");
+    }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <code className="min-w-0 flex-1 break-all rounded-md border border-line bg-surface-raised px-2 py-1 font-mono text-xs" data-testid="unreadable-dn">
+        {dn}
+      </code>
+      <Button icon="copy" onClick={() => void copy()}>
+        Copy DN
+      </Button>
+      <Button onClick={onRetry} disabled={retrying}>
+        Try again
+      </Button>
+    </div>
+  );
 }
 
 /** The entry's attributes with the attributes the person is adding, which the server does not have yet. */

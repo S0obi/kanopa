@@ -128,7 +128,14 @@ func (s *Session) ReadEntry(ctx context.Context, dn string, mode ReferralMode) (
 		"(objectClass=*)", []string{"*", "+"}, mode.controls())
 	res, err := keepSearch(ctx, s.Conn, req)
 	if err != nil {
-		return nil, Classify(err, s.op())
+		ke := Classify(err, s.op())
+		if ke.Code == 32 {
+			// Listed by its parent but refused when read: an access rule that allows listing and
+			// not reading, or a damaged index on the server. Not something Kanopa can fix.
+			return nil, newErr(32, "Can't read this entry.",
+				"The server shows this entry in its folder but refuses to open it. The usual causes are an access rule that allows listing and not reading, or a damaged index on the server. Ask whoever runs the directory, and give them the DN. Other entries are not affected.", err)
+		}
+		return nil, ke
 	}
 	if len(res.Entries) == 0 {
 		return nil, newErr(32, "Entry not found.", "The server has no entry at "+dn+". It may have been renamed or deleted.", nil)
