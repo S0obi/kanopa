@@ -20407,6 +20407,7 @@ memberUid: ada
 memberUid: margaret
 memberUid: ghost.user
 memberUid: twin
+memberUid: casey
 
 dn: cn=unix-empty,ou=groups,dc=example,dc=org
 objectClass: posixGroup
@@ -21030,6 +21031,16 @@ objectClass: inetOrgPerson
 objectClass: top
 uid: twin
 sn: Twin
+
+dn: cn=Casey Unix,ou=edge,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: top
+objectClass: posixAccount
+uid: casey
+sn: Unix
+uidNumber: 3001
+gidNumber: 2002
+homeDirectory: /home/casey
 
 dn: cn=Zoe Mueller,ou=edge,dc=example,dc=org
 objectClass: inetOrgPerson

@@ -571,12 +571,14 @@ function cellsToRows(values: string[], pending: PendingAttr | undefined): RelRow
 }
 
 /** The groups that list a person, with pending joins and leaves; Add to group searches groups. */
-export function MemberOfPanel({ id, entry, editable, onOpen }: { id: string; entry: EntryView; editable: boolean; onOpen: (dn: string) => void }) {
+/**
+ * The groups that list an entry, with the pending joins and leaves applied: by DN (member, uniqueMember)
+ * and, for a posixGroup, by the entry's uid (memberUid). The tab and its count share this one lookup.
+ */
+export function useMemberOf(id: string, entry: EntryView, enabled = true) {
   const backend = useBackend();
-  const { failed, session } = useBrowser();
-  const update = useChanges((s) => s.update);
+  const failed = useBrowser((s) => s.failed);
   const set = useChanges((s) => s.byConnection[id]);
-  const [adding, setAdding] = useState(false);
   const q = useQuery({
     queryKey: ["memberOf", id, dnKey(entry.dn)],
     queryFn: async () => {
@@ -584,11 +586,22 @@ export function MemberOfPanel({ id, entry, editable, onOpen }: { id: string; ent
       if (r.failure) failed(r.failure);
       return r;
     },
+    enabled,
     staleTime: 30_000,
   });
   // A posixGroup lists the uid, not the DN, so a person with no uid cannot join one.
   const uid = (entry.attributes ?? []).find((a) => /^uid$/i.test(a.name))?.values?.[0] ?? "";
   const rows = useMemo(() => memberOfRows(q.data?.entries ?? [], set, entry.dn, uid), [q.data, set, entry.dn, uid]);
+  /** How many groups the entry will be in once the pending changes apply; undefined until the lookup is done. */
+  const count = q.data && !q.data.failure ? rows.filter((g) => g.state !== "removed").length : undefined;
+  return { q, rows, uid, count };
+}
+
+export function MemberOfPanel({ id, entry, editable, onOpen }: { id: string; entry: EntryView; editable: boolean; onOpen: (dn: string) => void }) {
+  const { session } = useBrowser();
+  const update = useChanges((s) => s.update);
+  const [adding, setAdding] = useState(false);
+  const { q, rows, uid } = useMemberOf(id, entry);
   if (q.isPending) return <Skeleton variant="table" rows={3} label="Finding groups" />;
   const r = q.data!;
   if (r.failure && !r.failure.lost)

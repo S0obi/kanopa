@@ -256,7 +256,8 @@ func writeGroups(w *bufio.Writer, uids []string) {
 }
 
 // writePosixGroups writes groups that list their members by uid (memberUid), as a Unix directory does.
-// unix-devs lists a uid nobody carries (ghost.user) and one two entries carry (twin, in ou=edge).
+// unix-devs lists a uid nobody carries (ghost.user), one two entries carry (twin, in ou=edge), and casey,
+// a posixAccount in ou=edge that is named by cn, not by uid.
 func writePosixGroups(w *bufio.Writer) {
 	posix := []struct {
 		cn, desc string
@@ -264,7 +265,7 @@ func writePosixGroups(w *bufio.Writer) {
 		uids     []string
 	}{
 		{"unix-staff", "Unix group of the staff", 2001, []string{"ada", "alan", "grace"}},
-		{"unix-devs", "Unix group of the developers", 2002, []string{"ada", "margaret", "ghost.user", "twin"}},
+		{"unix-devs", "Unix group of the developers", 2002, []string{"ada", "margaret", "ghost.user", "twin", "casey"}},
 		{"unix-empty", "Unix group with no member yet", 2003, nil},
 	}
 	for _, g := range posix {
@@ -317,6 +318,8 @@ func writeEdge(w *bufio.Writer) {
 	// A multi-valued RDN.
 	person("cn=Twin+uid=twin", "cn: Twin", "uid: twin", "sn: Twin")
 	person("cn=Twin two", "uid: twin", "sn: Twin")
+	// A posixAccount named by cn: its uid is an attribute, not the RDN.
+	person("cn=Casey Unix", "objectClass: posixAccount", "uid: casey", "sn: Unix", "uidNumber: 3001", "gidNumber: 2002", "homeDirectory: /home/casey")
 	// Non-ASCII values and a long value.
 	person("cn=Zoe Mueller", "sn: Müller", "givenName: Zoë", "description: Ærø, naïve café, 日本語")
 	person("cn=Long description", "sn: Long", "description: "+strings.Repeat("A long sentence that keeps going. ", 120))

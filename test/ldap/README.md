@@ -23,7 +23,7 @@ wails3 task ldap:down
 
 - `dc=example,dc=org` with `ou=people` (1,182 entries: Ada Lovelace, Grace Hopper, Alan Turing … plus generated names), `ou=groups` (24 `groupOfNames` and 3 `posixGroup`), `ou=services` (3 accounts) and `ou=hosts` (70 devices)
 - a `jpegPhoto` on Ada, `{SSHA}` passwords, `manager` DNs
-- `ou=groups` also holds three `posixGroup` entries (`unix-staff`, `unix-devs`, `unix-empty`) that list members by uid; `unix-devs` lists a uid nobody carries (`ghost.user`) and one two entries carry (`twin`)
+- `ou=groups` also holds three `posixGroup` entries (`unix-staff`, `unix-devs`, `unix-empty`) that list members by uid; `unix-devs` lists a uid nobody carries (`ghost.user`), one two entries carry (`twin`) and one carried by a posixAccount named by `cn` (`casey`, in `ou=edge`)
 - `ou=edge`: awkward cases: escaped and multi-valued names, non-ASCII and very long values, an attribute with 80 values, a binary photo, and eight nested units
 - `ou=partners`: a referral to `ldap://partners.example.org/…`
 - Alpine 3.24, OpenLDAP 2.6.15

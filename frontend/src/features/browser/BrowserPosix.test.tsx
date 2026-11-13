@@ -177,6 +177,55 @@ describe("posixGroups on a person (Member of)", () => {
   });
 });
 
+describe("the Member of tab on a person", () => {
+  it("shows how many groups list the person, with posixGroups counted", async () => {
+    const { user } = await open();
+    await openPerson(user, "ada", "Ada Lovelace");
+    // admins, engineering and research list her DN; unix-devs and unix-staff list her uid.
+    const tab = screen.getByRole("tab", { name: /Member of/ });
+    await waitFor(() => expect(tab).toHaveTextContent("5"));
+  });
+
+  it("counts a pending leave and a pending join", async () => {
+    const { user } = await open();
+    await openPerson(user, "alan", "Alan Turing");
+    const tab = screen.getByRole("tab", { name: /Member of/ });
+    await waitFor(() => expect(tab).toHaveTextContent("3"));
+    await user.click(tab);
+    await user.click(await screen.findByRole("button", { name: "Remove unix-staff" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Member of/ })).toHaveTextContent("2"));
+    await user.click(screen.getByRole("button", { name: "Add to group" }));
+    await user.type(screen.getByRole("searchbox", { name: /Search groups/ }), "unix-empty");
+    await user.click(await screen.findByRole("button", { name: "Add unix-empty" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Member of/ })).toHaveTextContent("3"));
+  });
+
+  it("lists the posixGroups of a person who is not named by uid", async () => {
+    const { user, backend } = await open();
+    const text = (name: string, after: string[]) => ({ name, kind: "text", before: [], after });
+    // A posixAccount is often named by cn: its uid is an attribute, and the group lists that.
+    const r = await backend.apply("prod", [
+      { op: "add", dn: `cn=Casey Unix,${services}`, attributes: [text("objectClass", ["inetOrgPerson", "organizationalPerson", "person", "top"]), text("uid", ["casey"]), text("cn", ["Casey Unix"]), text("sn", ["Unix"])] },
+      { op: "modify", dn: `cn=unix-devs,${groups}`, attributes: [{ name: "memberUid", kind: "text", add: ["casey"] }] },
+    ] as never);
+    expect(r.applied).toBe(2);
+    await user.click(await item(/^ou=services/));
+    await user.keyboard("{ArrowRight}");
+    await user.click(await item(/^cn=Casey Unix/));
+    await heading("Casey Unix");
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Member of/ })).toHaveTextContent("1"));
+    await user.click(screen.getByRole("tab", { name: /Member of/ }));
+    expect(await screen.findByText("unix-devs")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove unix-devs" })).toBeInTheDocument();
+  });
+
+  it("shows no badge for a group, whose tab is Members", async () => {
+    const { user } = await open();
+    await openGroup(user, "unix-empty");
+    expect(screen.queryByRole("tab", { name: /Member of/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("creating a posixGroup", () => {
   it("suggests the next free gidNumber, warns about a used one, and writes the group", async () => {
     const { user, backend } = await open();

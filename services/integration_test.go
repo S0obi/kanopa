@@ -240,7 +240,7 @@ func TestEdgeCasesInTheFixture(t *testing.T) {
 	edge := "ou=edge," + testldap.BaseDN
 
 	kids := d.Children(ctx, id, edge, "")
-	if kids.Failure != nil || kids.Total != 9 {
+	if kids.Failure != nil || kids.Total != 10 {
 		t.Fatalf("children of ou=edge: total %d, failure %+v", kids.Total, kids.Failure)
 	}
 	byRDN := map[string]TreeNode{}
@@ -329,6 +329,12 @@ func TestPosixGroupsInTheFixture(t *testing.T) {
 	}
 	if free := d.GIDCheck(ctx, id, 5000); len(free.TakenBy) != 0 {
 		t.Fatalf("5000 should be free: %+v", free)
+	}
+
+	// A posixAccount named by cn, not by uid, is still found in the groups that list its uid.
+	casey := d.MemberOf(ctx, id, "cn=Casey Unix,"+edgeOU)
+	if casey.Failure != nil || len(casey.Entries) != 1 || casey.Entries[0].Name != "unix-devs" || casey.Entries[0].MemberAttr != "memberUid" {
+		t.Fatalf("groups of cn=Casey Unix: %+v", casey)
 	}
 
 	// A rename or delete of ada also has to update the groups that list her uid.
