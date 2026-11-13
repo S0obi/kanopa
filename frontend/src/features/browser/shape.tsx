@@ -29,7 +29,7 @@ function useReferrers(id: string, dn: string, enabled = true) {
 const linksOf = (groups: RelatedEntry[]): Link[] => groups.filter((g) => g.memberAttr).map((g) => ({ group: g.dn, title: g.name, attr: g.memberAttr }));
 
 /** The RDN value of a DN, unescaped: "uid=ada,…" → "ada". */
-export const rdnValue = (dn: string) => unescapeRdnValue(rdnParts(splitDn(dn)[0] ?? "")[1]);
+const rdnValue = (dn: string) => unescapeRdnValue(rdnParts(splitDn(dn)[0] ?? "")[1]);
 const rdnAttrOf = (dn: string) => rdnParts(splitDn(dn)[0] ?? "")[0].replace(/=$/, "");
 const rdnOf = (dn: string) => splitDn(dn)[0] ?? dn;
 
@@ -229,7 +229,7 @@ interface PickerProps {
 }
 
 /** Search the base DN for people or groups; the first 8 hits, with the total and the filter. */
-export function Picker({ id, kind, exclude, onPick, onDone, label }: PickerProps) {
+function Picker({ id, kind, exclude, onPick, onDone, label }: PickerProps) {
   const backend = useBackend();
   const [q, setQ] = useState("");
   const [settled, setSettled] = useState("");

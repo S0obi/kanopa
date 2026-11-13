@@ -9,7 +9,7 @@ interface Options {
   self?: boolean;
 }
 
-export interface Windowed<T extends HTMLElement> {
+interface Windowed<T extends HTMLElement> {
   /** Goes on the element that holds the rows (a callback ref). */
   attach: (el: T | null) => void;
   /** The rows to draw are [start, end). */

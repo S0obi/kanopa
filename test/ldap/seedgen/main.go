@@ -132,6 +132,7 @@ func main() {
 	writeGroups(w, uids)
 	writeServices(w)
 	writeHosts(w)
+	writeEdge(w)
 
 	entry(w, "ou=partners,"+base, "objectClass: referral", "objectClass: extensibleObject", "ou: partners",
 		"ref: ldap://partners.example.org/ou=partners,dc=example,dc=org")
@@ -277,5 +278,37 @@ func writeHosts(w *bufio.Writer) {
 	for _, h := range hosts {
 		entry(w, "cn="+h.cn+",ou=hosts,"+base, "objectClass: device", "objectClass: ipHost", "objectClass: top",
 			"cn: "+h.cn, "description: "+h.desc, "ipHostNumber: "+h.ip)
+	}
+}
+
+// writeEdge writes ou=edge: entries that stress names, values and depth the way real directories do.
+func writeEdge(w *bufio.Writer) {
+	edge := "ou=edge," + base
+	ou(w, "edge", "Awkward names, values and depth")
+
+	person := func(rdn string, lines ...string) {
+		entry(w, rdn+","+edge, append([]string{"objectClass: inetOrgPerson", "objectClass: top"}, lines...)...)
+	}
+	// Characters that must be escaped in a DN.
+	person(`cn=Smith\, John`, `cn: Smith, John`, "sn: Smith", "givenName: John")
+	person(`cn=Plus\+Equals\=Hash\#`, `cn: Plus+Equals=Hash#`, "sn: Characters")
+	// A multi-valued RDN.
+	person("cn=Twin+uid=twin", "cn: Twin", "uid: twin", "sn: Twin")
+	// Non-ASCII values and a long value.
+	person("cn=Zoe Mueller", "sn: Müller", "givenName: Zoë", "description: Ærø, naïve café, 日本語")
+	person("cn=Long description", "sn: Long", "description: "+strings.Repeat("A long sentence that keeps going. ", 120))
+	// An attribute with many values, and a binary one.
+	mails := []string{"sn: Many"}
+	for i := 1; i <= 80; i++ {
+		mails = append(mails, fmt.Sprintf("mail: many.%02d@example.org", i))
+	}
+	person("cn=Many values", mails...)
+	person("cn=With photo", "sn: Photo", "jpegPhoto:: "+base64.StdEncoding.EncodeToString(photo()))
+
+	// Depth: eight units nested.
+	dn := edge
+	for i := 1; i <= 8; i++ {
+		dn = fmt.Sprintf("ou=level%d,%s", i, dn)
+		entry(w, dn, "objectClass: organizationalUnit", "objectClass: top", fmt.Sprintf("ou: level%d", i))
 	}
 }

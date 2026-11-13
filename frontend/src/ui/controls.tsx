@@ -57,7 +57,7 @@ const KEYS: Record<Platform, Record<KeyName, string>> = {
 };
 const MAC_ORDER: Record<string, number> = { ctrl: 0, alt: 1, shift: 2, mod: 3 };
 
-export interface KbdProps {
+interface KbdProps {
   keys: string[];
   platform?: Platform;
   className?: string;
@@ -79,12 +79,6 @@ export function Kbd({ keys, platform = detectPlatform(), className }: KbdProps) 
   );
 }
 
-/** The shortcut as plain text, for aria-keyshortcuts-like labels and tooltips. */
-export function shortcutText(keys: string[], platform: Platform): string {
-  const names = keys.map((k) => KEYS[platform][k.toLowerCase() as KeyName] ?? k.toUpperCase());
-  return platform === "mac" ? names.join("") : names.join("+");
-}
-
 /* ---------- Field, TextField, Select ---------- */
 
 interface FieldProps {
@@ -96,7 +90,7 @@ interface FieldProps {
   children: ReactNode;
 }
 
-export function Field({ id, label, hint, error, className, children }: FieldProps) {
+function Field({ id, label, hint, error, className, children }: FieldProps) {
   return (
     <div className={cx("kn-field", !!error && "kn-field--error", className)}>
       {label && (
@@ -121,7 +115,7 @@ export function Field({ id, label, hint, error, className, children }: FieldProp
   );
 }
 
-export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
+interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   ref?: Ref<HTMLInputElement>;
   label?: ReactNode;
   hint?: ReactNode;
@@ -153,7 +147,7 @@ export function TextField({ label, hint, error, mono, icon, trailing, className,
   );
 }
 
-export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   ref?: Ref<HTMLSelectElement>;
   label?: ReactNode;
   hint?: ReactNode;
@@ -185,7 +179,7 @@ export function Select({ label, hint, error, mono, options, className, fieldClas
 
 /* ---------- Checkbox & Switch ---------- */
 
-export interface CheckProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
+interface CheckProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
   label?: ReactNode;
 }
 
@@ -216,7 +210,7 @@ export function Switch({ label, className, disabled, ...rest }: CheckProps) {
 
 /* ---------- Segmented: a small set of exclusive choices drawn as one control ---------- */
 
-export interface SegmentedProps<T extends string> {
+interface SegmentedProps<T extends string> {
   label: string;
   value: T;
   options: Array<{ value: T; label: string }>;

@@ -10,7 +10,7 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
 
 /* ---------- Modal: scrim, focus kept inside, Esc closes, focus restored ---------- */
 
-export interface ModalProps {
+interface ModalProps {
   onClose?: () => void;
   labelledBy: string;
   describedBy?: string;
@@ -74,7 +74,7 @@ export function Modal({ onClose, labelledBy, describedBy, role = "dialog", class
 
 /* ---------- Dialog: title, body, actions in the platform's order ---------- */
 
-export interface DialogAction {
+interface DialogAction {
   label: ReactNode;
   onClick?: () => void;
   variant?: ButtonProps["variant"];
@@ -89,7 +89,7 @@ export function orderActions<T>(primary: T | undefined, secondary: T | undefined
   return list.filter((x): x is T => x !== undefined);
 }
 
-export interface DialogProps {
+interface DialogProps {
   title: ReactNode;
   description?: ReactNode;
   children?: ReactNode;
@@ -139,7 +139,7 @@ export function Dialog({ title, description, children, primaryAction, secondaryA
 
 /* ---------- ConfirmDialog: the design's question with a tinted icon tile ---------- */
 
-export interface ConfirmDialogProps {
+interface ConfirmDialogProps {
   tone: "warning" | "danger";
   title: ReactNode;
   children: ReactNode;
@@ -191,7 +191,7 @@ export type MenuItem =
   /** A title over the items that follow, not something to pick. */
   | { heading: string };
 
-export interface MenuProps {
+interface MenuProps {
   items: MenuItem[];
   onSelect?: (id: string) => void;
   onClose?: () => void;
@@ -202,7 +202,7 @@ export interface MenuProps {
   id?: string;
 }
 
-export function Menu({ items, onSelect, onClose, platform, autoFocus, label, className, id }: MenuProps) {
+function Menu({ items, onSelect, onClose, platform, autoFocus, label, className, id }: MenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const focusable = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])') ?? []);
   useEffect(() => {
@@ -444,7 +444,7 @@ export function ToastRegion() {
 
 /* ---------- EmptyState ---------- */
 
-export interface EmptyStateProps {
+interface EmptyStateProps {
   title: ReactNode;
   children?: ReactNode;
   icon?: IconName;

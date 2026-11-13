@@ -17,7 +17,7 @@ export interface TreeMenuContext {
 }
 
 /** The shortcut each action has while the tree has focus. */
-export function shortcutOf(action: TreeAction, platform: Platform): string[] | undefined {
+function shortcutOf(action: TreeAction, platform: Platform): string[] | undefined {
   switch (action) {
     case "copy":
       return ["mod", "c"];

@@ -66,7 +66,7 @@ function canonical(url: string): { url: string; host: string; port: number; sche
   return { url: `${scheme}://${m[2]}:${port}`, host: m[2], port, scheme };
 }
 
-export function fakeOutcome(p: ConnectionParams): TestResult {
+function fakeOutcome(p: ConnectionParams): TestResult {
   const u = canonical(p.url);
   if (!u) return { ...fail(0, "", "Check the connection settings.", ""), message: "Enter an LDAP URL such as ldaps://ldap.example.org:636." };
   const { host, port, scheme } = u;
@@ -121,7 +121,7 @@ export function sampleConnections(): Array<SavedConnection & { password?: string
   ];
 }
 
-export interface FakeOptions {
+interface FakeOptions {
   connections?: Array<SavedConnection & { password?: string }>;
   notice?: string;
 }

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { SessionInfo } from "@/api/backend";
 
 /** Which screen the single Kanopa window shows. */
-export type View = { name: "welcome" } | { name: "connected"; session: SessionInfo };
+type View = { name: "welcome" } | { name: "connected"; session: SessionInfo };
 
 interface AppState {
   view: View;

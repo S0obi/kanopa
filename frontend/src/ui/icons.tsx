@@ -47,7 +47,7 @@ const P: Record<IconName, Part[]> = {
   moon: [["path", { d: "M13 9.4A5.3 5.3 0 0 1 6.6 3 5.3 5.3 0 1 0 13 9.4z" }]],
 };
 
-export interface IconProps {
+interface IconProps {
   name: IconName;
   size?: number;
   strokeWidth?: number;
@@ -79,7 +79,7 @@ export function Icon({ name, size = 16, strokeWidth = 1.5, label, className }: I
   );
 }
 
-export interface LogoProps {
+interface LogoProps {
   /** Mark height in px (default 20). The wordmark scales with it. */
   size?: number;
   variant?: "color" | "mono";

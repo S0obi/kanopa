@@ -226,10 +226,10 @@ export function unescapeRdnValue(v: string): string {
 /* ---------- what Go receives ---------- */
 
 /** A stand-in for a new password: Preview only needs to know one is set. */
-export const PASSWORD_SET = "(set)";
+const PASSWORD_SET = "(set)";
 
 /** Which part of a pending entry a change carries, to drop it once applied. */
-export interface Part {
+interface Part {
   key: string;
   part: "add" | "delete" | "rename" | "modify";
   attrs: PendingAttr[];
@@ -309,7 +309,7 @@ function followRename(set: ChangeSet, from: string, to: string): ChangeSet {
 
 /* ---------- summary ---------- */
 
-export interface Summary {
+interface Summary {
   count: number; // changes: an add, a delete, a rename, or one attribute
   entries: number;
   text: string;
@@ -378,7 +378,7 @@ export function pendingView(e: PendingEntry): EntryView {
 
 /* ---------- values ---------- */
 
-export interface DiffRow {
+interface DiffRow {
   sign: " " | "+" | "−";
   value: string;
 }
@@ -402,7 +402,7 @@ export function diff(a: PendingAttr): DiffRow[] {
 }
 
 /** One value as the attributes table draws it. */
-export interface Cell {
+interface Cell {
   value: string;
   state: "same" | "edited" | "added" | "removed";
   was?: string;
@@ -443,7 +443,7 @@ export function valuesAfter(values: string[], pending: PendingAttr | undefined):
     .map((c) => c.value);
 }
 
-export interface EditorRules {
+interface EditorRules {
   name: string;
   kind: ValueKind;
   singleValue: boolean;
