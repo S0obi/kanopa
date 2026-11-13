@@ -11,6 +11,7 @@ The first public release, for Windows and macOS.
 ### Added
 
 - POSIX groups. A group that lists its members by uid (`memberUid`) now has a Members tab like any other: add and remove people, see who each uid stands for, and spot a uid no entry carries. A person's Member of tab shows how many groups list them, includes the POSIX groups that list their uid (however the person is named), and can join and leave them, deleting or renaming a user keeps `memberUid` in step, and New entry can create a POSIX group with the next free `gidNumber`.
+- New entry works below any entry that can hold children, not only the root and organizational units: an `organizationalRole` that holds groups, for example, or any entry that already has children.
 - A context menu on the tree, with the actions that fit the entry.
 - A confirmation field when you set a password, so a typo cannot lock someone out.
 - Find an entry from the header search: type a name, a mail address, a DN or an LDAP filter, and open the result in the tree.

@@ -44,9 +44,20 @@ export function blockedReason(action: TreeAction, n: TreeNode, ctx: TreeMenuCont
   return undefined;
 }
 
+/**
+ * Whether new entries can be created below this one. LDAP lets any entry have children, so this is not
+ * limited to the root and organizational units: an organizationalRole that holds groups, or any entry
+ * that already has children, takes new ones too. People, groups and devices without children are
+ * left out (they rarely hold anything), and so are referrals. The server has the last word.
+ */
+export function canHaveChildren(n: Pick<TreeNode, "type" | "hasChildren" | "referral">): boolean {
+  if (n.referral) return false;
+  return n.type === "root" || n.type === "ou" || n.type === "entry" || n.hasChildren;
+}
+
 /** Whether the action is offered at all for this kind of entry. */
 export function offered(action: TreeAction, n: TreeNode): boolean {
-  if (action === "new") return n.type === "root" || n.type === "ou";
+  if (action === "new") return canHaveChildren(n);
   if (action === "addMember") return n.type === "group";
   return true;
 }

@@ -331,6 +331,11 @@ func writeEdge(w *bufio.Writer) {
 	person("cn=Many values", mails...)
 	person("cn=With photo", "sn: Photo", "jpegPhoto:: "+base64.StdEncoding.EncodeToString(photo()))
 
+	// An organizationalRole that holds groups, as some directories keep them (it is not an OU).
+	role := "cn=Group factory," + edge
+	entry(w, role, "objectClass: organizationalRole", "objectClass: top", "cn: Group factory", "description: A role that holds groups")
+	entry(w, "cn=made-here,"+role, "objectClass: groupOfNames", "objectClass: top", "cn: made-here", "member: cn=admin,"+base)
+
 	// Depth: eight units nested.
 	dn := edge
 	for i := 1; i <= 8; i++ {

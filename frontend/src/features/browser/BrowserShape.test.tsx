@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { FAKE, createFakeBackend, sampleConnections } from "@/api/fake";
 import { resetFakeDirectory } from "@/api/fakeDirectory";
 import { renderWith } from "@/test/render";
@@ -285,5 +285,64 @@ describe("shaping the tree", () => {
     // Katherine is in research and support; admins joins them.
     expect(await screen.findByText("Member of 3 groups")).toBeInTheDocument();
     expect(screen.getByText("Added")).toBeInTheDocument();
+  });
+});
+
+describe("creating below an entry that is not an OU", () => {
+  const services = "ou=services,dc=example,dc=org";
+  const role = `cn=Group factory,${services}`;
+
+  /** An organizationalRole that holds groups, as some directories do. */
+  async function addRole(backend: Awaited<ReturnType<typeof open>>["backend"]) {
+    const text = (name: string, after: string[]) => ({ name, kind: "text", before: [], after });
+    const r = await backend.apply("prod", [{ op: "add", dn: role, attributes: [text("objectClass", ["organizationalRole", "top"]), text("cn", ["Group factory"])] }] as never);
+    expect(r.applied).toBe(1);
+  }
+
+  it("offers New entry on an organizationalRole, and creates a group in it", async () => {
+    const { user, backend } = await open();
+    await addRole(backend);
+    await user.click(await item(/^ou=services/));
+    await user.keyboard("{ArrowRight}");
+    await user.click(await item(/^cn=Group factory/));
+    await heading("Group factory");
+    await user.click(screen.getByRole("button", { name: "New entry" }));
+    const dialog = screen.getByRole("dialog", { name: "New entry" });
+    expect(within(dialog).getByRole("combobox", { name: "Create under" })).toHaveTextContent(role);
+
+    await user.click(within(dialog).getByRole("button", { name: /^Group/ }));
+    await user.type(within(dialog).getByLabelText(/Group name/), "made-here");
+    await user.type(within(dialog).getByRole("searchbox", { name: /Search people/ }), "lovelace");
+    await user.click(await within(dialog).findByRole("button", { name: "Add Ada Lovelace" }));
+    await user.click(within(dialog).getByRole("button", { name: "Create entry" }));
+    await heading("made-here");
+    await user.click(within(bar()).getByRole("button", { name: /Apply/ }));
+    await screen.findByText("Saved 1 change to localhost.");
+    expect((await backend.entry("prod", `cn=made-here,${role}`)).failure).toBeNull();
+  });
+
+  it("offers it in the tree's menu too, and lists the role under Create under", async () => {
+    const { user, backend } = await open();
+    await addRole(backend);
+    await user.click(await item(/^ou=services/));
+    await user.keyboard("{ArrowRight}");
+    fireEvent.contextMenu(await item(/^cn=Group factory/), { clientX: 40, clientY: 80 });
+    expect(await screen.findByRole("menuitem", { name: "New child entry…" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    // Another entry's New entry lists the role as a place to create.
+    await user.click(await item(/^ou=services/));
+    await heading("services");
+    await user.click(screen.getByRole("button", { name: "New entry" }));
+    await user.click(within(screen.getByRole("dialog", { name: "New entry" })).getByRole("combobox", { name: "Create under" }));
+    expect(screen.getByRole("option", { name: role })).toBeInTheDocument();
+  });
+
+  it("does not offer it on a person or a group without children", async () => {
+    const { user } = await open();
+    await user.click(await item(/^ou=people/));
+    await user.keyboard("{ArrowRight}");
+    await user.click(await item(/^uid=ada /));
+    await heading("Ada Lovelace");
+    expect(screen.queryByRole("button", { name: "New entry" })).not.toBeInTheDocument();
   });
 });

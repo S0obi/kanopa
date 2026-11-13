@@ -240,7 +240,7 @@ func TestEdgeCasesInTheFixture(t *testing.T) {
 	edge := "ou=edge," + testldap.BaseDN
 
 	kids := d.Children(ctx, id, edge, "")
-	if kids.Failure != nil || kids.Total != 10 {
+	if kids.Failure != nil || kids.Total != 11 {
 		t.Fatalf("children of ou=edge: total %d, failure %+v", kids.Total, kids.Failure)
 	}
 	byRDN := map[string]TreeNode{}

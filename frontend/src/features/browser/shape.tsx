@@ -12,6 +12,7 @@ import {
 } from "./changes";
 import { PasswordPair, passwordErrors, passwordHint } from "./editors";
 import { dnKey, useBrowser } from "./store";
+import { canHaveChildren } from "./treeMenu";
 
 /* ---------- shared lookups ---------- */
 
@@ -725,7 +726,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
 
   const containers = Object.values(nodes)
     .map((n) => n.node)
-    .filter((n) => (n.type === "root" || n.type === "ou") && !n.referral)
+    .filter((n) => canHaveChildren(n))
     .sort((a, b) => a.dn.localeCompare(b.dn));
   if (!containers.some((c) => sameDn(c.dn, initialParent))) containers.unshift({ dn: initialParent, rdn: rdnOf(initialParent), type: "ou", sub: "", hasChildren: true, count: -1, referral: false });
 
