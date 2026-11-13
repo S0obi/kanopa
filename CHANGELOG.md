@@ -4,6 +4,8 @@ All notable changes to Kanopa are written here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-13
+
 ### Added
 
 - New entry offers a **POSIX user**: a person who is also a `posixAccount`. Kanopa suggests the next free `uidNumber` and warns when a number is already used, lets you pick the primary group from the POSIX groups on the server, and fills in `/home/<uid>` and `/bin/bash`, which you can edit.
@@ -78,7 +80,8 @@ The first public release, for Windows and macOS.
 
 - Type a server URL, bind DN and password, and press Test connection. You get "Bound as … in 42 ms over LDAPS", or an exact error with its LDAP result code.
 
-[Unreleased]: https://github.com/S0obi/kanopa/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/S0obi/kanopa/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/S0obi/kanopa/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/S0obi/kanopa/compare/v0.0.5...v0.1.0
 [0.0.5]: https://github.com/S0obi/kanopa/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/S0obi/kanopa/compare/v0.0.3...v0.0.4

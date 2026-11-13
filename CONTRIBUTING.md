@@ -43,7 +43,7 @@ A commit runs the checks through lefthook: golangci-lint with gosec, govulncheck
 wails3 build
 ```
 
-This produces `bin/kanopa.exe` on Windows. A local build reports itself as `0.1.0-dev`; a release build passes `VERSION=0.1.0`.
+This produces `bin/kanopa.exe` on Windows. A local build reports itself as `0.1.0-dev`; a release build passes `VERSION=0.1.1`.
 
 ## Releasing
 
