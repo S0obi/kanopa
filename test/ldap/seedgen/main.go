@@ -252,6 +252,28 @@ func writeGroups(w *bufio.Writer, uids []string) {
 		}
 		entry(w, "cn="+g.cn+",ou=groups,"+base, lines...)
 	}
+	writePosixGroups(w)
+}
+
+// writePosixGroups writes groups that list their members by uid (memberUid), as a Unix directory does.
+// unix-devs lists a uid nobody carries (ghost.user) and one two entries carry (twin, in ou=edge).
+func writePosixGroups(w *bufio.Writer) {
+	posix := []struct {
+		cn, desc string
+		gid      int
+		uids     []string
+	}{
+		{"unix-staff", "Unix group of the staff", 2001, []string{"ada", "alan", "grace"}},
+		{"unix-devs", "Unix group of the developers", 2002, []string{"ada", "margaret", "ghost.user", "twin"}},
+		{"unix-empty", "Unix group with no member yet", 2003, nil},
+	}
+	for _, g := range posix {
+		lines := []string{"objectClass: posixGroup", "objectClass: top", "cn: " + g.cn, "description: " + g.desc, fmt.Sprintf("gidNumber: %d", g.gid)}
+		for _, u := range g.uids {
+			lines = append(lines, "memberUid: "+u)
+		}
+		entry(w, "cn="+g.cn+",ou=groups,"+base, lines...)
+	}
 }
 
 func writeServices(w *bufio.Writer) {
@@ -294,6 +316,7 @@ func writeEdge(w *bufio.Writer) {
 	person(`cn=Plus\+Equals\=Hash\#`, `cn: Plus+Equals=Hash#`, "sn: Characters")
 	// A multi-valued RDN.
 	person("cn=Twin+uid=twin", "cn: Twin", "uid: twin", "sn: Twin")
+	person("cn=Twin two", "uid: twin", "sn: Twin")
 	// Non-ASCII values and a long value.
 	person("cn=Zoe Mueller", "sn: Müller", "givenName: Zoë", "description: Ærø, naïve café, 日本語")
 	person("cn=Long description", "sn: Long", "description: "+strings.Repeat("A long sentence that keeps going. ", 120))

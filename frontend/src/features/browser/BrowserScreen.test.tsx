@@ -73,7 +73,7 @@ describe("BrowserScreen", () => {
     expect(screen.getByRole("region", { name: /^LDIF of uid=ada/ })).toHaveTextContent("dn: uid=ada,ou=people,dc=example,dc=org");
 
     await user.click(screen.getByRole("tab", { name: /Member of/ }));
-    expect(await screen.findByText("Member of 3 groups")).toBeInTheDocument();
+    expect(await screen.findByText("Member of 5 groups")).toBeInTheDocument();
     for (const g of ["admins", "engineering", "research"]) expect(screen.getByText(g)).toBeInTheDocument();
 
     // The manager value opens Grace.

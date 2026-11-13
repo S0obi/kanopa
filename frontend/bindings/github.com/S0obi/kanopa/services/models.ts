@@ -290,6 +290,22 @@ export interface FindResult {
 }
 
 /**
+ * GIDResult answers GIDCheck.
+ */
+export interface GIDResult {
+    /**
+     * the next free gidNumber
+     */
+    "next": number;
+
+    /**
+     * posixGroups that already use the asked gidNumber
+     */
+    "takenBy": string[] | null;
+    "failure": Failure | null;
+}
+
+/**
  * Layout is what the interface remembers between runs.
  */
 export interface Layout {
@@ -389,10 +405,15 @@ export interface RelatedEntry {
     "description": string;
 
     /**
-     * MemberAttr is, for a group, the attribute that lists its members (member or uniqueMember);
-     * empty when Kanopa can't edit its membership (a posixGroup lists uids).
+     * MemberAttr is, for a group, the attribute that lists its members: member, uniqueMember, or
+     * memberUid for a posixGroup (it lists uids, not DNs).
      */
     "memberAttr": string;
+
+    /**
+     * UID is the entry's uid, for a person: what a posixGroup's memberUid holds. Empty when it has none.
+     */
+    "uid": string;
 }
 
 /**
@@ -564,5 +585,25 @@ export interface TreeResult {
      */
     "serverLimit": boolean;
     "elapsedMs": number;
+    "failure": Failure | null;
+}
+
+/**
+ * UIDMatch is what one memberUid value stands for: the first entry that carries the uid, and how
+ * many do. Matches is 0 when none does.
+ */
+export interface UIDMatch {
+    "uid": string;
+    "dn": string;
+    "name": string;
+    "type": string;
+    "matches": number;
+}
+
+/**
+ * UIDResult answers ResolveUIDs.
+ */
+export interface UIDResult {
+    "matches": UIDMatch[] | null;
     "failure": Failure | null;
 }

@@ -31,6 +31,7 @@ export type {
     Failure,
     FilterCheck,
     FindResult,
+    GIDResult,
     Layout,
     ListResult,
     PreviewResult,
@@ -43,5 +44,7 @@ export type {
     SessionInfo,
     TestResult,
     TreeNode,
-    TreeResult
+    TreeResult,
+    UIDMatch,
+    UIDResult
 } from "./models.js";

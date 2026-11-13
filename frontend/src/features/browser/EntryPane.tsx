@@ -104,8 +104,10 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
   const isGroup = e.type === "group";
   // A new entry's view already holds its pending values.
   const attrs = isNew ? (e.attributes ?? []) : withAdded(e, pendingSet);
-  const memberAttr = attrs.find((a) => /^(member|uniqueMember)$/i.test(a.name));
-  const members = valuesAfter(memberAttr?.values ?? [], memberAttr ? pendingOf(pendingSet, e.dn, memberAttr.name) : undefined);
+  // A group lists its members in member or uniqueMember (DNs), and a posixGroup in memberUid (uids).
+  const members = attrs
+    .filter((a) => /^(member|uniqueMember|memberUid)$/i.test(a.name))
+    .flatMap((a) => valuesAfter(a.values ?? [], pendingOf(pendingSet, e.dn, a.name))).length;
   const [dialog, setDialog] = useState<"new" | "rename" | "delete" | null>(null);
   const root = sameDn(e.dn, session.baseDn) || (session.namingContexts ?? []).some((nc) => sameDn(nc, e.dn));
   const container = e.type === "root" || e.type === "ou";
@@ -209,7 +211,7 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
           tabs={[
             { id: "attributes", label: "Attributes", count: attrs.filter((a) => !a.operational).length },
             { id: "ldif", label: "LDIF" },
-            ...(isNew ? [] : [isGroup ? { id: "members", label: "Members", count: members.length } : { id: "memberOf", label: "Member of" }]),
+            ...(isNew ? [] : [isGroup ? { id: "members", label: "Members", count: members } : { id: "memberOf", label: "Member of" }]),
           ]}
         />
       </div>

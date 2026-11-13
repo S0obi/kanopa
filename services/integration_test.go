@@ -186,7 +186,7 @@ func TestBrowseTheFixture(t *testing.T) {
 	for _, g := range groups.Entries {
 		got = append(got, g.Name)
 	}
-	if strings.Join(got, ",") != "admins,engineering,research" {
+	if strings.Join(got, ",") != "admins,engineering,research,unix-devs,unix-staff" {
 		t.Fatalf("member of %v", got)
 	}
 
@@ -240,7 +240,7 @@ func TestEdgeCasesInTheFixture(t *testing.T) {
 	edge := "ou=edge," + testldap.BaseDN
 
 	kids := d.Children(ctx, id, edge, "")
-	if kids.Failure != nil || kids.Total != 8 {
+	if kids.Failure != nil || kids.Total != 9 {
 		t.Fatalf("children of ou=edge: total %d, failure %+v", kids.Total, kids.Failure)
 	}
 	byRDN := map[string]TreeNode{}
@@ -282,3 +282,72 @@ func TestEdgeCasesInTheFixture(t *testing.T) {
 		t.Fatalf("deepest unit: %+v", e.Failure)
 	}
 }
+
+// posixGroups list their members by uid (memberUid): unix-staff and unix-devs in ou=groups, and
+// unix-devs lists a uid nobody carries and one two entries carry.
+func TestPosixGroupsInTheFixture(t *testing.T) {
+	s := newTestService(t)
+	d := NewDirectoryService(nil, s)
+	id := connectFixture(t, s, "show")
+	ctx := context.Background()
+
+	// The picker finds them, and says they list uids.
+	found := d.Find(ctx, id, "groups", "unix")
+	if found.Failure != nil || len(found.Entries) != 3 {
+		t.Fatalf("groups named unix: %+v", found)
+	}
+	for _, g := range found.Entries {
+		if g.MemberAttr != "memberUid" || g.Type != "group" {
+			t.Fatalf("a posixGroup should list members in memberUid: %+v", g)
+		}
+	}
+	// People come with their uid, so a group can tell who has none.
+	people := d.Find(ctx, id, "people", "ada")
+	if people.Failure != nil || len(people.Entries) == 0 || people.Entries[0].UID != "ada" {
+		t.Fatalf("people named ada: %+v", people)
+	}
+
+	// Each uid stands for the entry that carries it.
+	r := d.ResolveUIDs(ctx, id, []string{"ada", "ghost.user", "twin"})
+	if r.Failure != nil || len(r.Matches) != 3 {
+		t.Fatalf("resolve: %+v", r)
+	}
+	if m := r.Matches[0]; m.Matches != 1 || m.DN != "uid=ada,ou=people,"+testldap.BaseDN || m.Name != "Ada Lovelace" || m.Type != "person" {
+		t.Fatalf("ada: %+v", m)
+	}
+	if m := r.Matches[1]; m.Matches != 0 || m.DN != "" {
+		t.Fatalf("a uid nobody carries: %+v", m)
+	}
+	if m := r.Matches[2]; m.Matches != 2 {
+		t.Fatalf("twin is carried by two entries: %+v", m)
+	}
+
+	// The next gidNumber is above the ones in use, and a used one names its group.
+	gid := d.GIDCheck(ctx, id, 2001)
+	if gid.Failure != nil || gid.Next < 2004 || len(gid.TakenBy) != 1 || gid.TakenBy[0] != "unix-staff" {
+		t.Fatalf("gid check: %+v", gid)
+	}
+	if free := d.GIDCheck(ctx, id, 5000); len(free.TakenBy) != 0 {
+		t.Fatalf("5000 should be free: %+v", free)
+	}
+
+	// A rename or delete of ada also has to update the groups that list her uid.
+	refs := d.Referrers(ctx, id, "uid=ada,ou=people,"+testldap.BaseDN)
+	var posix []string
+	for _, e := range refs.Entries {
+		if e.MemberAttr == "memberUid" {
+			posix = append(posix, e.Name+"="+e.UID)
+		}
+	}
+	if strings.Join(posix, ",") != "unix-devs=ada,unix-staff=ada" {
+		t.Fatalf("groups listing ada's uid: %v", posix)
+	}
+	// A uid two entries carry is left alone: a group that lists it may mean either.
+	for _, e := range d.Referrers(ctx, id, "cn=Twin two,"+edgeOU).Entries {
+		if e.MemberAttr == "memberUid" {
+			t.Fatalf("a shared uid should not be followed: %+v", e)
+		}
+	}
+}
+
+const edgeOU = "ou=edge," + testldap.BaseDN

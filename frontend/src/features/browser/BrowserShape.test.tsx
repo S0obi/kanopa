@@ -87,7 +87,7 @@ describe("shaping the tree", () => {
     await heading("groups");
     await user.click(screen.getByRole("button", { name: "New entry" }));
     const dialog = screen.getByRole("dialog", { name: "New entry" });
-    await user.click(within(dialog).getByRole("button", { name: /Group/ }));
+    await user.click(within(dialog).getByRole("button", { name: /^Group/ }));
     await user.type(within(dialog).getByLabelText(/Group name/), "kanopa-team");
     await user.click(within(dialog).getByRole("button", { name: "Create entry" }));
     expect(within(dialog).getByText(/groupOfNames requires the attribute member/)).toBeInTheDocument();
@@ -112,23 +112,25 @@ describe("shaping the tree", () => {
     await openPerson(user, "ada", "Ada Lovelace");
     await menu(user, /Rename/);
     const dialog = await screen.findByRole("dialog", { name: /Rename uid=ada/ });
-    await waitFor(() => expect(within(dialog).getByText(/3 groups listing it are updated too/)).toBeInTheDocument());
+    await waitFor(() => expect(within(dialog).getByText(/5 groups listing it are updated too/)).toBeInTheDocument());
     const input = within(dialog).getByRole("textbox", { name: /New name/ });
     await user.clear(input);
     await user.type(input, "ada.lovelace{Enter}");
 
     expect(screen.getByText("Pending rename.")).toBeInTheDocument();
-    expect(bar()).toHaveTextContent("4 pending changes on 4 entries");
+    expect(bar()).toHaveTextContent("6 pending changes on 6 entries");
     await user.click(within(bar()).getByRole("button", { name: "Review LDIF" }));
     const ldif = await screen.findByRole("region", { name: "Pending changes as LDIF" });
     expect(ldif).toHaveTextContent("changetype: modrdnnewrdn: uid=ada.lovelacedeleteoldrdn: 1");
     expect(ldif).toHaveTextContent(`add: membermember: uid=ada.lovelace,${people}`);
+    // The posixGroups that list her uid follow the new uid.
+    expect(ldif).toHaveTextContent("add: memberUidmemberUid: ada.lovelace");
 
     await user.click(within(bar()).getByRole("button", { name: /Apply/ }));
-    await screen.findByText("Saved 4 changes to localhost.");
+    await screen.findByText("Saved 6 changes to localhost.");
     expect(await screen.findByRole("navigation", { name: "Distinguished name" })).toHaveTextContent("uid=ada.lovelace");
     const refs = await backend.referrers("prod", `uid=ada.lovelace,${people}`);
-    expect((refs.entries ?? []).map((g) => g.name)).toEqual(["admins", "engineering", "research"]);
+    expect((refs.entries ?? []).map((g) => g.name)).toEqual(["admins", "engineering", "research", "unix-devs", "unix-staff"]);
   });
 
   it("deletes Alan with cleanup, and Undo puts things back first", async () => {
@@ -136,11 +138,11 @@ describe("shaping the tree", () => {
     await openPerson(user, "alan", "Alan Turing");
     await menu(user, /Delete entry/);
     const ask = await screen.findByRole("alertdialog", { name: /Delete uid=alan/ });
-    await waitFor(() => expect(ask).toHaveTextContent("The entry and its 2 group memberships are removed from localhost when you apply."));
+    await waitFor(() => expect(ask).toHaveTextContent("The entry and its 3 group memberships are removed from localhost when you apply."));
     expect(within(ask).getByRole("checkbox")).toBeChecked();
     await user.click(within(ask).getByRole("button", { name: "Delete entry" }));
     expect(screen.getByText("Marked for deletion.")).toBeInTheDocument();
-    expect(bar()).toHaveTextContent("3 pending changes on 3 entries");
+    expect(bar()).toHaveTextContent("4 pending changes on 4 entries");
 
     await user.click(screen.getByRole("button", { name: "Undo delete" }));
     expect(screen.queryByRole("region", { name: "Pending changes" })).not.toBeInTheDocument();
@@ -150,7 +152,7 @@ describe("shaping the tree", () => {
     await waitFor(() => expect(within(again).getByRole("button", { name: "Delete entry" })).toBeEnabled());
     await user.click(within(again).getByRole("button", { name: "Delete entry" }));
     await user.click(within(bar()).getByRole("button", { name: /Apply/ }));
-    await screen.findByText("Saved 3 changes to localhost.");
+    await screen.findByText("Saved 4 changes to localhost.");
     expect((await backend.entry("prod", `uid=alan,${people}`)).failure?.code).toBe(32);
     expect((await backend.referrers("prod", `uid=alan,${people}`)).entries).toEqual([]);
   });
@@ -236,7 +238,7 @@ describe("shaping the tree", () => {
     await waitFor(() => expect(within(ask).getByRole("button", { name: "Delete entry" })).toBeEnabled());
     await user.click(within(ask).getByRole("button", { name: "Delete entry" }));
     await user.click(within(bar()).getByRole("button", { name: /Apply/ }));
-    await screen.findByText("Saved 3 changes to localhost.");
+    await screen.findByText("Saved 4 changes to localhost.");
     await heading("people");
     await user.click(screen.getByRole("button", { name: "New entry" }));
     const dialog = screen.getByRole("dialog", { name: "New entry" });

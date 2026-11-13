@@ -20387,6 +20387,34 @@ member: uid=bea.baumann,ou=people,dc=example,dc=org
 member: uid=max.baumann,ou=people,dc=example,dc=org
 member: uid=ines.frei,ou=people,dc=example,dc=org
 
+dn: cn=unix-staff,ou=groups,dc=example,dc=org
+objectClass: posixGroup
+objectClass: top
+cn: unix-staff
+description: Unix group of the staff
+gidNumber: 2001
+memberUid: ada
+memberUid: alan
+memberUid: grace
+
+dn: cn=unix-devs,ou=groups,dc=example,dc=org
+objectClass: posixGroup
+objectClass: top
+cn: unix-devs
+description: Unix group of the developers
+gidNumber: 2002
+memberUid: ada
+memberUid: margaret
+memberUid: ghost.user
+memberUid: twin
+
+dn: cn=unix-empty,ou=groups,dc=example,dc=org
+objectClass: posixGroup
+objectClass: top
+cn: unix-empty
+description: Unix group with no member yet
+gidNumber: 2003
+
 dn: uid=svc-kanopa,ou=services,dc=example,dc=org
 objectClass: account
 objectClass: simpleSecurityObject
@@ -20994,6 +21022,12 @@ dn: cn=Twin+uid=twin,ou=edge,dc=example,dc=org
 objectClass: inetOrgPerson
 objectClass: top
 cn: Twin
+uid: twin
+sn: Twin
+
+dn: cn=Twin two,ou=edge,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: top
 uid: twin
 sn: Twin
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/go-ldap/ldap/v3"
@@ -168,8 +169,10 @@ type Referrer struct {
 	ObjectClasses []string
 }
 
-// Referrers finds the groups under base whose member or uniqueMember holds dn, up to limit.
-func (s *Session) Referrers(ctx context.Context, base, dn string, limit int) ([]Referrer, bool, error) {
+// Referrers finds the groups under base whose member or uniqueMember holds dn, up to limit. When uid
+// is not empty it also finds the groups whose memberUid holds it, unless another entry carries the
+// same uid: a group that lists a shared uid may mean either entry, so it is left alone.
+func (s *Session) Referrers(ctx context.Context, base, dn, uid string, limit int) ([]Referrer, bool, error) {
 	var out []Referrer
 	more := false
 	for _, attr := range []string{"member", "uniqueMember"} {
@@ -189,6 +192,123 @@ func (s *Session) Referrers(ctx context.Context, base, dn string, limit int) ([]
 			out = append(out, Referrer{DN: e.DN, CN: e.GetAttributeValue("cn"), Attr: attr, ObjectClasses: e.GetAttributeValues("objectClass")})
 		}
 	}
+	if uid != "" {
+		shared, err := s.sharesUID(ctx, base, dn, uid)
+		if err != nil {
+			return nil, false, err
+		}
+		if !shared {
+			req := ldap.NewSearchRequest(base, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, s.secs(), false,
+				"(memberUid="+ldap.EscapeFilter(uid)+")", []string{"cn", "objectClass"}, nil)
+			entries, truncated, err := s.readAll(ctx, req, 500, limit)
+			if err != nil {
+				var le *ldap.Error
+				// Servers without the nis schema have no memberUid: nothing refers through it.
+				noMemberUID := errors.As(err, &le) && (le.ResultCode == ldap.LDAPResultUndefinedAttributeType || le.ResultCode == ldap.LDAPResultInappropriateMatching)
+				if !noMemberUID {
+					return nil, false, Classify(err, s.op())
+				}
+			} else {
+				more = more || truncated
+				for _, e := range entries {
+					out = append(out, Referrer{DN: e.DN, CN: e.GetAttributeValue("cn"), Attr: "memberUid", ObjectClasses: e.GetAttributeValues("objectClass")})
+				}
+			}
+		}
+	}
 	sort.SliceStable(out, func(i, j int) bool { return strings.ToLower(out[i].CN) < strings.ToLower(out[j].CN) })
 	return out, more, nil
+}
+
+// sharesUID reports whether an entry other than dn carries the uid.
+func (s *Session) sharesUID(ctx context.Context, base, dn, uid string) (bool, error) {
+	req := ldap.NewSearchRequest(base, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, s.secs(), false,
+		"(uid="+ldap.EscapeFilter(uid)+")", []string{"1.1"}, nil)
+	entries, _, err := s.readAll(ctx, req, 50, 50)
+	if err != nil {
+		return false, Classify(err, s.op())
+	}
+	for _, e := range entries {
+		if !SameDN(e.DN, dn) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// UIDMatch is the entries that carry one uid.
+type UIDMatch struct {
+	UID     string
+	Entries []Found
+}
+
+// ResolveUIDs finds the entries under base that carry each uid, for a posixGroup's memberUid values.
+// The lookups go out in batches. A uid nothing carries comes back with no entries. Uids are matched
+// as the directory matches them (case-insensitively), and answered in the order given.
+func (s *Session) ResolveUIDs(ctx context.Context, base string, uids []string) ([]UIDMatch, error) {
+	const batch = 50
+	found := map[string][]Found{}
+	for start := 0; start < len(uids); start += batch {
+		chunk := uids[start:min(start+batch, len(uids))]
+		var sb strings.Builder
+		sb.WriteString("(|")
+		for _, u := range chunk {
+			sb.WriteString("(uid=" + ldap.EscapeFilter(u) + ")")
+		}
+		sb.WriteString(")")
+		req := ldap.NewSearchRequest(base, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, s.secs(), false,
+			sb.String(), []string{"cn", "uid", "mail", "description", "objectClass"}, nil)
+		entries, _, err := s.readAll(ctx, req, 500, len(chunk)*20)
+		if err != nil {
+			return nil, Classify(err, s.op())
+		}
+		for _, e := range entries {
+			f := Found{DN: e.DN, CN: e.GetAttributeValue("cn"), UID: e.GetAttributeValue("uid"), Mail: e.GetAttributeValue("mail"),
+				Description: e.GetAttributeValue("description"), ObjectClasses: e.GetAttributeValues("objectClass")}
+			for _, v := range e.GetAttributeValues("uid") {
+				found[strings.ToLower(v)] = append(found[strings.ToLower(v)], f)
+			}
+		}
+	}
+	out := make([]UIDMatch, len(uids))
+	for i, u := range uids {
+		out[i] = UIDMatch{UID: u, Entries: found[strings.ToLower(u)]}
+	}
+	return out, nil
+}
+
+// GIDInfo reads the gidNumbers under base: the next free one (above every number in use, and at
+// least 1000), and the posixGroups that already hold gid (when gid is more than 0).
+func (s *Session) GIDInfo(ctx context.Context, base string, gid int) (next int, takenBy []string, err error) {
+	req := ldap.NewSearchRequest(base, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, s.secs(), false,
+		"(gidNumber=*)", []string{"cn", "gidNumber", "objectClass"}, nil)
+	entries, _, err := s.readAll(ctx, req, 500, 100_000)
+	if err != nil {
+		return 0, nil, Classify(err, s.op())
+	}
+	highest := 999
+	for _, e := range entries {
+		n, convErr := strconv.Atoi(e.GetAttributeValue("gidNumber"))
+		if convErr != nil {
+			continue
+		}
+		highest = max(highest, n)
+		if gid > 0 && n == gid {
+			isGroup := false
+			for _, oc := range e.GetAttributeValues("objectClass") {
+				if strings.EqualFold(oc, "posixGroup") {
+					isGroup = true
+				}
+			}
+			if isGroup {
+				name := e.GetAttributeValue("cn")
+				if name == "" {
+					name = e.DN
+				}
+				takenBy = append(takenBy, name)
+			}
+		}
+	}
+	sort.Strings(takenBy)
+	return highest + 1, takenBy, nil
 }
