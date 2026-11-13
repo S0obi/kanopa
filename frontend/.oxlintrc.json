@@ -32,7 +32,7 @@
   "overrides": [
     {
       "files": ["scripts/**"],
-      "rules": { "no-console": "off" }
+      "rules": { "no-console": "off", "no-await-in-loop": "off" }
     },
     {
       "files": ["e2e/**"],
