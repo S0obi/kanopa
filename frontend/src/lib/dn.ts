@@ -40,3 +40,10 @@ export function rdnParts(rdn: string): [string, string] {
   const i = rdn.indexOf("=");
   return i > 0 ? [rdn.slice(0, i + 1), rdn.slice(i + 1)] : ["", rdn];
 }
+
+// attr=value pairs separated by commas (RFC 4514); a value may hold escaped characters such as "\,".
+const RDN_PART = String.raw`\s*(?:[A-Za-z][A-Za-z0-9-]*|\d+(?:\.\d+)+)\s*=\s*(?:\\.|[^,+\\])+`;
+const DN_SYNTAX = new RegExp(String.raw`^${RDN_PART}(?:\+${RDN_PART})*(?:,${RDN_PART}(?:\+${RDN_PART})*)*\s*$`);
+
+/** Whether v reads as a DN: "cn=Soubiran\, Thibault,ou=Users,dc=example,dc=org" does, "admin" does not. */
+export const isDnSyntax = (v: string) => DN_SYNTAX.test(v);

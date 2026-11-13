@@ -4,6 +4,14 @@ All notable changes to Kanopa are written here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+
+- The bind name of a connection can also be an Active Directory name: `DOMAIN\user` or `user@example.org`, not only a DN.
+
+### Fixed
+
+- A bind DN or base DN with an escaped comma, such as `CN=Soubiran\, Thibault,OU=Users,DC=example,DC=org` (how Active Directory names people), is no longer refused as "Invalid DN syntax".
+
 ## [0.1.1] - 2026-11-13
 
 ### Added

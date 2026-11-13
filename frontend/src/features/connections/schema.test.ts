@@ -17,14 +17,30 @@ describe("connectionFormSchema", () => {
       bindDn: "Enter a bind DN, or choose Anonymous.",
     });
     expect(messages({ ...valid, bindDn: "admin" })).toEqual({
-      bindDn: "Invalid DN syntax (34) — a bind DN looks like cn=admin,dc=example,dc=org.",
+      bindDn: "Invalid DN syntax (34) — a bind name looks like cn=admin,dc=example,dc=org, DOMAIN\\user or user@example.org.",
     });
     expect(messages({ ...valid, baseDn: "example.org" })).toEqual({
       baseDn: "Invalid DN syntax (34) — a base DN looks like dc=example,dc=org.",
     });
   });
 
+  it("accepts the names Active Directory binds with: DOMAIN\\user and user@domain", () => {
+    expect(messages({ ...valid, bindDn: String.raw`CORP\tsoubiran` })).toEqual({});
+    expect(messages({ ...valid, bindDn: "tsoubiran@corp.example.org" })).toEqual({});
+    for (const bad of ["CORP\\", "\\user", "user@", "@corp.example.org", "CORP\\a\\b", "admin"])
+      expect(messages({ ...valid, bindDn: bad }).bindDn ?? `${bad} was accepted`).toMatch(/^Invalid DN syntax \(34\)/);
+  });
+
   it("needs no bind DN for an anonymous bind", () => expect(messages({ ...valid, bind: "anonymous", bindDn: "" })).toEqual({}));
+
+  it("accepts a DN with an escaped comma, as Active Directory names people (Surname, then First)", () => {
+    const ad = String.raw`CN=Lovelace\, Ada,OU=End Users,OU=Users,DC=example,DC=org`;
+    expect(messages({ ...valid, bindDn: ad })).toEqual({});
+    expect(messages({ ...valid, baseDn: String.raw`OU=People\, All,DC=example,DC=org` })).toEqual({});
+    expect(messages({ ...valid, bindDn: "CN=Lovelace, Ada" })).toEqual({
+      bindDn: "Invalid DN syntax (34) — a bind name looks like cn=admin,dc=example,dc=org, DOMAIN\\user or user@example.org.",
+    });
+  });
 
   it("checks the advanced numbers", () => {
     expect(messages({ ...valid, timeoutSeconds: 0 })).toEqual({ timeoutSeconds: "Use at least 1 second." });
