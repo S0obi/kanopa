@@ -45,6 +45,16 @@ wails3 build
 
 This produces `bin/kanopa.exe` on Windows. A local build reports itself as `0.1.0-dev`; a release build passes `VERSION=0.1.0`.
 
+## Releasing
+
+Releases are cut from `main`. Put the changes under a new version in `CHANGELOG.md` and set the version in `build/config.yml`, `frontend/package.json` and the Windows and macOS metadata, then tag:
+
+```bash
+git tag v0.1.0-rc.1 && git push origin v0.1.0-rc.1
+```
+
+The Release workflow builds the Windows installer and portable zip and the universal macOS `.dmg`, and attaches them to a draft release whose notes are the tag's CHANGELOG section. A tag with a suffix (`-rc.1`) is a dry run and is marked as a pre-release. Check the draft's files on each system, then push the plain tag (`v0.1.0`) and publish the draft.
+
 ## README images
 
 `npm run screenshots` and `npm run demo`, in `frontend/`, redraw the banner and the GIF in `docs/screenshots/`. The demo needs `ffmpeg`.

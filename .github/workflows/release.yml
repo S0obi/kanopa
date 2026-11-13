@@ -1,0 +1,157 @@
+# Builds the installers when a version tag is pushed and attaches them to a draft release.
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# The draft's notes are the tag's section of CHANGELOG.md. A tag with a suffix (v0.1.0-rc.1) is a dry
+# run: it uses the 0.1.0 section, and the release is marked as a pre-release. Nothing is published until
+# you press "Publish release" on the draft.
+#
+# Actions are pinned to the commit SHA of a release at least two weeks old (the version is in the comment).
+# Releases are made with the `gh` CLI that every runner has, so no third-party release action is needed.
+# Code signing is not done yet: the Windows installer is unsigned and the macOS app is ad hoc signed.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  WAILS_VERSION: v3.1.0
+  NSIS_VERSION: 3.11.0
+
+jobs:
+  draft:
+    name: Create the draft release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Write the release notes from the changelog
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          base="${version%%-*}"   # 0.1.0-rc.1 -> 0.1.0
+          awk -v heading="## [$base]" '
+            index($0, heading) == 1 { found = 1; next }
+            found && index($0, "## [") == 1 { exit }
+            found { print }
+          ' CHANGELOG.md | sed '/./,$!d' > notes.md
+          if [ ! -s notes.md ]; then
+            echo "CHANGELOG.md has no section for $base" >&2
+            exit 1
+          fi
+          cat notes.md
+
+      - name: Create the draft (or keep the one that exists)
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "A release for $tag already exists; the installers will be added to it."
+            exit 0
+          fi
+          flags=""
+          case "$tag" in *-*) flags="--prerelease" ;; esac
+          gh release create "$tag" --draft $flags --verify-tag --title "Kanopa ${tag#v}" --notes-file notes.md
+
+  windows:
+    name: Windows installer and portable zip
+    needs: draft
+    runs-on: windows-2025
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install the Wails CLI and NSIS
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+          choco install nsis --version ${{ env.NSIS_VERSION }} --no-progress -y
+          "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
+          "$(go env GOPATH)\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Build and package
+        shell: pwsh
+        run: |
+          $env:VERSION = "${env:GITHUB_REF_NAME}".TrimStart("v")
+          wails3 task package
+
+      - name: Name and upload the files
+        shell: pwsh
+        run: |
+          $v = "${env:GITHUB_REF_NAME}".TrimStart("v")
+          $setup = "bin/Kanopa-$v-windows-amd64-setup.exe"
+          $zip = "bin/Kanopa-$v-windows-amd64-portable.zip"
+          Move-Item bin/kanopa-amd64-installer.exe $setup
+          Compress-Archive -Path bin/kanopa.exe -DestinationPath $zip
+          gh release upload "${env:GITHUB_REF_NAME}" $setup $zip --clobber
+
+  macos:
+    name: macOS universal dmg
+    needs: draft
+    runs-on: macos-15
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install the Wails CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # Builds arm64 and amd64, joins them, wraps the app (ad hoc signed) and makes the dmg.
+      - name: Build and package
+        run: |
+          export VERSION="${GITHUB_REF_NAME#v}"
+          wails3 task darwin:package:universal
+          wails3 task darwin:create:dmg
+
+      - name: Check the app and name the dmg
+        run: |
+          codesign --verify --deep --strict bin/kanopa.app
+          lipo -archs bin/kanopa.app/Contents/MacOS/kanopa
+          dmg="$(ls bin/*.dmg | head -n 1)"
+          target="bin/Kanopa-${GITHUB_REF_NAME#v}-macos-universal.dmg"
+          mv "$dmg" "$target"
+          gh release upload "$GITHUB_REF_NAME" "$target" --clobber
