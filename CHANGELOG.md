@@ -30,29 +30,6 @@ The first public release, for Windows and macOS.
 - Interface text follows one voice: sentence case, no "please" or "successfully", and errors that name the LDAP result code.
 - Small windows and zoom: the status bar, attribute table and dialogs now fit instead of overflowing.
 
-### Known performance
-
-Measured on a laptop against the large test profile (an OU with 10,000 children, a group with 5,000 members, 11,000 people in all). These are what the integration tests recorded, not promises:
-
-| What | Time |
-|---|---|
-| Open an OU with 10,000 children (all read at once, shown 500 at a time) | 188 ms |
-| Count those children without reading them | 124 ms |
-| Open a group with 5,000 members | 7 ms |
-| Find the groups of one member | 11 ms |
-| Header search over 11,000 people, for a word | 10 ms |
-| Header search for one entry | 14 ms |
-| Header search by an LDAP filter | 3 ms |
-
-### Known limitations
-
-- The Windows installer and the macOS app are not code-signed. Windows SmartScreen and macOS Gatekeeper will warn on first launch; the README says how to continue.
-- macOS builds have had less testing than Windows.
-- Tested against OpenLDAP. Other servers (Active Directory, 389 Directory Server) should work through standard LDAP but are not validated.
-- Referrals are listed as entries or ignored, as you choose. Kanopa does not follow them.
-- Only simple binds (anonymous, or a DN and password) are supported. SASL is not.
-- There is no LDIF import or export, schema browser or access view yet.
-
 ## [0.0.5] - 2026-11-11
 
 ### Added
