@@ -1,0 +1,36 @@
+name: Feature request
+description: An idea for something Kanopa could do, or do better.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Kanopa aims to be a calm, exact LDAP client. Ideas that fit that are most welcome. If you are unsure, open the request anyway and say what you are trying to do.
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to do?
+      description: The task or problem, before the solution.
+      placeholder: "I manage groups that list their members by ..., and I need to ..."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you imagine it working. A sketch or a screenshot of another tool is fine.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today
+      description: How you get this done now, and what is awkward about it.
+  - type: dropdown
+    id: server
+    attributes:
+      label: Directory server it concerns
+      options:
+        - OpenLDAP
+        - 389 Directory Server
+        - Active Directory
+        - Another server
+        - Any server

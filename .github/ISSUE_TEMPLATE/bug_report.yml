@@ -1,0 +1,64 @@
+name: Bug report
+description: Something in Kanopa does not work, or shows the wrong thing.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. The more exactly you can say what you did, what you expected and what you saw, the faster it gets fixed.
+
+        **Do not paste passwords, bind DNs or anything private.** The diagnostics from the About dialog hold only versions and the system.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you do, and what did you see?
+      placeholder: "I opened a group, pressed Add member, and ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Connect to ...
+        2. Open ...
+        3. ...
+  - type: dropdown
+    id: server
+    attributes:
+      label: Directory server
+      description: Kanopa is tested against OpenLDAP. Other servers should work through standard LDAP, but are not validated.
+      options:
+        - OpenLDAP
+        - 389 Directory Server
+        - Active Directory
+        - Another server
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: server-version
+    attributes:
+      label: Server version
+      description: If you know it.
+      placeholder: "OpenLDAP 2.6"
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: In Kanopa, open the gear menu, choose About Kanopa, then Copy diagnostics, and paste it here. It holds the Kanopa version, commit, system and web engine, and no host names, DNs or secrets.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots are welcome. Blur names and hosts you would rather not share.

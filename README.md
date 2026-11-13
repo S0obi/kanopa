@@ -55,6 +55,10 @@ macOS is newer and has had less testing than Windows, so please tell us what you
 
 Kanopa is built with Go and React on [Wails](https://wails.io). Ideas and fixes are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) for how to run it, test it and build it.
 
+## Security
+
+Found a security problem? Please report it privately: see [SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE)
