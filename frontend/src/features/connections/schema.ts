@@ -1,15 +1,24 @@
 import { z } from "zod";
 import { parseLdapUrl, type Security } from "./url";
+import { isDnSyntax } from "@/lib/dn";
 import type { ConnectionParams, SavedConnection, SaveRequest } from "@/api/backend";
 
-const DN_RE = /^\s*[A-Za-z][\w-]*=[^,]+(,\s*[A-Za-z][\w-]*=[^,]+)*\s*$/;
+
+/**
+ * What a simple bind accepts as a name: a DN, or the two forms Active Directory adds:
+ * DOMAIN\user (the NetBIOS name) and user@example.org (the user principal name).
+ */
+export function isBindName(v: string): boolean {
+  const s = v.trim();
+  return isDnSyntax(s) || /^[A-Za-z0-9._-]+\\[^\\/[\]:;|=,+*?<>"@]+$/.test(s) || /^[^@\s,=\\]+@[A-Za-z0-9.-]+$/.test(s);
+}
 
 export const connectionFormSchema = z
   .object({
     name: z.string(),
     url: z.string().refine((v) => parseLdapUrl(v) !== null, "Enter an LDAP URL such as ldaps://ldap.example.org:636."),
     security: z.enum(["ldaps", "starttls", "none"]),
-    baseDn: z.string().refine((v) => v.trim() === "" || DN_RE.test(v), "Invalid DN syntax (34) — a base DN looks like dc=example,dc=org."),
+    baseDn: z.string().refine((v) => v.trim() === "" || isDnSyntax(v), "Invalid DN syntax (34) — a base DN looks like dc=example,dc=org."),
     bind: z.enum(["simple", "anonymous"]),
     bindDn: z.string(),
     password: z.string(),
@@ -23,8 +32,8 @@ export const connectionFormSchema = z
   .superRefine((v, ctx) => {
     if (v.bind !== "simple") return;
     if (!v.bindDn.trim()) ctx.addIssue({ code: "custom", path: ["bindDn"], message: "Enter a bind DN, or choose Anonymous." });
-    else if (!DN_RE.test(v.bindDn))
-      ctx.addIssue({ code: "custom", path: ["bindDn"], message: "Invalid DN syntax (34) — a bind DN looks like cn=admin,dc=example,dc=org." });
+    else if (!isBindName(v.bindDn))
+      ctx.addIssue({ code: "custom", path: ["bindDn"], message: "Invalid DN syntax (34) — a bind name looks like cn=admin,dc=example,dc=org, DOMAIN\\user or user@example.org." });
   });
 
 /** Saving also needs a name; testing does not. */

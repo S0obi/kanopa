@@ -307,6 +307,7 @@ export function ConnectionDialog({ mode, connection, reason = "", platform = det
                     label="Bind DN"
                     mono
                     placeholder="cn=admin,dc=example,dc=org"
+                    hint={String.raw`A DN. Active Directory also takes DOMAIN\user or user@example.org.`}
                     autoComplete="username"
                     error={errors.bindDn?.message}
                     {...register("bindDn")}

@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import type { EntryAttribute, EntryChange, EntryView, TreeNode } from "@/api/backend";
-import { parentDn, rdnParts, splitDn } from "@/lib/dn";
+import { isDnSyntax, parentDn, rdnParts, splitDn } from "@/lib/dn";
+
+export { isDnSyntax };
 import { dnKey } from "./store";
 
 /**
@@ -477,11 +479,6 @@ interface EditorRules {
   baseDn: string;
 }
 
-// attr=value pairs separated by commas (RFC 4514); a value may hold escaped characters such as "\,".
-const RDN_PART = String.raw`\s*(?:[A-Za-z][A-Za-z0-9-]*|\d+(?:\.\d+)+)\s*=\s*(?:\\.|[^,+\\])+`;
-const DN_SYNTAX = new RegExp(String.raw`^${RDN_PART}(?:\+${RDN_PART})*(?:,${RDN_PART}(?:\+${RDN_PART})*)*\s*$`);
-
-export const isDnSyntax = (v: string) => DN_SYNTAX.test(v);
 
 /** The values the editor would stage: trimmed, blanks dropped. */
 export function cleanValues(values: string[]): string[] {
@@ -495,7 +492,7 @@ export function valueErrors(r: EditorRules, values: string[]): string[] {
   if (r.singleValue && vals.length > 1) out.push(`Constraint violation (19) — ${r.name} holds a single value.`);
   if (r.kind === "dn")
     for (const v of vals)
-      if (!DN_SYNTAX.test(v)) {
+      if (!isDnSyntax(v)) {
         out.push(`Invalid DN syntax (34) — ${r.name} needs a DN such as uid=…,ou=people,${r.baseDn || "dc=example,dc=org"}.`);
         break;
       }
