@@ -16,6 +16,7 @@ export {
 
 export type {
     About,
+    AccountStatus,
     AllowedAttribute,
     ApplyResult,
     AttributeChange,

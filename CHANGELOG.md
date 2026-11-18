@@ -6,6 +6,8 @@ All notable changes to Kanopa are written here. The format follows [Keep a Chang
 
 ### Added
 
+- **Account status** on a person, from the password policy (OpenLDAP's ppolicy): one banner above the attributes says when the account is locked, when the password has expired or when the person must choose a new one at the next login. A lock has an **Unlock** button, which adds the change to your pending changes like any edit, with Undo. An expired password has a **Reset password…** button. Expiry is only said where Kanopa can read the policy, and a lock that may have run out says so. No banner means no known problem, not a guarantee.
+
 - **Reset password…** on a person, from the right-click menu, the entry's More menu, and Edit on the `userPassword` row: one dialog with the password generator. On a server with a password policy (OpenLDAP's ppolicy), a checkbox asks the person to choose their own password at the next sign-in; it is locked on when the person's own policy requires that, and a new person gets it checked. Kanopa sets the password first and the flag after it, and retries the flag under the Relax Rules control if the server refuses it. The item is off, with the reason, on a read-only connection and on Active Directory, where Kanopa does not set passwords yet.
 
 - A password generator. The dice in every new-password field (editing `userPassword`, a new person, other password attributes) fills in 20 random characters, with upper and lower case, digits and symbols, and leaves out look-alikes such as `0` and `O`. A generated password is shown in plain text, needs no confirmation and can be copied. It stays on the clipboard for 60 seconds, is cleared sooner if Kanopa quits, and is never cleared if you copied something else meanwhile.

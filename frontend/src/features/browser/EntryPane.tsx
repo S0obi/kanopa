@@ -9,6 +9,7 @@ import { cells, dropEntry, pendingOf, pendingView, toEntryChanges, undoDelete, u
 import { DeleteDialog, MemberOfPanel, MembersPanel, NewEntryDialog, PendingState, RenameDialog, useMemberOf } from "./shape";
 import { AddAttributeDialog, ValueEditor, targetOf, type EditTarget } from "./editors";
 import { ResetPasswordDialog } from "./reset";
+import { AccountStatusBanner } from "./status";
 import { useSettled } from "@/lib/settled";
 import { useWindow } from "@/lib/useWindow";
 import { dnKey, useBrowser } from "./store";
@@ -232,6 +233,7 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
             update(id, (s) => (what === "add" ? dropEntry(s, e.dn) : what === "delete" ? undoDelete(s, e.dn) : undoRename(s, e.dn)))
           }
         />
+        {!isNew && !deleted && <AccountStatusBanner id={id} entry={e} session={session} canWrite={canWrite} onReset={() => setDialog("resetPassword")} />}
         {e.referral && (
           <Banner tone="info" title="Referral.">
             This entry points to <code>{e.subtitle}</code>. Kanopa shows the referral itself and does not follow it.

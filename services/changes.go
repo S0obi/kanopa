@@ -384,8 +384,10 @@ func (c *ChangeService) applyEntry(ctx context.Context, l *liveSession, ch Entry
 }
 
 // isPolicyAttr reports whether name is a password policy attribute Kanopa writes after the password:
-// pwdReset, which asks for a new password at the next sign-in.
-func isPolicyAttr(name string) bool { return strings.EqualFold(name, "pwdReset") }
+// pwdReset (a new password at the next sign-in), and pwdAccountLockedTime, which Unlock removes.
+func isPolicyAttr(name string) bool {
+	return strings.EqualFold(name, "pwdReset") || strings.EqualFold(name, "pwdAccountLockedTime")
+}
 
 // setPolicyAttrs writes the policy attributes. Servers that guard them refuse an ordinary write (insufficient
 // access, unwilling to perform, constraint violation): when the server lists the Relax Rules control the

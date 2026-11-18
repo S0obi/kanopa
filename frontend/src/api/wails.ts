@@ -30,6 +30,7 @@ export const wailsBackend: Backend = {
   gidCheck: (id, gid) => DirectoryService.GIDCheck(id, gid),
   posixInfo: (id, uid) => DirectoryService.POSIXInfo(id, uid),
   passwordPolicy: (id, dn) => DirectoryService.PasswordPolicy(id, dn),
+  accountStatus: (id, dn) => DirectoryService.AccountStatus(id, dn),
   objectClasses: (id) => DirectoryService.ObjectClasses(id),
   countChildren: (id, dn) => DirectoryService.CountChildren(id, dn),
   ping: (id) => DirectoryService.Ping(id),

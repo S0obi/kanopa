@@ -20,7 +20,7 @@ func TestRefusedPolicyWrite(t *testing.T) {
 }
 
 func TestIsPolicyAttr(t *testing.T) {
-	if !isPolicyAttr("pwdReset") || !isPolicyAttr("PWDRESET") || isPolicyAttr("userPassword") {
-		t.Error("only pwdReset is written after the password")
+	if !isPolicyAttr("pwdReset") || !isPolicyAttr("PWDRESET") || !isPolicyAttr("pwdAccountLockedTime") || isPolicyAttr("userPassword") {
+		t.Error("only pwdReset and pwdAccountLockedTime are written after the password")
 	}
 }

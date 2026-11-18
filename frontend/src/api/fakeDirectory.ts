@@ -1,4 +1,4 @@
-import type { AllowedAttribute, ClassInfo, EntryAttribute, EntryChange, EntryView, Failure, FindResult, GIDResult, POSIXResult, RelatedEntry, TreeNode, UIDMatch } from "./backend";
+import type { AccountStatus, AllowedAttribute, ClassInfo, EntryAttribute, EntryChange, EntryView, Failure, FindResult, GIDResult, POSIXResult, RelatedEntry, TreeNode, UIDMatch } from "./backend";
 import type { AttributeChange, EntryResult } from "../../bindings/github.com/S0obi/kanopa/services/models";
 import { parentDn, rdnParts, splitDn } from "@/lib/dn";
 
@@ -76,6 +76,7 @@ function build(): Map<string, Node> {
     };
     if (manager) attrs.manager = [person(manager)];
     if (uid === "ada") attrs.jpegPhoto = ["\u0000jpeg"];
+    Object.assign(attrs, passwordStates[uid]);
     add(person(uid), attrs);
   }
   groupNames.forEach(([cn, desc], i) => {
@@ -153,7 +154,7 @@ export function typeOf(oc: string[], dn: string): string {
 }
 
 const DN_ATTRS = new Set(["member", "uniquemember", "manager", "owner", "seealso", "creatorsname"]);
-const OPERATIONAL = new Set(["createtimestamp", "creatorsname", "entryuuid"]);
+const OPERATIONAL = new Set(["createtimestamp", "creatorsname", "entryuuid", "pwdaccountlockedtime", "pwdreset", "pwdchangedtime", "pwdpolicysubentry"]);
 const SINGLE = new Set(["displayname", "employeenumber"]);
 const REQUIRED: Record<string, string[]> = { person: ["objectclass", "cn", "sn"], group: ["objectclass", "cn", "member"], posix: ["objectclass", "cn", "gidnumber"], ou: ["objectclass", "ou"] };
 const STRUCTURAL: Record<string, string> = { person: "inetOrgPerson", group: "groupOfNames", posix: "posixGroup", ou: "organizationalUnit" };
@@ -601,4 +602,54 @@ export function fakeClasses(): ClassInfo[] {
 /** The fake server's strict policy (pwdMustChange: TRUE) applies to Edsger Dijkstra, and to nobody else. */
 export function fakePolicyRequiresChange(dn: string): boolean {
   return key(dn) === key(`uid=edsger,ou=people,${BASE}`);
+}
+
+const policyDn = (cn: string) => `cn=${cn},ou=policies,${BASE}`;
+
+/** Password states the fake server shows on a few people, as the ppolicy overlay would keep them. */
+const passwordStates: Record<string, Attrs> = {
+  katherine: { pwdAccountLockedTime: ["20261115094012Z"], pwdPolicySubentry: [policyDn("until-unlocked")] },
+  margaret: { pwdAccountLockedTime: ["000001010000Z"], pwdPolicySubentry: [policyDn("until-unlocked")] },
+  // The policy of Alan's lock is one a reader cannot read: Kanopa says the lock may have ended.
+  alan: { pwdAccountLockedTime: ["20261115094012Z"], pwdPolicySubentry: [policyDn("restricted")] },
+  grace: { pwdReset: ["TRUE"] },
+  edsger: { pwdChangedTime: ["20200101000000Z"], pwdPolicySubentry: [policyDn("strict")] },
+};
+
+/** The policies a reader can read: how the lock and the age work. The restricted one is not here. */
+const readablePolicies: Record<string, { lockout: boolean; lockoutDuration: number; maxAge: number }> = {
+  "until-unlocked": { lockout: true, lockoutDuration: 0, maxAge: 0 },
+  strict: { lockout: true, lockoutDuration: 900, maxAge: 2592000 },
+};
+
+const ldapTime = (s: string): number | null => {
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?/.exec(s);
+  return m && Number(m[1]) >= 1970 ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0)) : null;
+};
+
+/** What a person's password state means for signing in, as Go's statusOf says it. */
+export function fakeAccountStatus(dn: string): AccountStatus {
+  const a = directory().get(key(dn))?.attrs ?? {};
+  const lockedValue = a.pwdAccountLockedTime?.[0] ?? "";
+  const policy = readablePolicies[(a.pwdPolicySubentry?.[0] ?? "").split(",")[0]?.replace(/^cn=/i, "") ?? ""] ?? null;
+  const out: AccountStatus = { locked: false, lockedAt: "", lockedValue: "", lockedByAdmin: false, lockMayHaveEnded: false, mustChange: a.pwdReset?.[0] === "TRUE", expired: false, expiredAt: "", failure: null };
+  if (lockedValue) {
+    const at = ldapTime(lockedValue);
+    const byAdmin = lockedValue.toUpperCase() === "000001010000Z";
+    if (policy && !policy.lockout) out.locked = false;
+    else if (byAdmin) [out.locked, out.lockedByAdmin] = [true, true];
+    else if (at === null) out.locked = true;
+    else if (policy && policy.lockoutDuration > 0) out.locked = Date.now() < at + policy.lockoutDuration * 1000;
+    else [out.locked, out.lockMayHaveEnded] = [true, !policy];
+    if (out.locked) {
+      out.lockedValue = lockedValue;
+      if (at !== null && !byAdmin) out.lockedAt = new Date(at).toISOString().replace(".000Z", "Z");
+    }
+  }
+  const changed = ldapTime(a.pwdChangedTime?.[0] ?? "");
+  if (policy && policy.maxAge > 0 && changed !== null && changed + policy.maxAge * 1000 < Date.now()) {
+    out.expired = true;
+    out.expiredAt = new Date(changed + policy.maxAge * 1000).toISOString().replace(".000Z", "Z");
+  }
+  return out;
 }

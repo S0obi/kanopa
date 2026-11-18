@@ -90,6 +90,7 @@ export function useApplyChanges(session: SessionInfo) {
           if (x.op === "rename") select(x.dn);
           if (x.op === "delete") select(parentDn(from));
         }
+        await qc.invalidateQueries({ queryKey: ["accountStatus", id] });
         await qc.invalidateQueries({ queryKey: ["entry", id] });
         await qc.invalidateQueries({ queryKey: ["memberOf", id] });
         await qc.invalidateQueries({ queryKey: ["referrers", id] });

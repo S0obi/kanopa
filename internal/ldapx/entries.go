@@ -402,3 +402,54 @@ func (s *Session) PolicyMustChange(ctx context.Context, dn string) (bool, error)
 	}
 	return strings.EqualFold(res.Entries[0].GetAttributeValue("pwdMustChange"), "TRUE"), nil
 }
+
+// PasswordState is what the ppolicy overlay keeps on a person and in the policy the person names:
+// enough to say whether the account is locked, must change its password or has an expired one.
+type PasswordState struct {
+	LockedTime  string // pwdAccountLockedTime as stored ("000001010000Z" is a lock by an administrator); empty when none
+	Reset       bool   // pwdReset: the person must choose a new password at the next sign-in
+	ChangedTime string // pwdChangedTime; empty when the password was never changed through the server
+	PolicyDN    string // pwdPolicySubentry; empty when the entry names none (the server's default applies)
+	// PolicyRead is true when the named policy could be read; the three values below are then valid.
+	PolicyRead      bool
+	MaxAge          int  // pwdMaxAge in seconds; 0 means the password never expires
+	Lockout         bool // pwdLockout: failed sign-ins lock the account
+	LockoutDuration int  // pwdLockoutDuration in seconds; 0 means the lock stays until someone removes it
+}
+
+// PasswordState reads the password state of dn. A policy that the bind cannot read leaves PolicyRead
+// false: the state is then reported without guessing at what the policy says.
+func (s *Session) PasswordState(ctx context.Context, dn string) (PasswordState, error) {
+	var st PasswordState
+	res, err := keepSearch(ctx, s.Conn, ldap.NewSearchRequest(dn, ldap.ScopeBaseObject, ldap.NeverDerefAliases, 1, s.secs(), false,
+		"(objectClass=*)", []string{"pwdAccountLockedTime", "pwdReset", "pwdChangedTime", "pwdPolicySubentry"}, nil))
+	if err != nil {
+		return st, Classify(err, s.op())
+	}
+	if len(res.Entries) == 0 {
+		return st, nil
+	}
+	e := res.Entries[0]
+	st.LockedTime = e.GetAttributeValue("pwdAccountLockedTime")
+	st.Reset = strings.EqualFold(e.GetAttributeValue("pwdReset"), "TRUE")
+	st.ChangedTime = e.GetAttributeValue("pwdChangedTime")
+	st.PolicyDN = e.GetAttributeValue("pwdPolicySubentry")
+	if st.PolicyDN == "" {
+		return st, nil
+	}
+	pol, err := keepSearch(ctx, s.Conn, ldap.NewSearchRequest(st.PolicyDN, ldap.ScopeBaseObject, ldap.NeverDerefAliases, 1, s.secs(), false,
+		"(objectClass=*)", []string{"pwdMaxAge", "pwdLockout", "pwdLockoutDuration"}, nil))
+	if err != nil {
+		// A policy this bind cannot read is unknown, which is not an error.
+		return st, nil //nolint:nilerr // see above
+	}
+	if len(pol.Entries) == 0 {
+		return st, nil
+	}
+	p := pol.Entries[0]
+	st.PolicyRead = true
+	st.MaxAge, _ = strconv.Atoi(p.GetAttributeValue("pwdMaxAge"))
+	st.LockoutDuration, _ = strconv.Atoi(p.GetAttributeValue("pwdLockoutDuration"))
+	st.Lockout = strings.EqualFold(p.GetAttributeValue("pwdLockout"), "TRUE")
+	return st, nil
+}

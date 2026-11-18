@@ -15,6 +15,14 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as $models from "./models.js";
 
 /**
+ * AccountStatus reads whether a person's account is locked, must change its password or has an expired one.
+ * It needs the ppolicy overlay: on a server without it the answer is "no known problem".
+ */
+export function AccountStatus(id: string, dn: string): $CancellablePromise<$models.AccountStatus> {
+    return $Call.ByID(2005293792, id, dn);
+}
+
+/**
  * Children returns one page of the entries below dn: the connection's page size, starting at
  * the token of the previous page ("" for the first). The first page reads every child from the
  * server in one paged search (up to 20,000) and keeps them, so "Show N more" knows N exactly.
