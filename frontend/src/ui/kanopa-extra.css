@@ -193,3 +193,22 @@ hr.kn-menu__sep { border: 0; }
 .kn-listbox__option[data-active="true"] { background: var(--surface-hover); }
 .kn-listbox__option[aria-selected="true"] { font-weight: 600; }
 .kn-listbox__option[aria-disabled="true"] { opacity: .45; }
+
+/* A password Kanopa generated: shown in plain text on a soft ground, and the field is one column wide. */
+.kn-pair--single > .kn-field:first-child { grid-column: 1 / -1; }
+.kn-input--generated { background: var(--moss-soft); }
+
+/* The notice after an Apply that set generated passwords: floats top right, with a Copy for each person. */
+.kn-applied { position: fixed; top: 56px; right: 16px; z-index: 35; width: min(440px, calc(100vw - 32px)); box-sizing: border-box; display: flex; flex-direction: column; gap: var(--space-2); padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-md, 10px); background: var(--surface-raised); box-shadow: var(--shadow-md, 0 8px 24px -6px #1c272033, 0 2px 6px #1c272014); }
+.kn-applied__head { display: flex; align-items: flex-start; gap: var(--space-2); }
+.kn-applied__head > .kn-icon { margin-top: 2px; flex-shrink: 0; }
+.kn-applied__title { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.kn-applied__title span { color: var(--ink-muted); }
+.kn-applied__list { margin: 0; padding: 0 0 0 24px; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.kn-applied__list li { display: flex; align-items: center; gap: var(--space-2); min-height: 30px; }
+.kn-applied__who { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 500; }
+.kn-applied__error { font-weight: 400; font-size: 12px; line-height: 16px; color: var(--danger-ink); }
+.kn-applied__note { padding-left: 24px; font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+
+/* WebView2 (Edge) draws its own reveal and clear buttons in a password field. Kanopa has its own eye, so hide theirs. */
+.kn-input input::-ms-reveal, .kn-input input::-ms-clear { display: none; }

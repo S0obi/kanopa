@@ -71,7 +71,11 @@ func run() error {
 		LogDir:   logDir,
 		OpenPath: func(path string) error { return app.Env.OpenFileManager(path, false) },
 		OpenURL:  func(url string) error { return app.Browser.OpenURL(url) },
-		Log:      logger,
+		Clipboard: services.Clipboard{
+			Read:  func() (string, bool) { return app.Clipboard.Text() },
+			Write: func(text string) bool { return app.Clipboard.SetText(text) },
+		},
+		Log: logger,
 	})
 
 	app = application.New(application.Options{
@@ -100,6 +104,7 @@ func run() error {
 				app.Event.Emit(services.EventCloseRequested)
 				return false
 			}
+			appSvc.ClearSecret()
 			return true
 		},
 		// A second launch brings the open window forward instead of starting another.
@@ -180,6 +185,7 @@ func run() error {
 				app.Event.Emit(services.EventCloseRequested)
 				return
 			}
+			appSvc.ClearSecret()
 			if !remembered.Valid() {
 				remembered = settings.Window{X: place.X, Y: place.Y, Width: place.Width, Height: place.Height}
 				if b := win.Bounds(); b.Width > 0 {

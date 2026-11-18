@@ -134,8 +134,12 @@ let dir: Map<string, Node> | null = null;
 const directory = () => (dir ??= build());
 
 /** Forgets every change applied to the sample directory (for tests). */
+/** Knobs for tests: what the fake server refuses. */
+export const fakeRules = { refusePasswords: false };
+
 export function resetFakeDirectory() {
   dir = null;
+  fakeRules.refusePasswords = false;
 }
 
 const has = (oc: string[], ...names: string[]) => names.some((n) => oc.some((c) => c.toLowerCase() === n.toLowerCase()));
@@ -274,6 +278,7 @@ function fakeModify(ch: EntryChange): Failure | null {
     const name = nameIn(next, a.name);
     const now = next[name] ?? [];
     const hidden = a.kind === "binary" || a.kind === "password";
+    if (a.kind === "password" && a.password && fakeRules.refusePasswords) return refused(19, "Constraint violation", "Change refused.", "the password is too weak for the server's policy.");
     let values: string[];
     if (isDelta(a)) {
       const same = sameValue(a.name);

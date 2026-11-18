@@ -23,10 +23,26 @@ export function About(): $CancellablePromise<$models.About> {
 }
 
 /**
+ * ClearSecret clears the clipboard if it still holds the secret Kanopa copied, and forgets the secret.
+ * It is called when the timer runs out and when Kanopa quits.
+ */
+export function ClearSecret(): $CancellablePromise<void> {
+    return $Call.ByID(576452076);
+}
+
+/**
  * CloseAnyway closes the window, dropping the pending changes.
  */
 export function CloseAnyway(): $CancellablePromise<void> {
     return $Call.ByID(4053403772);
+}
+
+/**
+ * CopySecret puts text on the clipboard and clears it after seconds (60 when 0 or less, 300 at most),
+ * unless the clipboard holds something else by then. A later call takes over from an earlier one.
+ */
+export function CopySecret(text: string, seconds: number): $CancellablePromise<void> {
+    return $Call.ByID(2032793110, text, seconds);
 }
 
 /**

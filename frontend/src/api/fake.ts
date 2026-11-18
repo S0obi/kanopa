@@ -305,6 +305,13 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     async copyText(text) {
       clipboard.text = text;
     },
+    async copySecret(text, seconds) {
+      clipboard.text = text;
+      // As the Go side does: cleared after the time, only while the clipboard still holds it.
+      setTimeout(() => {
+        if (clipboard.text === text) clipboard.text = "";
+      }, Math.max(seconds, 1) * 1000);
+    },
     async preview(id, changes) {
       const lost = check(id);
       if (lost) return { ldif: "", entries: 0, failure: lost };

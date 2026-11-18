@@ -128,5 +128,35 @@ for (const scheme of ["light", "dark"] as const) {
       await expect(page.getByRole("listbox")).toHaveCount(0);
       await expect(page.getByRole("dialog", { name: "New entry" })).toBeVisible();
     });
+
+    test("passwords: the generator, copying while pending, the applied notice", async ({ page }) => {
+      await connect(page);
+      await page.getByRole("button", { name: "Connect to Production directory" }).click();
+      await row(page, /^ou=people/).click();
+      await page.keyboard.press("ArrowRight");
+      await row(page, /^uid=ada /).click();
+      await expect(page.locator("main h1", { hasText: "Ada Lovelace" })).toBeVisible();
+
+      await page.locator("table[aria-label=Attributes] tr", { hasText: "userPassword" }).first().hover();
+      await page.getByRole("button", { name: "Edit userPassword" }).click();
+      const dialog = page.getByRole("dialog", { name: /Edit userPassword/ });
+      await expect(dialog).toBeVisible();
+      await scan(page, "password dialog, typed");
+      await dialog.getByRole("button", { name: "Generate a password" }).click();
+      await expect(dialog.getByLabel("New password")).toHaveValue(/^.{20}$/);
+      await scan(page, "password dialog, generated");
+      await dialog.getByRole("button", { name: "Copy password" }).click();
+      await expect(dialog.getByText(/^Copied\. Clears from the clipboard in/)).toBeVisible();
+      await scan(page, "password dialog, copied");
+      await dialog.getByRole("button", { name: "Add to changes" }).click();
+
+      await expect(page.getByText("New password waiting.")).toBeVisible();
+      await scan(page, "generated password pending");
+      await page.getByRole("region", { name: "Pending changes" }).getByRole("button", { name: /Apply/ }).click();
+      await expect(page.getByText("Ada Lovelace has a new password. Kanopa forgets it when this notice closes.")).toBeVisible();
+      await scan(page, "applied notice");
+      await page.getByRole("button", { name: "Close notice" }).click();
+      await expect(page.getByText(/has a new password/)).toHaveCount(0);
+    });
   });
 }

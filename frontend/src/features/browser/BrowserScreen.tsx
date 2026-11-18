@@ -7,8 +7,8 @@ import { credentialStoreName, detectPlatform, isMod } from "@/lib/platform";
 import { plural } from "@/lib/time";
 import { useApp } from "@/stores/app";
 import { Badge, Banner, Button, SplitPane, StatusBar, StatusIndicator, Tooltip, TypeTile } from "@/ui";
-import { ApplyFailureBanner, ChangesBar, DropChangesDialog, useApplyChanges, useApplyShortcut } from "./ChangesBar";
-import { useChanges } from "./changes";
+import { AppliedNotice, ApplyFailureBanner, ChangesBar, DropChangesDialog, useApplyChanges, useApplyShortcut } from "./ChangesBar";
+import { generatedPasswords, useChanges } from "./changes";
 import { EntryPane } from "./EntryPane";
 import { useBrowser } from "./store";
 import { DirectoryTree } from "./Tree";
@@ -185,6 +185,7 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
                 <ApplyFailureBanner f={changes.failure} pending={changes.summary.count} onDismiss={changes.dismissFailure} />
               </div>
             )}
+            {changes.issued && <AppliedNotice issued={changes.issued} host={changes.host} onClose={changes.dismissIssued} />}
             <EntryPane />
             {changes.summary.count > 0 && (
               <ChangesBar
@@ -192,6 +193,7 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
                 summary={changes.summary.text}
                 connected={connection === "connected"}
                 applying={changes.applying}
+                passwords={generatedPasswords(changes.set)}
                 onReview={() => setTab("ldif")}
                 onDiscard={changes.discard}
                 onApply={() => void changes.apply()}

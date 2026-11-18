@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 )
 
 // EventCloseRequested is emitted when the person closes the window while changes are pending.
@@ -35,7 +36,9 @@ type AppConfig struct {
 	OpenPath func(path string) error
 	// OpenURL opens an address in the person's browser.
 	OpenURL func(url string) error
-	Log     *slog.Logger
+	// Clipboard is the system clipboard, for copying a password that clears itself.
+	Clipboard Clipboard
+	Log       *slog.Logger
 }
 
 // AppService guards the window against closing with changes that were never applied, and tells
@@ -46,6 +49,10 @@ type AppService struct {
 	mu      sync.Mutex
 	pending int
 	closing bool
+
+	// The password Kanopa last copied, and the timer that clears it.
+	secret      string
+	secretTimer *time.Timer
 }
 
 // NewAppService returns the service for cfg.
