@@ -597,3 +597,8 @@ export function fakeClasses(): ClassInfo[] {
     { name: "simpleSecurityObject", kind: "AUXILIARY", desc: "RFC1274: simple security object", must: [{ ...a("userPassword", "password"), required: true }], may: [] },
   ];
 }
+
+/** The fake server's strict policy (pwdMustChange: TRUE) applies to Edsger Dijkstra, and to nobody else. */
+export function fakePolicyRequiresChange(dn: string): boolean {
+  return key(dn) === key(`uid=edsger,ou=people,${BASE}`);
+}

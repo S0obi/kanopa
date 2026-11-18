@@ -146,6 +146,7 @@ export function DirectoryTree() {
     canWrite: !!session && !session.readOnly && connection === "connected",
     roots: session ? [session.baseDn, ...(session.namingContexts ?? [])] : [],
     mark: marks[dnKey(n.dn)],
+    activeDirectory: !!session?.activeDirectory,
     platform,
   });
 

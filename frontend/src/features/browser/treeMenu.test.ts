@@ -11,7 +11,18 @@ describe("the tree's menu", () => {
   it("offers New child only on containers and Add member only on groups", () => {
     expect(ids(node("ou=people,dc=example,dc=org", "ou", true))).toEqual(["copy", "new", "rename", "—", "delete"]);
     expect(ids(node("cn=admins,ou=groups,dc=example,dc=org", "group"))).toEqual(["copy", "addMember", "rename", "—", "delete"]);
-    expect(ids(node("uid=ada,ou=people,dc=example,dc=org", "person"))).toEqual(["copy", "rename", "—", "delete"]);
+    expect(ids(node("uid=ada,ou=people,dc=example,dc=org", "person"))).toEqual(["copy", "resetPassword", "rename", "—", "delete"]);
+  });
+
+  it("offers Reset password on people only, and says why it is off", () => {
+    const ada = node("uid=ada,ou=people,dc=example,dc=org", "person");
+    expect(item(ada, "resetPassword")).toMatchObject({ label: "Reset password…", disabled: false });
+    expect(item(ada, "resetPassword", ctx({ activeDirectory: true }))).toMatchObject({ disabled: true, hint: "Not supported on Active Directory yet" });
+    expect(item(ada, "resetPassword", ctx({ canWrite: false }))).toMatchObject({ disabled: true, hint: "Read-only" });
+    expect(item(ada, "resetPassword", ctx({ mark: "new" }))).toMatchObject({ disabled: true, hint: "Not created yet" });
+    expect(item(ada, "resetPassword", ctx({ mark: "deleted" }))).toMatchObject({ disabled: true, hint: "Marked for deletion" });
+    expect(item(node("cn=admins,ou=groups,dc=example,dc=org", "group"), "resetPassword")).toBeUndefined();
+    expect(item(node("ou=people,dc=example,dc=org", "ou", true), "resetPassword")).toBeUndefined();
   });
 
   it("keeps forbidden actions, disabled with the reason", () => {

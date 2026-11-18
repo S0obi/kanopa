@@ -80,6 +80,13 @@ export function POSIXInfo(id: string, uid: number): $CancellablePromise<$models.
 }
 
 /**
+ * PasswordPolicy reads what the password policy of one entry demands after a reset.
+ */
+export function PasswordPolicy(id: string, dn: string): $CancellablePromise<$models.PolicyResult> {
+    return $Call.ByID(3294906764, id, dn);
+}
+
+/**
  * Ping checks that the connection still answers. It returns nil when it does.
  */
 export function Ping(id: string): $CancellablePromise<$models.Failure | null> {

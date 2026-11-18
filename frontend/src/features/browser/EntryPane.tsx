@@ -8,6 +8,7 @@ import { Badge, Banner, Button, DnBreadcrumb, EmptyState, LdifView, MenuButton, 
 import { cells, dropEntry, pendingOf, pendingView, toEntryChanges, undoDelete, undoRename, useChanges, valuesAfter, type ChangeSet, type PendingAttr } from "./changes";
 import { DeleteDialog, MemberOfPanel, MembersPanel, NewEntryDialog, PendingState, RenameDialog, useMemberOf } from "./shape";
 import { AddAttributeDialog, ValueEditor, targetOf, type EditTarget } from "./editors";
+import { ResetPasswordDialog } from "./reset";
 import { useSettled } from "@/lib/settled";
 import { useWindow } from "@/lib/useWindow";
 import { dnKey, useBrowser } from "./store";
@@ -139,13 +140,14 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
     .flatMap((a) => valuesAfter(a.values ?? [], pendingOf(pendingSet, e.dn, a.name))).length;
   // The Member of tab shows how many groups list this entry, so the lookup runs when the entry opens.
   const memberOf = useMemberOf(id, e, !isGroup && !isNew);
-  const [dialog, setDialog] = useState<"new" | "rename" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"new" | "rename" | "delete" | "resetPassword" | null>(null);
   const root = sameDn(e.dn, session.baseDn) || (session.namingContexts ?? []).some((nc) => sameDn(nc, e.dn));
   const container = canHaveChildren({ type: e.type, hasChildren: !!node?.hasChildren, referral: e.referral });
   const multiRdn = (splitDn(e.dn)[0] ?? "").replace(/\\./g, "").includes("+");
   const hasChildren = !!node?.hasChildren;
   const renameOff = !canWrite || isNew || deleted || root || multiRdn || hasChildren || e.type === "server" && !node;
   const deleteOff = !canWrite || isNew || deleted || root;
+  const resetOff = !canWrite || isNew || deleted || session.activeDirectory;
   const relTab = isGroup ? "members" : "memberOf";
   const storedTab = useBrowser((s) => s.tab);
   const setTab = useBrowser((s) => s.setTab);
@@ -211,12 +213,13 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
               <MenuButton
                 label="More entry actions"
                 items={[
+                  ...(e.type === "person" ? [{ id: "resetPassword", label: "Reset password…", icon: "key" as const, disabled: resetOff, hint: session.activeDirectory ? "Not supported on Active Directory yet" : undefined }] : []),
                   { id: "rename", label: hasChildren ? "Rename… (entries below it)" : "Rename…", icon: "pencil", disabled: renameOff },
                   { separator: true },
                   { id: "delete", label: "Delete entry…", icon: "trash", danger: true, disabled: deleteOff },
                 ]}
                 // The menu gives focus back to its button as it closes: open the dialog after that.
-                onSelect={(item) => setTimeout(() => setDialog(item === "rename" ? "rename" : "delete"), 0)}
+                onSelect={(item) => setTimeout(() => setDialog(item === "rename" ? "rename" : item === "resetPassword" ? "resetPassword" : "delete"), 0)}
               />
             )}
           </div>
@@ -274,7 +277,8 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
         {tab === relTab && !isNew &&
           (isGroup ? <MembersPanel id={id} group={e} editable={editable} onOpen={onOpen} picking={picking} /> : <MemberOfPanel id={id} entry={e} editable={editable} onOpen={onOpen} />)}
       </div>
-      {editing && <ValueEditor connectionId={id} entry={e} target={editing} session={session} onClose={() => setEditing(null)} />}
+      {editing && editing.name.toLowerCase() === "userpassword" && !session.activeDirectory && <ResetPasswordDialog connectionId={id} entry={e} session={session} onClose={() => setEditing(null)} />}
+      {editing && !(editing.name.toLowerCase() === "userpassword" && !session.activeDirectory) && <ValueEditor connectionId={id} entry={e} target={editing} session={session} onClose={() => setEditing(null)} />}
       {adding && <AddAttributeDialog connectionId={id} entry={e} session={session} onClose={() => setAdding(false)} />}
       {dialog === "new" && (
         <NewEntryDialog
@@ -288,6 +292,7 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
           }}
         />
       )}
+      {dialog === "resetPassword" && <ResetPasswordDialog connectionId={id} entry={e} session={session} onClose={() => setDialog(null)} />}
       {dialog === "rename" && <RenameDialog id={id} entry={e} onClose={() => setDialog(null)} />}
       {dialog === "delete" && <DeleteDialog id={id} entry={e} host={hostOf(session.url)} onClose={() => setDialog(null)} />}
     </div>

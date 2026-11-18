@@ -15,6 +15,7 @@ import type {
   FilterCheck,
   FindResult,
   GIDResult,
+  PolicyResult,
   Layout,
   POSIXResult,
   PosixGroup,
@@ -36,7 +37,7 @@ import type {
 
 export type {
   About, Layout, AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
-  GIDResult, POSIXResult, PosixGroup, QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection, UIDMatch, UIDResult,
+  GIDResult, POSIXResult, PolicyResult, PosixGroup, QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection, UIDMatch, UIDResult,
   SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
 };
 
@@ -78,6 +79,8 @@ export interface Backend {
   resolveUids(id: string, uids: string[]): Promise<UIDResult>;
   /** The next free gidNumber for a new posixGroup, and the posixGroups that already use gid (when it is more than 0). */
   gidCheck(id: string, gid: number): Promise<GIDResult>;
+  /** What the password policy of one entry demands after a reset: a new password at the next login (false also when it is unknown). */
+  passwordPolicy(id: string, dn: string): Promise<PolicyResult>;
   /** For a new posixAccount: the next free uidNumber, the accounts that use uid (when it is more than 0) and the posixGroups to pick as primary group. */
   posixInfo(id: string, uid: number): Promise<POSIXResult>;
   /** null while the connection answers. */

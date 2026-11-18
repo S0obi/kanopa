@@ -911,3 +911,25 @@ func (d *DirectoryService) Ping(ctx context.Context, id string) *Failure {
 	}
 	return nil
 }
+
+// PolicyResult answers PasswordPolicy.
+type PolicyResult struct {
+	// MustChange is true when the entry names a password policy that asks for a new password after a
+	// reset. False also when Kanopa cannot tell: the entry names no policy (the server's default
+	// applies), or the policy is one this bind cannot read.
+	MustChange bool     `json:"mustChange"`
+	Failure    *Failure `json:"failure"`
+}
+
+// PasswordPolicy reads what the password policy of one entry demands after a reset.
+func (d *DirectoryService) PasswordPolicy(ctx context.Context, id, dn string) PolicyResult {
+	l, f := d.session(id)
+	if f != nil {
+		return PolicyResult{Failure: f}
+	}
+	must, err := l.PolicyMustChange(ctx, dn)
+	if err != nil {
+		return PolicyResult{Failure: d.fail(l, err)}
+	}
+	return PolicyResult{MustChange: must}
+}

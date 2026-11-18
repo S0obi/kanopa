@@ -1,5 +1,5 @@
 import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName } from "./backend";
-import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeGidCheck, fakeMemberOf, fakePosixInfo, fakeNode, fakePreview, fakeReferrers, fakeResolveUids } from "./fakeDirectory";
+import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeGidCheck, fakeMemberOf, fakePolicyRequiresChange, fakePosixInfo, fakeNode, fakePreview, fakeReferrers, fakeResolveUids } from "./fakeDirectory";
 import { fakeQuick } from "./fakeQuick";
 
 /**
@@ -23,6 +23,10 @@ export const FAKE = {
   lost: false,
   /** Makes the referring-groups search fail, as a server over its limits would. */
   failReferrers: false,
+  /** The fake server has the ppolicy attributes, so a reset can ask for a new password at the next login. */
+  passwordPolicy: true,
+  /** Simulates Active Directory, where Kanopa does not reset passwords yet. */
+  activeDirectory: false,
   /** Set by the fake backend: pretends the person closed the window. */
   requestClose: () => {},
   /** Entries with unapplied changes, as the app last reported them; closed once the window would close. */
@@ -245,7 +249,7 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
         session: {
           connectionId: id, name: c.name, url: u.url, security: secLabel(c.url, c.security), boundAs: c.bind === "simple" ? c.bindDn : "",
           baseDn: c.baseDn || FAKE.baseDn, vendor: "", namingContexts: [FAKE.baseDn], ldapVersions: ["3"], controls: 14, extensions: 5, elapsedMs: 42, readOnly: c.readOnly,
-          subschemaDn: SUBSCHEMA, schemaRead: true, paging: FAKE.paging,
+          subschemaDn: SUBSCHEMA, schemaRead: true, paging: FAKE.paging, passwordPolicy: FAKE.passwordPolicy, activeDirectory: FAKE.activeDirectory,
         },
       };
     },
@@ -364,6 +368,10 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     async gidCheck(id, gid) {
       const lost = check(id);
       return lost ? { next: 0, takenBy: [], failure: lost } : fakeGidCheck(gid);
+    },
+    async passwordPolicy(id, dn) {
+      const lost = check(id);
+      return lost ? { mustChange: false, failure: lost } : { mustChange: fakePolicyRequiresChange(dn), failure: null };
     },
     async posixInfo(id, uid) {
       const lost = check(id);

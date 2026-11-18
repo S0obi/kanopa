@@ -133,7 +133,7 @@ describe("the tree's right-click menu", () => {
     await user.click(within(ask).getByRole("button", { name: "Delete entry" }));
     await rightClick(/^uid=alan .*delete/);
     const menu = await menuOf("uid=alan");
-    expect(names(menu)).toEqual(["Copy DNCtrl+C", "Rename…Marked for deletion", "Delete…Marked for deletion"]);
+    expect(names(menu)).toEqual(["Copy DNCtrl+C", "Reset password…Marked for deletion", "Rename…Marked for deletion", "Delete…Marked for deletion"]);
     // A shortcut on it does nothing either.
     await user.keyboard("{Escape}{F2}");
     expect(screen.queryByRole("dialog", { name: /Rename/ })).not.toBeInTheDocument();

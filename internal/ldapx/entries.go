@@ -373,3 +373,32 @@ func (s *Session) GIDInfo(ctx context.Context, base string, gid int) (next int, 
 	sort.Strings(takenBy)
 	return highest + 1, takenBy, nil
 }
+
+// PolicyMustChange reports whether the password policy that applies to dn demands a new password after
+// a reset (pwdMustChange: TRUE). It reads the policy the entry names in pwdPolicySubentry. An entry that
+// names none (the server's default applies, and a reader cannot see which), or a policy the bind cannot
+// read, answers false: Kanopa then does not know, and does not claim the policy requires it.
+func (s *Session) PolicyMustChange(ctx context.Context, dn string) (bool, error) {
+	entry, err := keepSearch(ctx, s.Conn, ldap.NewSearchRequest(dn, ldap.ScopeBaseObject, ldap.NeverDerefAliases, 1, s.secs(), false,
+		"(objectClass=*)", []string{"pwdPolicySubentry"}, nil))
+	if err != nil {
+		return false, Classify(err, s.op())
+	}
+	if len(entry.Entries) == 0 {
+		return false, nil
+	}
+	policy := entry.Entries[0].GetAttributeValue("pwdPolicySubentry")
+	if policy == "" {
+		return false, nil
+	}
+	res, err := keepSearch(ctx, s.Conn, ldap.NewSearchRequest(policy, ldap.ScopeBaseObject, ldap.NeverDerefAliases, 1, s.secs(), false,
+		"(objectClass=*)", []string{"pwdMustChange"}, nil))
+	if err != nil {
+		// A policy this bind cannot read is unknown, which is not an error.
+		return false, nil //nolint:nilerr // see above
+	}
+	if len(res.Entries) == 0 {
+		return false, nil
+	}
+	return strings.EqualFold(res.Entries[0].GetAttributeValue("pwdMustChange"), "TRUE"), nil
+}

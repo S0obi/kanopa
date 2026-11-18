@@ -139,11 +139,11 @@ for (const scheme of ["light", "dark"] as const) {
 
       await page.locator("table[aria-label=Attributes] tr", { hasText: "userPassword" }).first().hover();
       await page.getByRole("button", { name: "Edit userPassword" }).click();
-      const dialog = page.getByRole("dialog", { name: /Edit userPassword/ });
+      const dialog = page.getByRole("dialog", { name: /Reset password/ });
       await expect(dialog).toBeVisible();
       await scan(page, "password dialog, typed");
       await dialog.getByRole("button", { name: "Generate a password" }).click();
-      await expect(dialog.getByLabel("New password")).toHaveValue(/^.{20}$/);
+      await expect(dialog.getByRole("textbox", { name: "New password" })).toHaveValue(/^.{20}$/);
       await scan(page, "password dialog, generated");
       await dialog.getByRole("button", { name: "Copy password" }).click();
       await expect(dialog.getByText(/^Copied\. Clears from the clipboard in/)).toBeVisible();
