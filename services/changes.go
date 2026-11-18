@@ -241,13 +241,26 @@ func (c *ChangeService) applyStep(ctx context.Context, l *liveSession, s step) e
 		if err != nil {
 			return err
 		}
-		if err := l.Add(ctx, s.dn, attrs); err != nil {
+		// pwdReset is set after the password (see applyEntry), not in the add.
+		var post []ldapx.Mod
+		var keep []ldapx.RawAttribute
+		for _, a := range attrs {
+			if isPolicyAttr(a.Name) {
+				post = append(post, ldapx.Mod{Op: ldapx.ModReplace, Attr: a.Name, Values: a.Values})
+			} else {
+				keep = append(keep, a)
+			}
+		}
+		if err := l.Add(ctx, s.dn, keep); err != nil {
 			return err
 		}
-		if password == "" {
-			return nil
+		var perr error
+		if password != "" {
+			perr = l.PasswordModify(ctx, s.dn, password)
 		}
-		perr := l.PasswordModify(ctx, s.dn, password)
+		if perr == nil {
+			perr = setPolicyAttrs(ctx, l, s.dn, post)
+		}
 		if perr == nil {
 			return nil
 		}
@@ -257,7 +270,7 @@ func (c *ChangeService) applyStep(ctx context.Context, l *liveSession, s step) e
 			var le *ldapx.Error
 			if errors.As(perr, &le) {
 				kept := *le
-				kept.Detail += " The entry was created without its password, and Kanopa couldn't remove it again: delete it, or set its password, by hand."
+				kept.Detail += " The entry was created without finishing its password setup, and Kanopa couldn't remove it again: delete it, or set its password, by hand."
 				return &kept
 			}
 			return fmt.Errorf("%w; the entry was created without its password and couldn't be removed again", perr)
@@ -329,6 +342,18 @@ func (c *ChangeService) applyEntry(ctx context.Context, l *liveSession, ch Entry
 	if err != nil {
 		return err
 	}
+	// pwdReset is set after the password: a password change clears it (or sets it, under a policy
+	// that asks for it), so it goes last and apart from the rest.
+	var post []ldapx.Mod
+	var rest []plannedMod
+	for _, m := range p.mods {
+		if isPolicyAttr(m.Attr) {
+			post = append(post, m.Mod)
+		} else {
+			rest = append(rest, m)
+		}
+	}
+	p.mods = rest
 	if len(p.mods) > 0 {
 		mods := make([]ldapx.Mod, len(p.mods))
 		for i, m := range p.mods {
@@ -351,9 +376,34 @@ func (c *ChangeService) applyEntry(ctx context.Context, l *liveSession, ch Entry
 		}
 	}
 	if p.password != "" {
-		return l.PasswordModify(ctx, ch.DN, p.password)
+		if err := l.PasswordModify(ctx, ch.DN, p.password); err != nil {
+			return err
+		}
 	}
-	return nil
+	return setPolicyAttrs(ctx, l, ch.DN, post)
+}
+
+// isPolicyAttr reports whether name is a password policy attribute Kanopa writes after the password:
+// pwdReset, which asks for a new password at the next sign-in.
+func isPolicyAttr(name string) bool { return strings.EqualFold(name, "pwdReset") }
+
+// setPolicyAttrs writes the policy attributes. Servers that guard them refuse an ordinary write (insufficient
+// access, unwilling to perform, constraint violation): when the server lists the Relax Rules control the
+// write is tried again under it, and when that is refused too the server's error is the answer.
+func setPolicyAttrs(ctx context.Context, l *liveSession, dn string, mods []ldapx.Mod) error {
+	if len(mods) == 0 {
+		return nil
+	}
+	err := l.Modify(ctx, dn, mods, "")
+	if err != nil && l.relax && refusedPolicyWrite(err) {
+		err = l.ModifyRelaxed(ctx, dn, mods)
+	}
+	return err
+}
+
+// refusedPolicyWrite reports whether err is a refusal that the Relax Rules control may lift.
+func refusedPolicyWrite(err error) bool {
+	return isCode(err, 19) || isCode(err, 50) || isCode(err, 53)
 }
 
 // changedSince lists the edited attributes whose values on the server (current) are no longer
@@ -498,7 +548,9 @@ func planEntry(l *liveSession, ch EntryChange, current *ldapx.RawEntry) (*entryP
 			if m := planText(a, comparable); m != nil {
 				p.mods = append(p.mods, *m)
 			}
-			asserts = append(asserts, assertValues(a.Name, a.Before, comparable))
+			if !isPolicyAttr(a.Name) { // the server sets it too, and it is written apart from the rest
+				asserts = append(asserts, assertValues(a.Name, a.Before, comparable))
+			}
 		}
 	}
 	if !p.empty() && len(asserts) > 0 {

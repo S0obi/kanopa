@@ -21,6 +21,7 @@ type liveSession struct {
 	readOnly       bool // Kanopa never sends changes over this connection
 	assertion      bool // the server supports the assertion control (RFC 4528)
 	passwordModify bool // the server supports the Password Modify operation (RFC 3062)
+	relax          bool // the server supports the Relax Rules control
 
 	// paged serializes paged searches: many servers keep one per connection, and a second
 	// one started meanwhile invalidates the first one's cookie.

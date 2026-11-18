@@ -350,6 +350,19 @@ export interface POSIXResult {
 }
 
 /**
+ * PolicyResult answers PasswordPolicy.
+ */
+export interface PolicyResult {
+    /**
+     * MustChange is true when the entry names a password policy that asks for a new password after a
+     * reset. False also when Kanopa cannot tell: the entry names no policy (the server's default
+     * applies), or the policy is one this bind cannot read.
+     */
+    "mustChange": boolean;
+    "failure": Failure | null;
+}
+
+/**
  * PosixGroup is a posixGroup offered as the primary group of a new account.
  */
 export interface PosixGroup {
@@ -547,6 +560,16 @@ export interface SessionInfo {
      * Kanopa then reads with plain searches, and a size limit on the server cuts lists short.
      */
     "paging": boolean;
+
+    /**
+     * PasswordPolicy is true when the schema has the ppolicy attribute pwdReset: a reset can then ask for a new password at the next login.
+     */
+    "passwordPolicy": boolean;
+
+    /**
+     * ActiveDirectory is true when the schema has unicodePwd: passwords are set another way there, which Kanopa does not do yet.
+     */
+    "activeDirectory": boolean;
 }
 
 /**

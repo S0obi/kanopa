@@ -98,6 +98,10 @@ type SessionInfo struct {
 	// Paging is false when the server lists its controls and the paged results control is not one:
 	// Kanopa then reads with plain searches, and a size limit on the server cuts lists short.
 	Paging bool `json:"paging"`
+	// PasswordPolicy is true when the schema has the ppolicy attribute pwdReset: a reset can then ask for a new password at the next login.
+	PasswordPolicy bool `json:"passwordPolicy"`
+	// ActiveDirectory is true when the schema has unicodePwd: passwords are set another way there, which Kanopa does not do yet.
+	ActiveDirectory bool `json:"activeDirectory"`
 }
 
 func (s *ConnectionService) view(c connections.Connection) SavedConnection {
@@ -350,7 +354,7 @@ func (s *ConnectionService) Connect(ctx context.Context, id, password string, sa
 	live := &liveSession{Session: sess, id: id, name: c.Name, baseDN: c.BaseDN, namingContexts: nonNil(dse.NamingContexts),
 		subschemaDN: dse.SubschemaSubentry, schema: schema, pageSize: c.PageSize, referrals: ldapx.ReferralsAsEntries,
 		readOnly: c.ReadOnly, assertion: hasString(dse.SupportedControls, ldapx.ControlTypeAssertion),
-		passwordModify: hasString(dse.SupportedExts, ldapx.ExtPasswordModify)}
+		passwordModify: hasString(dse.SupportedExts, ldapx.ExtPasswordModify), relax: hasString(dse.SupportedControls, ldapx.ControlTypeRelax)}
 	if live.baseDN == "" {
 		live.baseDN = dse.BaseDN()
 	}
@@ -368,6 +372,7 @@ func (s *ConnectionService) Connect(ctx context.Context, id, password string, sa
 		NamingContexts: live.namingContexts, LDAPVersions: nonNil(dse.LDAPVersions),
 		Controls: len(dse.SupportedControls), Extensions: len(dse.SupportedExts), ElapsedMs: elapsed, ReadOnly: c.ReadOnly,
 		SubschemaDN: dse.SubschemaSubentry, SchemaRead: schema != nil, Paging: !sess.NoPaging,
+		PasswordPolicy: schema.Attr("pwdReset") != nil, ActiveDirectory: schema.Attr("unicodePwd") != nil,
 	}
 	s.log.Info("connected", "id", id, "url", info.URL, "security", c.Security, "elapsed_ms", elapsed)
 	return ConnectResult{OK: true, Title: "Connected.", Code: 0, Session: info,

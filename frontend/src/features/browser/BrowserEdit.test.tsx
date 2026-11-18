@@ -128,7 +128,7 @@ describe("editing an entry", () => {
     await user.click(within(dialog).getByRole("button", { name: "Add to changes" }));
 
     await user.click(within(table()).getByRole("button", { name: "Edit userPassword" }));
-    dialog = screen.getByRole("dialog", { name: /Edit userPassword/ });
+    dialog = screen.getByRole("dialog", { name: /Reset password/ });
     expect(within(dialog).getByText(/^Sent over LDAPS. The server hashes it with its own scheme and never shows it again./)).toBeInTheDocument();
     // Typed twice: a mismatch stays in the dialog.
     await user.type(within(dialog).getByLabelText("New password"), "n3w-Passw0rd");
@@ -137,7 +137,7 @@ describe("editing an entry", () => {
     expect(within(dialog).getByRole("alert")).toHaveTextContent("The passwords don't match. Type the same password in both fields.");
     await user.clear(within(dialog).getByLabelText("Confirm password"));
     await user.type(within(dialog).getByLabelText("Confirm password"), "n3w-Passw0rd{Enter}");
-    expect(screen.queryByRole("dialog", { name: /Edit userPassword/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /Reset password/ })).not.toBeInTheDocument();
     expect(bar()).toHaveTextContent("2 pending changes on 1 entry");
     expect(document.body.textContent).not.toContain("n3w-Passw0rd");
 

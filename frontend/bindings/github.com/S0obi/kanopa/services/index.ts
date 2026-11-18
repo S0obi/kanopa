@@ -35,6 +35,7 @@ export type {
     Layout,
     ListResult,
     POSIXResult,
+    PolicyResult,
     PosixGroup,
     PreviewResult,
     QuickHit,

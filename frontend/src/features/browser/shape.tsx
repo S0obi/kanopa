@@ -12,6 +12,7 @@ import {
 } from "./changes";
 import { PasswordPair, passwordErrors, passwordHint } from "./editors";
 import { useSecretCopy } from "./secret";
+import { MUST_CHANGE_ATTR } from "./reset";
 import { dnKey, useBrowser } from "./store";
 import { canHaveChildren } from "./treeMenu";
 
@@ -713,6 +714,8 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
   const [p, setP] = useState({ given: "", sn: "", uid: "", cn: "", mail: "", title: "", pw: "", pw2: "" });
   const [edited, setEdited] = useState({ uid: false, cn: false });
   const [pwGenerated, setPwGenerated] = useState(false);
+  // A new account asks for its own password at the first sign-in, unless the person says otherwise.
+  const [mustChange, setMustChange] = useState(true);
   // POSIX user: a person who is also a posixAccount. A null field follows its default until it is edited.
   const [pu, setPu] = useState<{ uidNumber: string | null; group: string | null; gid: string; home: string | null; shell: string }>({ uidNumber: null, group: null, gid: "", home: null, shell: "/bin/bash" });
   const posix = useQuery({ queryKey: ["posix", id], queryFn: () => backend.posixInfo(id, 0), enabled: kind === "posixuser", staleTime: 0, gcTime: 0 });
@@ -813,6 +816,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
       if (p.mail.trim()) attrs.push(attr("mail", [p.mail]));
       if (p.title.trim()) attrs.push(attr("title", [p.title]));
       if (p.pw) attrs.push({ name: "userPassword", kind: "password", before: [], after: [], password: p.pw, generated: pwGenerated || undefined });
+      if (p.pw && session.passwordPolicy && mustChange) attrs.push(attr(MUST_CHANGE_ATTR, ["TRUE"]));
       if (kind === "posixuser") {
         attrs.push(attr("uidNumber", [uidNumber]), attr("gidNumber", [primaryGid]), attr("homeDirectory", [home]));
         if (pu.shell.trim()) attrs.push(attr("loginShell", [pu.shell]));
@@ -934,6 +938,19 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
                 : "Optional. This connection is not encrypted: the password crosses the network as plain text."
             }
           />
+          {session.passwordPolicy && p.pw && (
+            <Checkbox
+              className="col-span-2"
+              checked={mustChange}
+              onChange={(e) => setMustChange(e.target.checked)}
+              label={
+                <span className="flex flex-col">
+                  <span>User must change password at next login</span>
+                  <span className="text-[12px] leading-4 text-ink-muted">Sets pwdReset. The server asks for a new password at the first bind.</span>
+                </span>
+              }
+            />
+          )}
         </div>
       )}
 

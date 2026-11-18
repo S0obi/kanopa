@@ -36,7 +36,7 @@ beforeEach(() => {
 
 async function generateInEditor(user: Opened["user"]) {
   await user.click(within(table()).getByRole("button", { name: "Edit userPassword" }));
-  const dialog = screen.getByRole("dialog", { name: /Edit userPassword/ });
+  const dialog = screen.getByRole("dialog", { name: /Reset password/ });
   await user.click(within(dialog).getByRole("button", { name: "Generate a password" }));
   return dialog;
 }
@@ -72,7 +72,7 @@ describe("the password generator", () => {
     const d = await generateInEditor(user);
     const value = (within(d).getByLabelText("New password") as HTMLInputElement).value;
     await user.click(within(d).getByRole("button", { name: "Add to changes" }));
-    expect(screen.queryByRole("dialog", { name: /Edit userPassword/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /Reset password/ })).not.toBeInTheDocument();
     expect(document.body.textContent).not.toContain(value);
 
     // From the changes bar, and from the entry's own banner.
@@ -101,7 +101,7 @@ describe("the password generator", () => {
   it("offers no Copy for a password the person typed", async () => {
     const { user } = await openAda();
     await user.click(within(table()).getByRole("button", { name: "Edit userPassword" }));
-    const d = screen.getByRole("dialog", { name: /Edit userPassword/ });
+    const d = screen.getByRole("dialog", { name: /Reset password/ });
     await user.type(within(d).getByLabelText("New password"), "typed-Passw0rd");
     await user.type(within(d).getByLabelText("Confirm password"), "typed-Passw0rd");
     await user.click(within(d).getByRole("button", { name: "Add to changes" }));

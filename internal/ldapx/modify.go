@@ -68,9 +68,23 @@ type Mod struct {
 	Values [][]byte
 }
 
+// ControlTypeRelax is the Relax Rules control: it lets an administrator write attributes the server guards,
+// such as the password policy's pwdReset.
+const ControlTypeRelax = "1.3.6.1.4.1.4203.666.5.12"
+
+// ModifyRelaxed is Modify under the Relax Rules control, for attributes the server will not otherwise let
+// an administrator write.
+func (s *Session) ModifyRelaxed(ctx context.Context, dn string, mods []Mod) error {
+	return s.modify(ctx, dn, mods, "", true)
+}
+
 // Modify applies mods to dn in one request. A non-empty assertion filter is sent as a critical
 // assertion control, so the server refuses (122) when the entry no longer matches.
 func (s *Session) Modify(ctx context.Context, dn string, mods []Mod, assertion string) error {
+	return s.modify(ctx, dn, mods, assertion, false)
+}
+
+func (s *Session) modify(ctx context.Context, dn string, mods []Mod, assertion string, relax bool) error {
 	op := Op{Endpoint: s.Endpoint, Security: s.Security, BindDN: s.BindDN, Timeout: s.Timeout, Stage: StageWrite}
 	var controls []ldap.Control
 	if assertion != "" {
@@ -79,6 +93,9 @@ func (s *Session) Modify(ctx context.Context, dn string, mods []Mod, assertion s
 			return fmt.Errorf("assertion filter %q: %w", assertion, err)
 		}
 		controls = append(controls, c)
+	}
+	if relax {
+		controls = append(controls, ldap.NewControlString(ControlTypeRelax, true, ""))
 	}
 	req := ldap.NewModifyRequest(dn, controls)
 	for _, m := range mods {

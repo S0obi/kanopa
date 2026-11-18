@@ -4,13 +4,15 @@ import { sameDn, splitDn } from "@/lib/dn";
 import type { MenuItem } from "@/ui";
 import type { Mark } from "./changes";
 
-export type TreeAction = "copy" | "new" | "addMember" | "rename" | "delete";
+export type TreeAction = "copy" | "new" | "addMember" | "resetPassword" | "rename" | "delete";
 
 export interface TreeMenuContext {
   /** The connection can write: not read-only, and connected. */
   canWrite: boolean;
   /** The base DN and the naming contexts: the roots, which are never renamed or deleted. */
   roots: string[];
+  /** The server is Active Directory, where Kanopa does not set passwords yet. */
+  activeDirectory?: boolean;
   /** The entry's pending change, if any. */
   mark?: Mark;
   platform: Platform;
@@ -36,6 +38,7 @@ export function blockedReason(action: TreeAction, n: TreeNode, ctx: TreeMenuCont
   if (ctx.mark === "deleted") return "Marked for deletion";
   if (!ctx.canWrite) return "Read-only";
   if (action === "new" || action === "addMember") return undefined;
+  if (action === "resetPassword") return ctx.activeDirectory ? "Not supported on Active Directory yet" : undefined;
   if (ctx.roots.some((r) => sameDn(r, n.dn))) return "Root entry";
   if (action === "rename") {
     if ((splitDn(n.dn)[0] ?? "").replace(/\\./g, "").includes("+")) return "Multi-valued RDN";
@@ -59,6 +62,7 @@ export function canHaveChildren(n: Pick<TreeNode, "type" | "hasChildren" | "refe
 export function offered(action: TreeAction, n: TreeNode): boolean {
   if (action === "new") return canHaveChildren(n);
   if (action === "addMember") return n.type === "group";
+  if (action === "resetPassword") return n.type === "person";
   return true;
 }
 
@@ -76,6 +80,7 @@ export function treeMenu(n: TreeNode, ctx: TreeMenuContext): MenuItem[] {
     ...item("copy", "Copy DN", "copy"),
     ...item("new", "New child entry…", "plus"),
     ...item("addMember", "Add member…", "users"),
+    ...item("resetPassword", "Reset password…", "key"),
     ...item("rename", "Rename…", "pencil"),
     { separator: true },
     ...item("delete", "Delete…", "trash", true),
