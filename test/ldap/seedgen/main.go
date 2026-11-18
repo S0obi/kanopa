@@ -1,6 +1,7 @@
 // Command seedgen writes test/ldap/seed.ldif: the sample directory drawn in
 // Kanopa's design (Ada, Grace, ou=people with 1,182 entries, 24 groups,
-// 3 service accounts, 70 hosts and one referral). Output is deterministic.
+// 3 service accounts, 70 hosts, password policies with the accounts that show each state, and one
+// referral). Output is deterministic.
 //
 //	go run ./test/ldap/seedgen > test/ldap/seed.ldif
 //
@@ -127,12 +128,16 @@ func main() {
 	ou(w, "groups", "Authorization groups")
 	ou(w, "services", "Accounts used by applications")
 	ou(w, "hosts", "Servers and network devices")
+	ou(w, "policies", "Password policies")
+	ou(w, "accounts", "Accounts that show each password state")
 
 	uids := writePeople(w)
 	writeGroups(w, uids)
 	writeServices(w)
 	writeHosts(w)
 	writeEdge(w)
+	writePolicies(w)
+	writeAccounts(w)
 
 	entry(w, "ou=partners,"+base, "objectClass: referral", "objectClass: extensibleObject", "ou: partners",
 		"ref: ldap://partners.example.org/ou=partners,dc=example,dc=org")
@@ -341,5 +346,60 @@ func writeEdge(w *bufio.Writer) {
 	for i := 1; i <= 8; i++ {
 		dn = fmt.Sprintf("ou=level%d,%s", i, dn)
 		entry(w, dn, "objectClass: organizationalUnit", "objectClass: top", fmt.Sprintf("ou: level%d", i))
+	}
+}
+
+// Password policies for the ppolicy overlay (see slapd.conf), and the accounts that show each state.
+// Every date is fixed and in the past, or "until unlocked", so no test depends on today's date.
+
+const policies = "ou=policies," + base
+
+func policyDN(cn string) string { return "cn=" + cn + "," + policies }
+
+func writePolicies(w *bufio.Writer) {
+	for _, p := range []struct {
+		cn    string
+		attrs []string
+	}{
+		// The default is inert apart from an age: no lockout and no must-change, so tests that reset
+		// or fail passwords on the shared people stay unaffected. A password that was never changed
+		// through the server has no pwdChangedTime and does not age.
+		{"default", []string{"pwdMaxAge: 7776000", "pwdLockout: FALSE"}},
+		// Strict: 30 days, locks for 15 minutes after 3 failures, and a reset must be changed.
+		{"strict", []string{"pwdMaxAge: 2592000", "pwdLockout: TRUE", "pwdLockoutDuration: 900", "pwdMaxFailure: 3", "pwdMustChange: TRUE"}},
+		// A lock stays until someone unlocks the account, and the password never ages.
+		{"until-unlocked", []string{"pwdLockout: TRUE", "pwdLockoutDuration: 0", "pwdMaxFailure: 5"}},
+		// Only cn=admin can read this one (see slapd.conf): a policy that exists but a reader cannot see.
+		{"restricted", []string{"pwdMaxAge: 2592000", "pwdLockout: TRUE", "pwdLockoutDuration: 900", "pwdMaxFailure: 3"}},
+	} {
+		lines := append([]string{"objectClass: device", "objectClass: pwdPolicy", "objectClass: top", "cn: " + p.cn, "pwdAttribute: userPassword"}, p.attrs...)
+		entry(w, policyDN(p.cn), lines...)
+	}
+}
+
+// writeAccounts writes ou=accounts: one person per account state Kanopa reports. All sign in with
+// personPassword. policy "" means the entry names no policy, so the default applies and a reader cannot tell which.
+func writeAccounts(w *bufio.Writer) {
+	const past = "20200101000000Z"
+	for _, a := range []struct {
+		uid, name, policy string
+		ops               []string
+	}{
+		{"acct-locked", "Locked until unlocked", "until-unlocked", []string{"pwdAccountLockedTime: 20261115094000Z"}},
+		{"acct-lock-ended", "Lock has ended", "strict", []string{"pwdAccountLockedTime: " + past}},
+		{"acct-lock-unknown", "Locked, policy not readable", "restricted", []string{"pwdAccountLockedTime: 20261115094000Z"}},
+		{"acct-admin-locked", "Locked by an administrator", "until-unlocked", []string{"pwdAccountLockedTime: 000001010000Z"}},
+		{"acct-must-change", "Must change password", "until-unlocked", []string{"pwdReset: TRUE"}},
+		{"acct-expired", "Password expired", "strict", []string{"pwdChangedTime: " + past}},
+		{"acct-expired-default", "Expired under the default", "", []string{"pwdChangedTime: " + past}},
+		{"acct-ok", "No known problem", "until-unlocked", nil},
+		{"acct-hidden-policy", "Policy not readable", "restricted", []string{"pwdChangedTime: " + past}},
+	} {
+		lines := []string{"objectClass: inetOrgPerson", "objectClass: organizationalPerson", "objectClass: person", "objectClass: top",
+			"uid: " + a.uid, "cn: " + a.name, "sn: " + a.name, "userPassword: " + ssha(personPassword)}
+		if a.policy != "" {
+			lines = append(lines, "pwdPolicySubentry: "+policyDN(a.policy))
+		}
+		entry(w, "uid="+a.uid+",ou=accounts,"+base, append(lines, a.ops...)...)
 	}
 }

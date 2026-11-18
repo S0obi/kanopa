@@ -2,7 +2,7 @@
 # plain + StartTLS on 389 and LDAPS on 636, signed by a throwaway CA.
 FROM alpine:3.24
 
-RUN apk add --no-cache openldap openldap-back-mdb openldap-clients openssl
+RUN apk add --no-cache openldap openldap-back-mdb openldap-overlay-ppolicy openldap-clients openssl
 
 # A test CA and a server certificate for localhost. Never trusted by the system.
 RUN mkdir -p /etc/openldap/tls && cd /etc/openldap/tls \

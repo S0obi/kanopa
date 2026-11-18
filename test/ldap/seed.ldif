@@ -30,6 +30,18 @@ objectClass: top
 ou: hosts
 description: Servers and network devices
 
+dn: ou=policies,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: policies
+description: Password policies
+
+dn: ou=accounts,dc=example,dc=org
+objectClass: organizationalUnit
+objectClass: top
+ou: accounts
+description: Accounts that show each password state
+
 dn: uid=ada,ou=people,dc=example,dc=org
 objectClass: inetOrgPerson
 objectClass: organizationalPerson
@@ -21197,6 +21209,154 @@ dn: ou=level8,ou=level7,ou=level6,ou=level5,ou=level4,ou=level3,ou=level2,ou=lev
 objectClass: organizationalUnit
 objectClass: top
 ou: level8
+
+dn: cn=default,ou=policies,dc=example,dc=org
+objectClass: device
+objectClass: pwdPolicy
+objectClass: top
+cn: default
+pwdAttribute: userPassword
+pwdMaxAge: 7776000
+pwdLockout: FALSE
+
+dn: cn=strict,ou=policies,dc=example,dc=org
+objectClass: device
+objectClass: pwdPolicy
+objectClass: top
+cn: strict
+pwdAttribute: userPassword
+pwdMaxAge: 2592000
+pwdLockout: TRUE
+pwdLockoutDuration: 900
+pwdMaxFailure: 3
+pwdMustChange: TRUE
+
+dn: cn=until-unlocked,ou=policies,dc=example,dc=org
+objectClass: device
+objectClass: pwdPolicy
+objectClass: top
+cn: until-unlocked
+pwdAttribute: userPassword
+pwdLockout: TRUE
+pwdLockoutDuration: 0
+pwdMaxFailure: 5
+
+dn: cn=restricted,ou=policies,dc=example,dc=org
+objectClass: device
+objectClass: pwdPolicy
+objectClass: top
+cn: restricted
+pwdAttribute: userPassword
+pwdMaxAge: 2592000
+pwdLockout: TRUE
+pwdLockoutDuration: 900
+pwdMaxFailure: 3
+
+dn: uid=acct-locked,ou=accounts,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: acct-locked
+cn: Locked until unlocked
+sn: Locked until unlocked
+userPassword: {SSHA}Zk8hdlNggCt+/EgMXVVbhsxY9mSycxTT
+pwdPolicySubentry: cn=until-unlocked,ou=policies,dc=example,dc=org
+pwdAccountLockedTime: 20261115094000Z
+
+dn: uid=acct-lock-ended,ou=accounts,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: acct-lock-ended
+cn: Lock has ended
+sn: Lock has ended
+userPassword: {SSHA}ywzqiZtW9Vmp4wSkG4wd8iIH8t3/fzFg
+pwdPolicySubentry: cn=strict,ou=policies,dc=example,dc=org
+pwdAccountLockedTime: 20200101000000Z
+
+dn: uid=acct-lock-unknown,ou=accounts,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: acct-lock-unknown
+cn: Locked, policy not readable
+sn: Locked, policy not readable
+userPassword: {SSHA}sRLlr7hmdQB5UgLDN71fY4zqmN+JcaVP
+pwdPolicySubentry: cn=restricted,ou=policies,dc=example,dc=org
+pwdAccountLockedTime: 20261115094000Z
+
+dn: uid=acct-admin-locked,ou=accounts,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: acct-admin-locked
+cn: Locked by an administrator
+sn: Locked by an administrator
+userPassword: {SSHA}3K+bBlsJWcScvt69MJ99bX/2jGSKPl4H
+pwdPolicySubentry: cn=until-unlocked,ou=policies,dc=example,dc=org
+pwdAccountLockedTime: 000001010000Z
+
+dn: uid=acct-must-change,ou=accounts,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: acct-must-change
+cn: Must change password
+sn: Must change password
+userPassword: {SSHA}YEJg9yNzo5dYvVr3w/L9+AJYLwuleXAa
+pwdPolicySubentry: cn=until-unlocked,ou=policies,dc=example,dc=org
+pwdReset: TRUE
+
+dn: uid=acct-expired,ou=accounts,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: acct-expired
+cn: Password expired
+sn: Password expired
+userPassword: {SSHA}w4+vwPYJiNGyke3DcvF4OKZx53b2xE29
+pwdPolicySubentry: cn=strict,ou=policies,dc=example,dc=org
+pwdChangedTime: 20200101000000Z
+
+dn: uid=acct-expired-default,ou=accounts,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: acct-expired-default
+cn: Expired under the default
+sn: Expired under the default
+userPassword: {SSHA}TNeCwYENFriol7OIzgW87yWhxqsTCWEd
+pwdChangedTime: 20200101000000Z
+
+dn: uid=acct-ok,ou=accounts,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: acct-ok
+cn: No known problem
+sn: No known problem
+userPassword: {SSHA}s7s7uSU2kO++Zmj8w7NskGO4dl9Pro4i
+pwdPolicySubentry: cn=until-unlocked,ou=policies,dc=example,dc=org
+
+dn: uid=acct-hidden-policy,ou=accounts,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: acct-hidden-policy
+cn: Policy not readable
+sn: Policy not readable
+userPassword: {SSHA}WCeW3+cq1+g/3hQvfwS80lW/m9jv0PaP
+pwdPolicySubentry: cn=restricted,ou=policies,dc=example,dc=org
+pwdChangedTime: 20200101000000Z
 
 dn: ou=partners,dc=example,dc=org
 objectClass: referral

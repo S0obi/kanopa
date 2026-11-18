@@ -138,7 +138,7 @@ func TestBrowseTheFixture(t *testing.T) {
 	for _, n := range top.Nodes {
 		names[n.RDN] = n
 	}
-	if top.Total != 6 || names["ou=people"].Type != "ou" || names["ou=people"].Sub != "People and their login accounts" || !names["ou=people"].HasChildren {
+	if top.Total != 8 || names["ou=people"].Type != "ou" || names["ou=people"].Sub != "People and their login accounts" || !names["ou=people"].HasChildren {
 		t.Fatalf("top level %+v", top)
 	}
 	if p := names["ou=partners"]; !p.Referral || p.HasChildren {
