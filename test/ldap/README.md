@@ -22,6 +22,8 @@ wails3 task ldap:down
 ## Contents
 
 - `dc=example,dc=org` with `ou=people` (1,182 entries: Ada Lovelace, Grace Hopper, Alan Turing … plus generated names), `ou=groups` (24 `groupOfNames` and 3 `posixGroup`), `ou=services` (3 accounts) and `ou=hosts` (70 devices)
+- `ou=policies` holds four password policies for the ppolicy overlay: `default` (a 90-day age and nothing else, so the shared people are never locked), `strict` (30 days, 15-minute lock after 3 failures, a reset must be changed), `until-unlocked` (a lock stays until someone removes it, no age) and `restricted` (like `strict`, readable only by `cn=admin`)
+- `ou=accounts` holds nine people, one per password state, all with the person password: `acct-locked`, `acct-lock-ended` (the lock ran out long ago), `acct-lock-unknown` (locked, policy not readable by a reader), `acct-admin-locked` (`000001010000Z`), `acct-must-change` (`pwdReset: TRUE`), `acct-expired`, `acct-expired-default` (names no policy), `acct-ok` and `acct-hidden-policy` (expired, policy not readable). Every date is fixed and in the past, so no test depends on today's date
 - a `jpegPhoto` on Ada, `{SSHA}` passwords, `manager` DNs
 - `ou=groups` also holds three `posixGroup` entries (`unix-staff`, `unix-devs`, `unix-empty`) that list members by uid; `unix-devs` lists a uid nobody carries (`ghost.user`), one two entries carry (`twin`) and one carried by a posixAccount named by `cn` (`casey`, in `ou=edge`)
 - `ou=edge`: awkward cases: escaped and multi-valued names, non-ASCII and very long values, an attribute with 80 values, a binary photo, an organizationalRole that holds a group (`cn=Group factory`), and eight nested units
@@ -31,6 +33,16 @@ wails3 task ldap:down
 - plain searches stop at 500 entries; paged searches get everything
 
 `seed.ldif` is generated: edit `seedgen/main.go`, then run `wails3 task ldap:seed`.
+
+## Password policy (ppolicy)
+
+The overlay is loaded from `slapd.conf` (`overlay ppolicy`, default policy `cn=default,ou=policies`). `services/ppolicy_integration_test.go` pins what it does, so a newer OpenLDAP that behaves differently fails a test. What it found with OpenLDAP 2.6.15:
+
+- A reader (`svc-kanopa`) sees `pwdAccountLockedTime`, `pwdReset`, `pwdChangedTime` and `pwdPolicySubentry` when it names them, and reads every policy but `cn=restricted`, which answers "No such object". An account that names no policy gets the default, and a reader cannot tell which.
+- `cn=admin` deletes `pwdAccountLockedTime` and writes `pwdReset` as they are. The Relax rules control is not needed.
+- An admin reset (Password Modify) sets `pwdReset: TRUE` by itself under a policy with `pwdMustChange: TRUE`, and clears the flag under one without it. So a reset that must be changed under a policy that does not ask for it has to set `pwdReset` after the Password Modify. In the other order the password change clears it.
+- `pwdAccountLockedTime` stays on the entry after the lock duration has passed, until the account's next good bind removes it. A reader can therefore see a lock that no longer holds.
+- The server stops a bind for an expired password (also under a policy nobody can read) and for a lock that has not run out, with Invalid credentials (49). A policy with `pwdLockout: FALSE` does not enforce a lock at all.
 
 ## Docker on Windows
 
