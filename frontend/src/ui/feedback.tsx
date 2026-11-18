@@ -14,14 +14,16 @@ interface BannerProps {
   children?: ReactNode;
   actions?: ReactNode;
   onDismiss?: () => void;
+  /** Alert interrupts a screen reader; status waits. Danger banners alert unless this says otherwise. */
+  role?: "status" | "alert";
   /** Shows a spinner instead of the tone icon (for work in progress). */
   busy?: boolean;
   className?: string;
 }
 
-export function Banner({ tone = "info", title, children, actions, onDismiss, busy, className }: BannerProps) {
+export function Banner({ tone = "info", title, children, actions, onDismiss, busy, role, className }: BannerProps) {
   return (
-    <div className={cx("kn-banner", `kn-banner--${tone}`, className)} role={tone === "danger" ? "alert" : "status"}>
+    <div className={cx("kn-banner", `kn-banner--${tone}`, className)} role={role ?? (tone === "danger" ? "alert" : "status")}>
       {busy ? <Spinner /> : <Icon name={TONE_ICON[tone] ?? "info"} />}
       <div className="kn-banner__text">
         {title && <div className="kn-banner__title">{title}</div>}

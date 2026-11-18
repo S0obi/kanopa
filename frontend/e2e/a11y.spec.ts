@@ -158,5 +158,29 @@ for (const scheme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "Close notice" }).click();
       await expect(page.getByText(/has a new password/)).toHaveCount(0);
     });
+
+    test("account status: locked, unlock pending, expired, must change", async ({ page }) => {
+      await connect(page);
+      await page.getByRole("button", { name: "Connect to Production directory" }).click();
+      await row(page, /^ou=people/).click();
+      await page.keyboard.press("ArrowRight");
+      const open = async (uid: string, name: string) => {
+        await row(page, new RegExp(`^uid=${uid} `)).click();
+        await expect(page.locator("main h1", { hasText: name })).toBeVisible();
+      };
+      await open("katherine", "Katherine Johnson");
+      await expect(page.getByText("Locked after failed logins.")).toBeVisible();
+      await scan(page, "locked");
+      await page.getByRole("button", { name: "Unlock", exact: true }).click();
+      await expect(page.getByText("Unlock pending.")).toBeVisible();
+      await scan(page, "unlock pending");
+      await page.getByRole("button", { name: "Undo unlock" }).click();
+      await open("edsger", "Edsger Dijkstra");
+      await expect(page.getByText("Password expired.")).toBeVisible();
+      await scan(page, "password expired");
+      await open("grace", "Grace Hopper");
+      await expect(page.getByText("Must change password.")).toBeVisible();
+      await scan(page, "must change");
+    });
   });
 }

@@ -23,3 +23,18 @@ export function formatLastUsed(iso: string, now = new Date()): string {
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 }
+
+/** "15 Nov at 09:40", or "15 Nov 2025 at 09:40" for another year: a moment in this computer's time. Empty for no date. */
+export function formatMoment(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return "";
+  const year = d.getFullYear() === now.getFullYear() ? "" : ` ${d.getFullYear()}`;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}${year} at ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** "12 Nov", or "12 Nov 2025" for another year: a day in this computer's time. */
+export function formatDay(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return "";
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}${d.getFullYear() === now.getFullYear() ? "" : ` ${d.getFullYear()}`}`;
+}

@@ -25,6 +25,42 @@ export interface About {
 }
 
 /**
+ * AccountStatus is what a person's password state means for signing in, as the entry view shows it.
+ */
+export interface AccountStatus {
+    /**
+     * Locked: the account cannot sign in now. LockedAt is when the lock was set (RFC 3339, UTC),
+     * LockedValue the stored value Unlock removes, and LockedByAdmin tells an administrator's lock apart.
+     */
+    "locked": boolean;
+    "lockedAt": string;
+    "lockedValue": string;
+    "lockedByAdmin": boolean;
+
+    /**
+     * LockMayHaveEnded: the lock came from failed sign-ins and Kanopa cannot read the policy that says how
+     * long it lasts, so it may have run out already.
+     */
+    "lockMayHaveEnded": boolean;
+
+    /**
+     * MustChange: the person must choose a new password at the next sign-in (pwdReset).
+     */
+    "mustChange": boolean;
+
+    /**
+     * Expired: the password is older than the policy's pwdMaxAge allows. Only said when the policy was read.
+     */
+    "expired": boolean;
+
+    /**
+     * RFC 3339, UTC
+     */
+    "expiredAt": string;
+    "failure": Failure | null;
+}
+
+/**
  * AllowedAttribute is an attribute that can be added to an entry.
  */
 export interface AllowedAttribute {

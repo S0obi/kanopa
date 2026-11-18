@@ -16,6 +16,7 @@ import type {
   FindResult,
   GIDResult,
   PolicyResult,
+  AccountStatus,
   Layout,
   POSIXResult,
   PosixGroup,
@@ -37,7 +38,7 @@ import type {
 
 export type {
   About, Layout, AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
-  GIDResult, POSIXResult, PolicyResult, PosixGroup, QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection, UIDMatch, UIDResult,
+  AccountStatus, GIDResult, POSIXResult, PolicyResult, PosixGroup, QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection, UIDMatch, UIDResult,
   SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
 };
 
@@ -81,6 +82,8 @@ export interface Backend {
   gidCheck(id: string, gid: number): Promise<GIDResult>;
   /** What the password policy of one entry demands after a reset: a new password at the next login (false also when it is unknown). */
   passwordPolicy(id: string, dn: string): Promise<PolicyResult>;
+  /** Whether a person is locked, must change the password or has an expired one, from the password policy overlay. */
+  accountStatus(id: string, dn: string): Promise<AccountStatus>;
   /** For a new posixAccount: the next free uidNumber, the accounts that use uid (when it is more than 0) and the posixGroups to pick as primary group. */
   posixInfo(id: string, uid: number): Promise<POSIXResult>;
   /** null while the connection answers. */

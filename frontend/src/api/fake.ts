@@ -1,5 +1,5 @@
 import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName } from "./backend";
-import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeGidCheck, fakeMemberOf, fakePolicyRequiresChange, fakePosixInfo, fakeNode, fakePreview, fakeReferrers, fakeResolveUids } from "./fakeDirectory";
+import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeGidCheck, fakeMemberOf, fakeAccountStatus, fakePolicyRequiresChange, fakePosixInfo, fakeNode, fakePreview, fakeReferrers, fakeResolveUids } from "./fakeDirectory";
 import { fakeQuick } from "./fakeQuick";
 
 /**
@@ -372,6 +372,10 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     async passwordPolicy(id, dn) {
       const lost = check(id);
       return lost ? { mustChange: false, failure: lost } : { mustChange: fakePolicyRequiresChange(dn), failure: null };
+    },
+    async accountStatus(id, dn) {
+      const lost = check(id);
+      return lost ? { ...fakeAccountStatus("") , failure: lost } : fakeAccountStatus(dn);
     },
     async posixInfo(id, uid) {
       const lost = check(id);
