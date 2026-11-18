@@ -36,6 +36,7 @@ export const wailsBackend: Backend = {
   copyText: async (text) => {
     await Clipboard.SetText(text);
   },
+  copySecret: (text, seconds) => AppService.CopySecret(text, seconds),
   preview: (id, changes) => ChangeService.Preview(id, changes),
   apply: (id, changes) => ChangeService.Apply(id, changes),
   setPendingChanges: (n) => AppService.SetPendingChanges(n),

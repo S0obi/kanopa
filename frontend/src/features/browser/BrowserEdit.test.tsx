@@ -129,7 +129,7 @@ describe("editing an entry", () => {
 
     await user.click(within(table()).getByRole("button", { name: "Edit userPassword" }));
     dialog = screen.getByRole("dialog", { name: /Edit userPassword/ });
-    expect(within(dialog).getByText("Sent over LDAPS. The server hashes it with its own scheme and never shows it again.")).toBeInTheDocument();
+    expect(within(dialog).getByText(/^Sent over LDAPS. The server hashes it with its own scheme and never shows it again./)).toBeInTheDocument();
     // Typed twice: a mismatch stays in the dialog.
     await user.type(within(dialog).getByLabelText("New password"), "n3w-Passw0rd");
     await user.type(within(dialog).getByLabelText("Confirm password"), "n3w-Passw0rx{Enter}");

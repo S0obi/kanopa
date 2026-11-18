@@ -5,12 +5,13 @@ import { hostOf } from "@/features/connections/url";
 import { parentDn, rdnParts, sameDn, splitDn } from "@/lib/dn";
 import { plural } from "@/lib/time";
 import { useWindow } from "@/lib/useWindow";
-import { Banner, Button, Checkbox, ConfirmDialog, Dialog, EmptyState, Select, Skeleton, TextField, TypeTile, cx } from "@/ui";
+import { Banner, Button, Checkbox, ConfirmDialog, Dialog, EmptyState, Select, Skeleton, TextField, TypeTile, cx, useToasts } from "@/ui";
 import {
   addEntry, cells, escapeRdnValue, isDelta, isDnSyntax, isUidAttr, markDelete, membership, renameEntry, renamedDn, unescapeRdnValue, useChanges, valuesAfter,
   type ChangeSet, type Link, type PendingAttr, type ValueKind,
 } from "./changes";
 import { PasswordPair, passwordErrors, passwordHint } from "./editors";
+import { useSecretCopy } from "./secret";
 import { dnKey, useBrowser } from "./store";
 import { canHaveChildren } from "./treeMenu";
 
@@ -695,6 +696,8 @@ interface Field {
   value: string;
   /** A password field's confirmation. */
   confirm?: string;
+  /** A password Kanopa generated. */
+  generated?: boolean;
 }
 
 /** NewEntryForm: Person, Group or Other (object classes from the schema), under a parent. */
@@ -709,6 +712,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
   // Person
   const [p, setP] = useState({ given: "", sn: "", uid: "", cn: "", mail: "", title: "", pw: "", pw2: "" });
   const [edited, setEdited] = useState({ uid: false, cn: false });
+  const [pwGenerated, setPwGenerated] = useState(false);
   // POSIX user: a person who is also a posixAccount. A null field follows its default until it is edited.
   const [pu, setPu] = useState<{ uidNumber: string | null; group: string | null; gid: string; home: string | null; shell: string }>({ uidNumber: null, group: null, gid: "", home: null, shell: "/bin/bash" });
   const posix = useQuery({ queryKey: ["posix", id], queryFn: () => backend.posixInfo(id, 0), enabled: kind === "posixuser", staleTime: 0, gcTime: 0 });
@@ -808,7 +812,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
       if (p.given.trim()) attrs.push(attr("givenName", [p.given]));
       if (p.mail.trim()) attrs.push(attr("mail", [p.mail]));
       if (p.title.trim()) attrs.push(attr("title", [p.title]));
-      if (p.pw) attrs.push({ name: "userPassword", kind: "password", before: [], after: [], password: p.pw });
+      if (p.pw) attrs.push({ name: "userPassword", kind: "password", before: [], after: [], password: p.pw, generated: pwGenerated || undefined });
       if (kind === "posixuser") {
         attrs.push(attr("uidNumber", [uidNumber]), attr("gidNumber", [primaryGid]), attr("homeDirectory", [home]));
         if (pu.shell.trim()) attrs.push(attr("loginShell", [pu.shell]));
@@ -827,7 +831,7 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
       attrs = [attr("objectClass", ocs)];
       for (const f of otherFields) {
         if (!f.value.trim()) continue;
-        attrs.push(f.kind === "password" ? { name: f.name, kind: "password", before: [], after: [], password: f.value } : attr(f.name, [f.value], f.kind));
+        attrs.push(f.kind === "password" ? { name: f.name, kind: "password", before: [], after: [], password: f.value, generated: f.generated || undefined } : attr(f.name, [f.value], f.kind));
       }
     }
     const type = kind === "other" ? typeFor(ocs) : KINDS.find((k) => k.id === kind)!.type;
@@ -921,6 +925,8 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
             confirm={p.pw2}
             onChange={(v) => setPerson("pw", v)}
             onConfirm={(v) => setPerson("pw2", v)}
+            generated={pwGenerated}
+            onGeneratedChange={setPwGenerated}
             invalid={tried && passwordErrors(p.pw, p.pw2, false).length > 0}
             hint={
               /^(LDAPS|StartTLS)$/.test(session.security)
@@ -1132,6 +1138,8 @@ export function NewEntryDialog({ id, session, parent: initialParent, onClose, on
                       confirm={f.confirm ?? ""}
                       onChange={(v) => setFields(fields.map((x, j) => (j === i ? { ...x, value: v } : x)))}
                       onConfirm={(v) => setFields(fields.map((x, j) => (j === i ? { ...x, confirm: v } : x)))}
+                      generated={!!f.generated}
+                      onGeneratedChange={(gen) => setFields(fields.map((x, j) => (j === i ? { ...x, generated: gen } : x)))}
                       invalid={tried && passwordErrors(f.value, f.confirm ?? "", f.required).length > 0}
                       hint={passwordHint(session.security)}
                     />
@@ -1188,7 +1196,7 @@ function typeFor(ocs: string[]): string {
 
 /* ---------- pending states of the selected entry ---------- */
 
-export function PendingState({ id, dn, onUndo }: { id: string; dn: string; onUndo: (what: "add" | "delete" | "rename") => void }) {
+function OpState({ id, dn, onUndo }: { id: string; dn: string; onUndo: (what: "add" | "delete" | "rename") => void }) {
   const e = useChanges((s) => s.byConnection[id]?.[dnKey(dn)]);
   if (!e) return null;
   if (e.op === "add")
@@ -1210,4 +1218,39 @@ export function PendingState({ id, dn, onUndo }: { id: string; dn: string; onUnd
       </Banner>
     );
   return null;
+}
+
+/** A password Kanopa generated for this entry waits in the pending changes: copy it until it is applied. */
+function GeneratedPasswordState({ id, dn }: { id: string; dn: string }) {
+  const e = useChanges((s) => s.byConnection[id]?.[dnKey(dn)]);
+  const toast = useToasts((s) => s.show);
+  const secret = useSecretCopy();
+  const a = e && e.op !== "delete" ? e.attrs.find((x) => x.generated && x.password) : undefined;
+  if (!e || !a) return null;
+  const copy = async () => {
+    if (await secret.copy(a.password!)) toast("Copied the password. It clears from the clipboard in 60 s.");
+  };
+  return (
+    <Banner
+      tone="info"
+      title="New password waiting."
+      actions={
+        <Button icon={secret.left > 0 ? "check" : "copy"} onClick={() => void copy()}>
+          {secret.left > 0 ? "Copied" : "Copy password"}
+        </Button>
+      }
+    >
+      Kanopa generated it. It isn't on the server yet, and you can copy it until you apply.
+    </Banner>
+  );
+}
+
+/** What is pending for this entry that the page should say: added, deleted, renamed, or a generated password to copy. */
+export function PendingState(props: { id: string; dn: string; onUndo: (what: "add" | "delete" | "rename") => void }) {
+  return (
+    <>
+      <OpState {...props} />
+      <GeneratedPasswordState id={props.id} dn={props.dn} />
+    </>
+  );
 }

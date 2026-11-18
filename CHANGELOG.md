@@ -4,6 +4,12 @@ All notable changes to Kanopa are written here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+
+- A password generator. The dice in every new-password field (editing `userPassword`, a new person, other password attributes) fills in 20 random characters, with upper and lower case, digits and symbols, and leaves out look-alikes such as `0` and `O`. A generated password is shown in plain text, needs no confirmation and can be copied. It stays on the clipboard for 60 seconds, is cleared sooner if Kanopa quits, and is never cleared if you copied something else meanwhile.
+- You can copy a generated password until you apply: from the changes bar and from the entry. After Apply, a notice offers one more Copy for each person, and Kanopa forgets the password when you close it, or after five minutes.
+- When the server refuses a generated password, the message says so and suggests typing one or generating another.
+
 ## [0.1.1] - 2026-11-13
 
 ### Added

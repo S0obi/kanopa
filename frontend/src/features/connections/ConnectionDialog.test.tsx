@@ -35,6 +35,8 @@ describe("ConnectionDialog — new", () => {
     setup();
     expect(screen.getByRole("dialog", { name: "New connection" })).toHaveAttribute("aria-modal", "true");
     expect(screen.getByLabelText("Connection name")).toHaveFocus();
+    // The bind password is the person's own, never one Kanopa makes.
+    expect(screen.queryByRole("button", { name: /Generate/ })).not.toBeInTheDocument();
     expect(screen.getByText(/The password goes to the Windows Credential Manager, never to the settings file\./)).toBeInTheDocument();
   });
 

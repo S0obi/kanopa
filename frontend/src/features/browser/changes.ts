@@ -28,6 +28,8 @@ export interface PendingAttr {
   shown?: Record<string, string>;
   /** A new password; never shown. */
   password?: string;
+  /** The password was made by Kanopa, so the person can copy it until it is applied. */
+  generated?: boolean;
   /** Membership: values to add and to remove, whatever else the attribute holds. */
   add?: string[];
   remove?: string[];
@@ -538,4 +540,22 @@ export const useChanges = create<ChangesState>((set) => ({
 /** Pending entries across every connection, for the window-close guard. */
 export function pendingEntries(s: Pick<ChangesState, "byConnection">): number {
   return Object.values(s.byConnection).reduce((n, cs) => n + Object.keys(cs).length, 0);
+}
+
+/** A password Kanopa generated that the person has not applied yet, or that was just applied. */
+export interface IssuedPassword {
+  dn: string;
+  name: string;
+  password: string;
+}
+
+/** The generated passwords in a set of pending changes, one per entry. A deleted entry keeps none. */
+export function generatedPasswords(set: ChangeSet | undefined): IssuedPassword[] {
+  const out: IssuedPassword[] = [];
+  for (const e of Object.values(set ?? {})) {
+    if (e.op === "delete") continue;
+    const a = e.attrs.find((x) => x.generated && x.password);
+    if (a) out.push({ dn: e.dn, name: e.title, password: a.password! });
+  }
+  return out;
 }

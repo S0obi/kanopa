@@ -88,6 +88,8 @@ export interface Backend {
    */
   quick(id: string, text: string, signal?: AbortSignal): Promise<QuickResult>;
   copyText(text: string): Promise<void>;
+  /** Copies a password and clears the clipboard after `seconds`, but only if it still holds that password. Also cleared when Kanopa quits. */
+  copySecret(text: string, seconds: number): Promise<void>;
 
   /** The pending changes as LDIF; nothing is sent. */
   preview(id: string, changes: EntryChange[]): Promise<PreviewResult>;
