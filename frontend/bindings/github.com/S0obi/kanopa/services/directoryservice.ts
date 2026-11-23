@@ -23,6 +23,13 @@ export function AccountStatus(id: string, dn: string): $CancellablePromise<$mode
 }
 
 /**
+ * CancelExport stops a running export and removes what it had written; nothing is left behind.
+ */
+export function CancelExport(job: string): $CancellablePromise<void> {
+    return $Call.ByID(2082854811, job);
+}
+
+/**
  * Children returns one page of the entries below dn: the connection's page size, starting at
  * the token of the previous page ("" for the first). The first page reads every child from the
  * server in one paged search (up to 20,000) and keeps them, so "Show N more" knows N exactly.
@@ -44,6 +51,13 @@ export function CountChildren(id: string, dn: string): $CancellablePromise<$mode
  */
 export function Entry(id: string, dn: string): $CancellablePromise<$models.EntryView> {
     return $Call.ByID(2559604181, id, dn);
+}
+
+/**
+ * ExportProgress says how the export job is going. An unknown job has failed.
+ */
+export function ExportProgress(job: string): $CancellablePromise<$models.ExportStatus> {
+    return $Call.ByID(2696804906, job);
 }
 
 /**
@@ -135,4 +149,13 @@ export function ResolveUIDs(id: string, uids: string[] | null): $CancellableProm
  */
 export function Roots(id: string): $CancellablePromise<$models.TreeResult> {
     return $Call.ByID(3363316700, id);
+}
+
+/**
+ * StartExport starts writing dn (and, if chosen, everything below it) to the file at path, and
+ * returns at once. The status it returns has the job to poll with ExportProgress; when the export
+ * can't start (nothing to write to, no such connection), it carries the Failure instead.
+ */
+export function StartExport(id: string, dn: string, path: string, opts: $models.ExportOptions): $CancellablePromise<$models.ExportStatus> {
+    return $Call.ByID(2073948351, id, dn, path, opts);
 }

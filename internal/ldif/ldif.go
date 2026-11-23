@@ -4,6 +4,7 @@ package ldif
 import (
 	"encoding/base64"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -83,6 +84,33 @@ func Safe(v []byte) bool {
 	}
 	return true
 }
+
+// Header starts an exported file: the "version: 1" line the RFC asks for, then comments that say
+// where it came from. They name no server and no account, so a file can be shared.
+func Header(kanopaVersion string, when time.Time, base, scope string, secrets bool) string {
+	var b strings.Builder
+	b.WriteString("version: 1\n")
+	comment(&b, "Exported by Kanopa "+kanopaVersion+" on "+when.UTC().Format("2006-01-02 15:04:05")+" UTC")
+	comment(&b, "Base: "+base)
+	comment(&b, "Scope: "+scope)
+	if secrets {
+		comment(&b, "Password hashes and secrets: included")
+	} else {
+		comment(&b, "Password hashes and secrets: not included")
+	}
+	return b.String()
+}
+
+// Incomplete ends a file that does not hold everything it was meant to, and says why. It follows
+// a record, which already ends with a blank line.
+func Incomplete(reason string) string {
+	var b strings.Builder
+	comment(&b, "Incomplete: "+reason)
+	return b.String()
+}
+
+// Separator is the blank line between two records.
+const Separator = "\n"
 
 // Change is one modification in a changetype: modify record.
 type Change struct {

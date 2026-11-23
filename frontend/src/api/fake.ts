@@ -1,4 +1,4 @@
-import type { Backend, ConnectionParams, ConnectResult, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName } from "./backend";
+import type { Backend, ConnectionParams, ConnectResult, ExportStatus, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName } from "./backend";
 import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeGidCheck, fakeMemberOf, fakeAccountStatus, fakePolicyRequiresChange, fakePosixInfo, fakeNode, fakePreview, fakeReferrers, fakeResolveUids } from "./fakeDirectory";
 import { fakeQuick } from "./fakeQuick";
 
@@ -42,7 +42,23 @@ export const FAKE = {
   /** What the fake "settings file" remembers of the layout. */
   layout: { sidebarWidth: 0, tab: "" },
   /** How many times the log folder and the home page were opened, and what the interface logged as errors. */
-  opened: { logFolder: 0, repo: 0 },
+  opened: { logFolder: 0, repo: 0, folder: [] as string[] },
+  /**
+   * LDIF export: the file the Save dialog hands back ("" when the person cancels), how many entries a
+   * subtree holds, the exports that were started, and what to do when the next one runs (fail, or end early).
+   */
+  exporting: {
+    path: "C:\\Users\\ada\\Documents\\export.ldif",
+    subtreeEntries: 4,
+    suggested: [] as string[],
+    started: [] as Array<{ id: string; dn: string; path: string; subtree: boolean; secrets: boolean }>,
+    /** Makes the export fail once it has written this many entries (-1: no). */
+    failAfter: -1,
+    /** Ends the export early, as a server size limit would, once it has written this many entries (0: no). */
+    cutAfter: 0,
+    /** Entries the fake writes per progress poll. */
+    perPoll: 2,
+  },
   clientErrors: [] as Array<{ message: string; stack: string }>,
 };
 
@@ -149,6 +165,8 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     else FAKE.window.closed = true;
   };
   const clipboard = { text: "" };
+  // Export jobs the page polls: each poll writes a few more entries.
+  const exportJobs = new Map<string, { status: ExportStatus; total: number }>();
   // FAKE.lost simulates a server that stopped answering: the session is dropped.
   const check = (id: string): Failure | null => {
     if (FAKE.lost) open.delete(id);
@@ -315,6 +333,47 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
       setTimeout(() => {
         if (clipboard.text === text) clipboard.text = "";
       }, Math.max(seconds, 1) * 1000);
+    },
+    async chooseExportFile(suggestedName) {
+      FAKE.exporting.suggested.push(suggestedName);
+      return FAKE.exporting.path;
+    },
+    async startExport(id, dn, path, options) {
+      const lost = check(id);
+      const base: ExportStatus = { job: "", state: "running", written: 0, incomplete: false, reason: "", outOfOrder: false, referrals: [], path, failure: null };
+      if (lost) return { ...base, state: "failed", failure: lost };
+      FAKE.exporting.started.push({ id, dn, path, subtree: options.subtree, secrets: options.secrets });
+      const job = `export-${exportJobs.size + 1}`;
+      const status = { ...base, job };
+      exportJobs.set(job, { status, total: options.subtree ? FAKE.exporting.subtreeEntries : 1 });
+      return { ...status };
+    },
+    async exportProgress(job) {
+      const j = exportJobs.get(job);
+      if (!j) return { job, state: "failed", written: 0, incomplete: false, reason: "", outOfOrder: false, referrals: [], path: "", failure: { title: "Export not found.", message: "Kanopa has no record of this export.", code: 0, lost: false } };
+      const s = j.status;
+      if (s.state === "running") {
+        const { failAfter, cutAfter, perPoll } = FAKE.exporting;
+        s.written = Math.min(s.written + perPoll, j.total);
+        if (failAfter >= 0 && s.written >= failAfter) {
+          s.state = "failed";
+          s.failure = { title: "Couldn't write the file.", message: "There is no space left on the device.", code: 0, lost: false };
+        } else if (cutAfter > 0 && s.written >= cutAfter && cutAfter < j.total) {
+          s.written = cutAfter;
+          s.state = "done";
+          s.incomplete = true;
+          s.reason = `the server stopped after ${cutAfter} entries. Size limit exceeded (4)`;
+          s.referrals = ["ldap://partners.example.org/ou=partners,dc=example,dc=org"];
+        } else if (s.written >= j.total) s.state = "done";
+      }
+      return { ...s, referrals: [...(s.referrals ?? [])] };
+    },
+    async cancelExport(job) {
+      const j = exportJobs.get(job);
+      if (j && j.status.state === "running") j.status.state = "canceled";
+    },
+    async showInFolder(path) {
+      FAKE.opened.folder.push(path);
     },
     async preview(id, changes) {
       const lost = check(id);

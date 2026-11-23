@@ -32,7 +32,7 @@ func fakeDirectory(n int) []fakeldap.Entry {
 }
 
 // connectFake opens a saved connection to the fake server, like the Connect screen does.
-func connectFake(t *testing.T, srv *fakeldap.Server) (*DirectoryService, string, *SessionInfo) {
+func connectFake(t *testing.T, srv *fakeldap.Server, opts ...DirectoryOption) (*DirectoryService, string, *SessionInfo) {
 	t.Helper()
 	s := newTestService(t)
 	c, err := s.Save(SaveRequest{Name: "Fake", URL: srv.URL(), Security: "none", Bind: "anonymous", TimeoutSeconds: 5, PageSize: 500, Referrals: "show"})
@@ -46,7 +46,7 @@ func connectFake(t *testing.T, srv *fakeldap.Server) (*DirectoryService, string,
 	if !res.OK {
 		t.Fatalf("connect: %+v", res)
 	}
-	return NewDirectoryService(nil, s), c.ID, res.Session
+	return NewDirectoryService(nil, s, opts...), c.ID, res.Session
 }
 
 func names(r QuickResult) []string {

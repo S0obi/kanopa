@@ -3,6 +3,7 @@ package ldif
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEntry(t *testing.T) {
@@ -100,5 +101,29 @@ func TestAddDeleteModRDN(t *testing.T) {
 	}
 	if got := ModRDN("uid=zoe,dc=org", nil, "uid=zoe.z"); got != "dn: uid=zoe,dc=org\nchangetype: modrdn\nnewrdn: uid=zoe.z\ndeleteoldrdn: 1\n" {
 		t.Fatalf("modrdn:\n%s", got)
+	}
+}
+
+func TestHeaderAndIncomplete(t *testing.T) {
+	when := time.Date(2026, 11, 23, 10, 30, 5, 0, time.UTC)
+	got := Header("0.2.0", when, "ou=people,dc=example,dc=org", "this entry and everything below", false)
+	want := `version: 1
+# Exported by Kanopa 0.2.0 on 2026-11-23 10:30:05 UTC
+# Base: ou=people,dc=example,dc=org
+# Scope: this entry and everything below
+# Password hashes and secrets: not included
+`
+	if got != want {
+		t.Fatalf("header:\n%s\nwant:\n%s", got, want)
+	}
+	if !strings.Contains(Header("x", when, "dc=org", "s", true), "secrets: included") {
+		t.Fatal("the header does not say secrets are included")
+	}
+	// A DN with a line break can't break out of its comment.
+	if h := Header("x", when, "cn=a\nb", "s", false); strings.Contains(h, "\nb") {
+		t.Fatalf("a line break got into the header: %q", h)
+	}
+	if got := Incomplete("the server stopped"); got != "# Incomplete: the server stopped\n" {
+		t.Fatalf("incomplete: %q", got)
 	}
 }

@@ -13,7 +13,7 @@ import { CrashBoundary, crashDetails } from "./CrashBoundary";
 
 beforeEach(() => {
   FAKE.delayMs = 0;
-  FAKE.opened = { logFolder: 0, repo: 0 };
+  FAKE.opened = { logFolder: 0, repo: 0, folder: [] };
   FAKE.clientErrors = [];
   FAKE.layout = { sidebarWidth: 0, tab: "" };
   useToasts.setState({ toasts: [] });
@@ -41,7 +41,7 @@ describe("About", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "Open the project page" }));
     await user.click(within(dialog).getByRole("button", { name: "Open log folder" }));
-    expect(FAKE.opened).toEqual({ logFolder: 1, repo: 1 });
+    expect(FAKE.opened).toMatchObject({ logFolder: 1, repo: 1 });
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "About Kanopa" })).not.toBeInTheDocument();
   });

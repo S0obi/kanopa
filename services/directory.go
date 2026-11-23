@@ -21,14 +21,34 @@ import (
 type DirectoryService struct {
 	log  *slog.Logger
 	live *registry
+
+	version string           // Kanopa's version, written into exported files
+	now     func() time.Time // the clock, for the date in an exported file
+
+	exports exportJobs
+}
+
+// DirectoryOption sets something a DirectoryService needs besides its connections.
+type DirectoryOption func(*DirectoryService)
+
+// WithVersion tells the service which Kanopa version to name in files it exports.
+func WithVersion(v string) DirectoryOption { return func(d *DirectoryService) { d.version = v } }
+
+// WithClock replaces the clock the service dates exported files with.
+func WithClock(now func() time.Time) DirectoryOption {
+	return func(d *DirectoryService) { d.now = now }
 }
 
 // NewDirectoryService returns the directory service over the connections cs opens.
-func NewDirectoryService(log *slog.Logger, cs *ConnectionService) *DirectoryService {
+func NewDirectoryService(log *slog.Logger, cs *ConnectionService, opts ...DirectoryOption) *DirectoryService {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &DirectoryService{log: log, live: cs.live}
+	d := &DirectoryService{log: log, live: cs.live, now: time.Now}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
 }
 
 // Failure is a read that did not work, worded for the UI. Lost means the connection is gone:

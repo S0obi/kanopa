@@ -8,6 +8,7 @@ import { Badge, Banner, Button, DnBreadcrumb, EmptyState, LdifView, MenuButton, 
 import { cells, dropEntry, pendingOf, pendingView, toEntryChanges, undoDelete, undoRename, useChanges, valuesAfter, type ChangeSet, type PendingAttr } from "./changes";
 import { DeleteDialog, MemberOfPanel, MembersPanel, NewEntryDialog, PendingState, RenameDialog, useMemberOf } from "./shape";
 import { AddAttributeDialog, ValueEditor, targetOf, type EditTarget } from "./editors";
+import { ExportDialog } from "./exportLdif";
 import { ResetPasswordDialog } from "./reset";
 import { AccountStatusBanner } from "./status";
 import { useSettled } from "@/lib/settled";
@@ -141,7 +142,7 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
     .flatMap((a) => valuesAfter(a.values ?? [], pendingOf(pendingSet, e.dn, a.name))).length;
   // The Member of tab shows how many groups list this entry, so the lookup runs when the entry opens.
   const memberOf = useMemberOf(id, e, !isGroup && !isNew);
-  const [dialog, setDialog] = useState<"new" | "rename" | "delete" | "resetPassword" | null>(null);
+  const [dialog, setDialog] = useState<"new" | "rename" | "delete" | "resetPassword" | "export" | null>(null);
   const root = sameDn(e.dn, session.baseDn) || (session.namingContexts ?? []).some((nc) => sameDn(nc, e.dn));
   const container = canHaveChildren({ type: e.type, hasChildren: !!node?.hasChildren, referral: e.referral });
   const multiRdn = (splitDn(e.dn)[0] ?? "").replace(/\\./g, "").includes("+");
@@ -216,11 +217,12 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
                 items={[
                   ...(e.type === "person" ? [{ id: "resetPassword", label: "Reset password…", icon: "key" as const, disabled: resetOff, hint: session.activeDirectory ? "Not supported on Active Directory yet" : undefined }] : []),
                   { id: "rename", label: hasChildren ? "Rename… (entries below it)" : "Rename…", icon: "pencil", disabled: renameOff },
+                  { id: "export", label: "Export LDIF…", icon: "download", disabled: false },
                   { separator: true },
                   { id: "delete", label: "Delete entry…", icon: "trash", danger: true, disabled: deleteOff },
                 ]}
                 // The menu gives focus back to its button as it closes: open the dialog after that.
-                onSelect={(item) => setTimeout(() => setDialog(item === "rename" ? "rename" : item === "resetPassword" ? "resetPassword" : "delete"), 0)}
+                onSelect={(item) => setTimeout(() => setDialog(item === "rename" ? "rename" : item === "resetPassword" ? "resetPassword" : item === "export" ? "export" : "delete"), 0)}
               />
             )}
           </div>
@@ -295,6 +297,7 @@ function Entry({ entry: e, session, editable: canWrite, isNew, onOpen }: EntryPr
         />
       )}
       {dialog === "resetPassword" && <ResetPasswordDialog connectionId={id} entry={e} session={session} onClose={() => setDialog(null)} />}
+      {dialog === "export" && <ExportDialog connectionId={id} entry={e} session={session} onClose={() => setDialog(null)} />}
       {dialog === "rename" && <RenameDialog id={id} entry={e} onClose={() => setDialog(null)} />}
       {dialog === "delete" && <DeleteDialog id={id} entry={e} host={hostOf(session.url)} onClose={() => setDialog(null)} />}
     </div>
