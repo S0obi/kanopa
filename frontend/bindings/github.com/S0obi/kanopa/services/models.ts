@@ -287,6 +287,52 @@ export interface EntryView {
 }
 
 /**
+ * ExportOptions is what the person chose to export.
+ */
+export interface ExportOptions {
+    /**
+     * Subtree exports the entry and everything below it; otherwise the entry alone.
+     */
+    "subtree": boolean;
+
+    /**
+     * Secrets includes password hashes and other secrets, which are left out by default.
+     */
+    "secrets": boolean;
+}
+
+/**
+ * ExportStatus is how an export is going, or how it ended.
+ */
+export interface ExportStatus {
+    "job": string;
+
+    /**
+     * running | done | canceled | failed
+     */
+    "state": string;
+    "written": number;
+
+    /**
+     * Incomplete: the file was kept but does not hold everything; Reason says why.
+     */
+    "incomplete": boolean;
+    "reason": string;
+
+    /**
+     * OutOfOrder: some entry came before its parent, so a tool that needs parents first may refuse the file.
+     */
+    "outOfOrder": boolean;
+
+    /**
+     * Referrals are the references to other servers the server returned and Kanopa did not follow.
+     */
+    "referrals": string[] | null;
+    "path": string;
+    "failure": Failure | null;
+}
+
+/**
  * Failure is a read that did not work, worded for the UI. Lost means the connection is gone:
  * the UI offers Reconnect.
  */

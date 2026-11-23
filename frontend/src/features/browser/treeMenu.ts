@@ -4,7 +4,7 @@ import { sameDn, splitDn } from "@/lib/dn";
 import type { MenuItem } from "@/ui";
 import type { Mark } from "./changes";
 
-export type TreeAction = "copy" | "new" | "addMember" | "resetPassword" | "rename" | "delete";
+export type TreeAction = "copy" | "new" | "addMember" | "resetPassword" | "rename" | "export" | "delete";
 
 export interface TreeMenuContext {
   /** The connection can write: not read-only, and connected. */
@@ -35,6 +35,8 @@ function shortcutOf(action: TreeAction, platform: Platform): string[] | undefine
 export function blockedReason(action: TreeAction, n: TreeNode, ctx: TreeMenuContext): string | undefined {
   if (action === "copy") return undefined;
   if (ctx.mark === "new") return "Not created yet";
+  // Export only reads, so it works on a read-only connection and on an entry marked for deletion.
+  if (action === "export") return undefined;
   if (ctx.mark === "deleted") return "Marked for deletion";
   if (!ctx.canWrite) return "Read-only";
   if (action === "new" || action === "addMember") return undefined;
@@ -82,6 +84,7 @@ export function treeMenu(n: TreeNode, ctx: TreeMenuContext): MenuItem[] {
     ...item("addMember", "Add member…", "users"),
     ...item("resetPassword", "Reset password…", "key"),
     ...item("rename", "Rename…", "pencil"),
+    ...item("export", "Export LDIF…", "download"),
     { separator: true },
     ...item("delete", "Delete…", "trash", true),
   ];

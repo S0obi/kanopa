@@ -29,6 +29,8 @@ export type {
     EntryChange,
     EntryResult,
     EntryView,
+    ExportOptions,
+    ExportStatus,
     Failure,
     FilterCheck,
     FindResult,

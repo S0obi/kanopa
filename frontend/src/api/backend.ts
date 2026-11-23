@@ -11,6 +11,8 @@ import type {
   EntryAttribute,
   EntryChange,
   EntryView,
+  ExportOptions,
+  ExportStatus,
   Failure,
   FilterCheck,
   FindResult,
@@ -37,7 +39,7 @@ import type {
 } from "../../bindings/github.com/S0obi/kanopa/services/models";
 
 export type {
-  About, Layout, AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
+  About, Layout, AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, ExportOptions, ExportStatus, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
   AccountStatus, GIDResult, POSIXResult, PolicyResult, PosixGroup, QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection, UIDMatch, UIDResult,
   SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
 };
@@ -96,6 +98,20 @@ export interface Backend {
   copyText(text: string): Promise<void>;
   /** Copies a password and clears the clipboard after `seconds`, but only if it still holds that password. Also cleared when Kanopa quits. */
   copySecret(text: string, seconds: number): Promise<void>;
+
+  /** The native Save dialog for an LDIF export; the chosen absolute path, or "" when the person canceled. */
+  chooseExportFile(suggestedName: string): Promise<string>;
+  /**
+   * Starts writing dn (and everything below it, if chosen) to the file at path. Returns at once: the status has
+   * the job to poll, or the Failure that stopped it from starting.
+   */
+  startExport(id: string, dn: string, path: string, options: ExportOptions): Promise<ExportStatus>;
+  /** How an export job is going, or how it ended. */
+  exportProgress(job: string): Promise<ExportStatus>;
+  /** Stops an export and removes what it had written; a file it would have replaced is left as it was. */
+  cancelExport(job: string): Promise<void>;
+  /** Shows the folder that holds a file in the file manager. */
+  showInFolder(path: string): Promise<void>;
 
   /** The pending changes as LDIF; nothing is sent. */
   preview(id: string, changes: EntryChange[]): Promise<PreviewResult>;

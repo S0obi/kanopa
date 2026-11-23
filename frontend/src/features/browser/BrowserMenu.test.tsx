@@ -51,7 +51,7 @@ describe("the tree's right-click menu", () => {
     const menu = await menuOf("ou=people");
     expect(await item(/^ou=people/)).toHaveAttribute("aria-selected", "false");
     expect(screen.queryByRole("heading", { level: 1, name: "people" })).not.toBeInTheDocument();
-    expect(names(menu)).toEqual(["Copy DNCtrl+C", "New child entry…", "Rename…Has children", "Delete…Del"]);
+    expect(names(menu)).toEqual(["Copy DNCtrl+C", "New child entry…", "Rename…Has children", "Export LDIF…", "Delete…Del"]);
     expect(within(menu).getByRole("menuitem", { name: /Rename/ })).toHaveAttribute("aria-disabled", "true");
   });
 
@@ -133,7 +133,7 @@ describe("the tree's right-click menu", () => {
     await user.click(within(ask).getByRole("button", { name: "Delete entry" }));
     await rightClick(/^uid=alan .*delete/);
     const menu = await menuOf("uid=alan");
-    expect(names(menu)).toEqual(["Copy DNCtrl+C", "Reset password…Marked for deletion", "Rename…Marked for deletion", "Delete…Marked for deletion"]);
+    expect(names(menu)).toEqual(["Copy DNCtrl+C", "Reset password…Marked for deletion", "Rename…Marked for deletion", "Export LDIF…", "Delete…Marked for deletion"]);
     // A shortcut on it does nothing either.
     await user.keyboard("{Escape}{F2}");
     expect(screen.queryByRole("dialog", { name: /Rename/ })).not.toBeInTheDocument();
@@ -142,6 +142,6 @@ describe("the tree's right-click menu", () => {
   it("disables the shaping actions on a read-only connection", async () => {
     await open({ readOnly: true });
     await rightClick(/^ou=people/);
-    expect(names(await menuOf("ou=people"))).toEqual(["Copy DNCtrl+C", "New child entry…Read-only", "Rename…Read-only", "Delete…Read-only"]);
+    expect(names(await menuOf("ou=people"))).toEqual(["Copy DNCtrl+C", "New child entry…Read-only", "Rename…Read-only", "Export LDIF…", "Delete…Read-only"]);
   });
 });

@@ -1,4 +1,4 @@
-import { Clipboard, Events } from "@wailsio/runtime";
+import { Clipboard, Dialogs, Events } from "@wailsio/runtime";
 import { AppService, ChangeService, ConnectionService, DirectoryService, SettingsService } from "../../bindings/github.com/S0obi/kanopa/services";
 import type { Backend, ThemeChoice } from "./backend";
 
@@ -39,6 +39,18 @@ export const wailsBackend: Backend = {
     await Clipboard.SetText(text);
   },
   copySecret: (text, seconds) => AppService.CopySecret(text, seconds),
+  chooseExportFile: async (suggestedName) => {
+    // Wails answers "" when the person cancels (some versions reject instead).
+    try {
+      return (await Dialogs.SaveFile({ Title: "Export LDIF", Filename: suggestedName, CanCreateDirectories: true, Filters: [{ DisplayName: "LDIF files (*.ldif)", Pattern: "*.ldif" }] })) ?? "";
+    } catch {
+      return "";
+    }
+  },
+  startExport: (id, dn, path, options) => DirectoryService.StartExport(id, dn, path, options),
+  exportProgress: (job) => DirectoryService.ExportProgress(job),
+  cancelExport: (job) => DirectoryService.CancelExport(job),
+  showInFolder: (path) => AppService.ShowInFolder(path),
   preview: (id, changes) => ChangeService.Preview(id, changes),
   apply: (id, changes) => ChangeService.Apply(id, changes),
   setPendingChanges: (n) => AppService.SetPendingChanges(n),

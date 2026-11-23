@@ -48,7 +48,7 @@ func run() error {
 
 	store := openConnections(logger)
 	connSvc := services.NewConnectionService(logger, store, secrets.Keyring{})
-	dirSvc := services.NewDirectoryService(logger, connSvc)
+	dirSvc := services.NewDirectoryService(logger, connSvc, services.WithVersion(version))
 	changeSvc := services.NewChangeService(logger, connSvc)
 	prefs := openSettings(logger)
 	var win *application.WebviewWindow

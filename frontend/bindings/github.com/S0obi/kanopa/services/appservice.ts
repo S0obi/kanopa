@@ -90,3 +90,10 @@ export function SetPendingChanges(n: number): $CancellablePromise<void> {
 export function ShouldBlockClose(): $CancellablePromise<boolean> {
     return $Call.ByID(3195828371);
 }
+
+/**
+ * ShowInFolder opens the folder that holds the file at path in the file manager.
+ */
+export function ShowInFolder(path: string): $CancellablePromise<void> {
+    return $Call.ByID(470384357, path);
+}
