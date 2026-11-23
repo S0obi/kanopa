@@ -50,6 +50,7 @@ jobs:
             echo "CHANGELOG.md has no section for $base" >&2
             exit 1
           fi
+          printf '\n---\n\n[Code signing policy](https://github.com/S0obi/kanopa/blob/main/CODE_SIGNING.md)\n' >> notes.md
           cat notes.md
 
       - name: Create the draft (or keep the one that exists)
