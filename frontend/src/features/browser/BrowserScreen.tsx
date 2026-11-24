@@ -42,7 +42,7 @@ export function BrowserScreen({ session }: { session: SessionInfo }) {
   useEffect(() => {
     void start(backend, session);
     // A new session (after Reconnect) keeps the tree: reload() handles it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps, react/exhaustive-effect-dependencies
   }, []);
 
   // Notice a server that went away while nobody was reading.
