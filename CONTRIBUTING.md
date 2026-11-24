@@ -4,7 +4,7 @@ Thanks for helping. This page is for running Kanopa from source. For what the ap
 
 ## What you need
 
-- Go 1.26+ and Node.js 22+
+- Go 1.26+ and Node.js 26 (what CI uses; 22.22+ and 24.15+ also work)
 - The `wails3` CLI: `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0`
 - Docker, for the test directory (on Windows: Docker Engine inside WSL, see [test/ldap/README.md](test/ldap/README.md))
 - Windows: WebView2 (it ships with Windows 11). macOS: Xcode Command Line Tools
