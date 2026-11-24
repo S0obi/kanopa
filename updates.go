@@ -63,7 +63,7 @@ func (n needsChecksum) Check(ctx context.Context, req updater.CheckRequest) (*up
 
 // pickAsset chooses the release file for this system, or -1.
 func pickAsset(req updater.CheckRequest, assets []github.ReleaseAsset) int {
-	suffix := ""
+	var suffix string
 	switch req.Platform {
 	case "windows":
 		suffix = ".zip"
@@ -77,7 +77,7 @@ func pickAsset(req updater.CheckRequest, assets []github.ReleaseAsset) int {
 		if !strings.HasSuffix(name, suffix) {
 			continue
 		}
-		if req.Platform == "windows" && !(strings.Contains(name, "windows") && strings.Contains(name, req.Arch)) {
+		if req.Platform == "windows" && (!strings.Contains(name, "windows") || !strings.Contains(name, req.Arch)) {
 			continue
 		}
 		if req.Platform == "darwin" && !strings.Contains(name, "macos") {
