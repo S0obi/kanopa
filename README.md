@@ -30,8 +30,6 @@ Kanopa is a desktop app for looking after an LDAP directory. Connect, walk the t
 | **Windows 10 and 11** | The installer (`.exe`), or the portable `.zip` if you would rather not install | Windows SmartScreen may say it "protected your PC". Choose **More info**, then **Run anyway**. Kanopa is not code-signed yet. |
 | **macOS 12 or later** | The `.dmg` (Apple Silicon and Intel). Drag Kanopa to Applications | macOS may say it cannot verify the app. Open **System Settings → Privacy & Security** and choose **Open Anyway** next to Kanopa. |
 
-How Windows builds are signed: see our [Code signing policy](CODE_SIGNING.md).
-
 If Open Anyway does not appear, or macOS says the app is damaged, remove the download quarantine flag in Terminal and open Kanopa again:
 
 ```bash
