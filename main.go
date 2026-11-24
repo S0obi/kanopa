@@ -27,8 +27,8 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-// version is 0.1.0-dev for a local build. A release build sets it with -ldflags "-X main.version=…" (task build VERSION=0.1.0).
-var version = "0.1.0-dev"
+// version is 0.2.0-dev for a local build. A release build sets it with -ldflags "-X main.version=…" (task build VERSION=0.2.0).
+var version = "0.2.0-dev"
 
 func main() {
 	// When Kanopa was started by an update to finish the swap, this does it and never returns.
