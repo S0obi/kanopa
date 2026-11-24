@@ -54,31 +54,25 @@ function UpdateQuestion({ selfUpdate }: { selfUpdate: boolean }) {
       primaryAction={{ label: selfUpdate ? "Check automatically" : "Tell me about updates", onClick: () => void answer(true), busy: saving }}
     >
       <ul className="m-0 flex list-none flex-col gap-3 p-0 text-[13px]">
-        <Point icon="clock" title="When.">
-          When Kanopa starts, then once a day. Never while you are working on a change.
-        </Point>
-        <Point icon="refresh" title="What happens.">
-          {selfUpdate ? "It downloads quietly and shows a notice. Nothing is installed until you press Restart to update." : "You see a notice with a Download button. You install the new version yourself."}
-        </Point>
-        <Point icon="shield" title="What is sent.">
-          A plain request to <code>api.github.com</code>, like opening the Releases page. No account, no identifier, nothing about your directory.
+        <Point icon="clock">Checks when Kanopa starts, then once a day.</Point>
+        <Point icon="refresh">{selfUpdate ? "Downloads quietly. Nothing installs until you press Restart to update." : "Shows a notice with a Download button."}</Point>
+        <Point icon="shield">
+          Sends only a plain request to <code>api.github.com</code>. Nothing about you or your directory.
         </Point>
       </ul>
-      <p className="mt-3 mb-0 text-[12px] text-ink-muted">Kanopa checks each download against the checksum published with the release. Change this any time in the app menu.</p>
+      <p className="mt-3 mb-0 text-[12px] text-ink-muted">Downloads are checked against the release's checksum. Change this any time in the app menu.</p>
     </Dialog>
   );
 }
 
-/** One line of the question: a small moss icon, a bold lead-in and the sentence. */
-function Point({ icon, title, children }: { icon: IconName; title: string; children: ReactNode }) {
+/** One line of the question: a small moss icon and a short sentence. */
+function Point({ icon, children }: { icon: IconName; children: ReactNode }) {
   return (
     <li className="flex items-start gap-2.5">
       <span className="mt-0.5 shrink-0" style={{ color: "var(--moss-ink)" }} aria-hidden="true">
         <Icon name={icon} size={16} />
       </span>
-      <span>
-        <strong>{title}</strong> {children}
-      </span>
+      <span>{children}</span>
     </li>
   );
 }
