@@ -4,7 +4,7 @@ export type IconName =
   | "chevron-right" | "chevron-down" | "folder" | "user" | "users" | "server" | "database" | "entry"
   | "search" | "filter" | "plus" | "minus" | "x" | "check" | "warning" | "info" | "error" | "success"
   | "key" | "lock" | "unlock" | "refresh" | "copy" | "pencil" | "trash" | "more" | "square"
-  | "eye" | "eye-off" | "plug" | "download" | "sun" | "moon" | "settings" | "dice";
+  | "eye" | "eye-off" | "plug" | "download" | "sun" | "moon" | "settings" | "dice" | "clock" | "shield";
 
 type Part = [tag: "path" | "circle" | "rect" | "ellipse", attrs: Record<string, string | number>];
 
@@ -44,6 +44,8 @@ const P: Record<IconName, Part[]> = {
   download: [["path", { d: "M8 2.5v7.5M4.8 7l3.2 3.2L11.2 7M3 13.5h10" }]],
   sun: [["circle", { cx: 8, cy: 8, r: 2.8 }], ["path", { d: "M8 1.8v1.4M8 12.8v1.4M1.8 8h1.4M12.8 8h1.4M3.6 3.6l1 1M11.4 11.4l1 1M12.4 3.6l-1 1M4.6 11.4l-1 1" }]],
   settings: [["path", { d: "M6.7 2h2.6l.4 1.7 1.2.7 1.6-.6 1.3 2.2-1.2 1.2v1.6l1.2 1.2-1.3 2.2-1.6-.6-1.2.7-.4 1.7H6.7l-.4-1.7-1.2-.7-1.6.6-1.3-2.2 1.2-1.2V6.5L2.2 5.3l1.3-2.2 1.6.6 1.2-.7z" }], ["circle", { cx: 8, cy: 8, r: 2 }]],
+  clock: [["circle", { cx: 8, cy: 8, r: 6 }], ["path", { d: "M8 4.5V8l2.2 1.4" }]],
+  shield: [["path", { d: "M8 2l5 2v4c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4z" }]],
   dice: [["rect", { x: 2.5, y: 2.5, width: 11, height: 11, rx: 2.5 }], ["path", { d: "M5.6 5.6h.01M10.4 5.6h.01M8 8h.01M5.6 10.4h.01M10.4 10.4h.01" }]],
   moon: [["path", { d: "M13 9.4A5.3 5.3 0 0 1 6.6 3 5.3 5.3 0 1 0 13 9.4z" }]],
 };
