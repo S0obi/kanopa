@@ -29,7 +29,7 @@ Unicode true
 ## !define UNINST_KEY_NAME     "UninstKeyInRegistry"  # Default "${INFO_COMPANYNAME}${INFO_PRODUCTNAME}"
 ####
 ## !define REQUEST_EXECUTION_LEVEL "admin"            # Default "admin"  see also https://nsis.sourceforge.io/Docs/Chapter4.html
-## !define WAILS_INSTALL_SCOPE     "user"             # Default "machine" - set to "user" for per-user install ($LOCALAPPDATA) without UAC prompt
+## !define WAILS_INSTALL_SCOPE     "user"             # "user" installs per user ($LOCALAPPDATA) without a UAC prompt; "machine" installs for everyone. Kanopa builds with "user" (build/windows/Taskfile.yml) so the updater can replace the exe without admin rights
 ####
 ## Include the wails tools
 ####

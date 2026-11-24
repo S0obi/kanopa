@@ -16,6 +16,10 @@ All notable changes to Kanopa are written here. The format follows [Keep a Chang
 - You can copy a generated password until you apply: from the changes bar and from the entry. After Apply, a notice offers one more Copy for each person, and Kanopa forgets the password when you close it, or after five minutes.
 - When the server refuses a generated password, the message says so and suggests typing one or generating another.
 
+### Changed
+
+- **The Windows installer now installs for your account only** (in `%LocalAppData%\Programs\Kanopa`), with no administrator prompt, so Kanopa can later update itself without one. If you installed an earlier version for all users, uninstall it from Settings, Apps first, then run the new installer once. Your settings and saved connections are kept.
+
 ## [0.1.1] - 2026-11-13
 
 ### Added
