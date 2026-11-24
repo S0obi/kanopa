@@ -61,7 +61,7 @@ func TestTheProviderOffersANewerReleaseWithItsChecksum(t *testing.T) {
 	hexSum := hex.EncodeToString(sum[:])
 	sums := fmt.Sprintf("%s  Kanopa-0.3.0-windows-amd64-portable.zip\n%s  Kanopa-0.3.0-windows-amd64-setup.exe\n", hexSum, hexSum)
 	srv := releaseServer(t, "0.3.0", sums)
-	p, err := newUpdateProvider(srv.URL)
+	p, err := newUpdateProvider(srv.URL, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestTheProviderOffersANewerReleaseWithItsChecksum(t *testing.T) {
 
 func TestTheProviderHasNothingForTheVersionAlreadyRunning(t *testing.T) {
 	srv := releaseServer(t, "0.2.0", "x  y\n")
-	p, _ := newUpdateProvider(srv.URL)
+	p, _ := newUpdateProvider(srv.URL, false)
 	rel, err := p.Check(context.Background(), updater.CheckRequest{CurrentVersion: "0.2.0", Platform: "windows", Arch: "amd64"})
 	if rel != nil || err != nil {
 		t.Fatalf("rel %v err %v", rel, err)
@@ -92,7 +92,7 @@ func TestAReleaseWithoutAChecksumIsRefused(t *testing.T) {
 		"the file is not in the list": "00ff  something-else.zip\n",
 	} {
 		srv := releaseServer(t, "0.3.0", sums)
-		p, _ := newUpdateProvider(srv.URL)
+		p, _ := newUpdateProvider(srv.URL, false)
 		rel, err := p.Check(context.Background(), updater.CheckRequest{CurrentVersion: "0.2.0", Platform: "windows", Arch: "amd64"})
 		if err == nil || rel != nil {
 			t.Errorf("%s: an unchecked release was offered: %v, %v", name, rel, err)

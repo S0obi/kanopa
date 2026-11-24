@@ -92,6 +92,7 @@ type UpdateService struct {
 	percent int
 	failure string
 	busy    bool
+	started sync.Once
 }
 
 // NewUpdateService returns the service for cfg.
@@ -115,7 +116,11 @@ func (u *UpdateService) Start(ctx context.Context) {
 	if !u.supported() {
 		return
 	}
-	go func() {
+	u.started.Do(func() { go u.loop(ctx) })
+}
+
+func (u *UpdateService) loop(ctx context.Context) {
+	{
 		if u.cfg.Store.Updates().Auto {
 			u.run(ctx, false)
 		}
@@ -131,7 +136,7 @@ func (u *UpdateService) Start(ctx context.Context) {
 				}
 			}
 		}
-	}()
+	}
 }
 
 // UpdateStatus says how updating stands.

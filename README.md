@@ -48,7 +48,7 @@ macOS is newer and has had less testing than Windows, so please tell us what you
 
 - Kanopa keeps its settings, your saved connections (without passwords) and its log in `%AppData%\Kanopa` on Windows and `~/Library/Application Support/Kanopa` on macOS. **Open log folder** in the app menu takes you there.
 - Passwords live in the Windows Credential Manager or the macOS Keychain, under "Kanopa".
-- Kanopa talks to the directories you connect to, and nothing else. There is no account and no telemetry.
+- Kanopa talks to the directories you connect to, and nothing else. There is no account and no telemetry. The one exception is the update check, which is off until you turn it on, and then asks GitHub for the latest release (see [SECURITY.md](SECURITY.md)).
 - Uninstalling removes the app and leaves your settings behind, so you can come back to them.
 
 ## Contributing

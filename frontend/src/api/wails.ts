@@ -1,5 +1,5 @@
 import { Clipboard, Dialogs, Events } from "@wailsio/runtime";
-import { AppService, ChangeService, ConnectionService, DirectoryService, SettingsService } from "../../bindings/github.com/S0obi/kanopa/services";
+import { AppService, ChangeService, ConnectionService, DirectoryService, SettingsService, UpdateService } from "../../bindings/github.com/S0obi/kanopa/services";
 import type { Backend, ThemeChoice } from "./backend";
 
 type Cancellable<T> = Promise<T> & { cancel(): void };
@@ -61,6 +61,11 @@ export const wailsBackend: Backend = {
   openLogFolder: () => AppService.OpenLogFolder(),
   openRepo: () => AppService.OpenRepo(),
   logClientError: (message, stack) => AppService.LogClientError(message, stack),
+  updateStatus: () => UpdateService.UpdateStatus(),
+  setAutoUpdate: (on) => UpdateService.SetAutoUpdate(on),
+  checkForUpdates: () => UpdateService.CheckForUpdates(),
+  restartToUpdate: () => UpdateService.RestartToUpdate(),
+  openReleasesPage: () => UpdateService.OpenReleasesPage(),
   layout: () => SettingsService.Layout(),
   setLayout: (layout) => SettingsService.SetLayout(layout),
   theme: async () => (await SettingsService.Theme()) as ThemeChoice,

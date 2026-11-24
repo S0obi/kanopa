@@ -741,3 +741,53 @@ export interface UIDResult {
     "matches": UIDMatch[] | null;
     "failure": Failure | null;
 }
+
+/**
+ * UpdateStatus is how updating stands.
+ */
+export interface UpdateStatus {
+    /**
+     * Supported is false for a build that never checks (a local -dev build).
+     */
+    "supported": boolean;
+
+    /**
+     * Asked: the person has answered the question about checking by themselves.
+     */
+    "asked": boolean;
+
+    /**
+     * Auto: Kanopa checks at start and every day.
+     */
+    "auto": boolean;
+
+    /**
+     * SelfUpdate: this install can replace itself.
+     */
+    "selfUpdate": boolean;
+
+    /**
+     * State is one of the Update* constants.
+     */
+    "state": string;
+
+    /**
+     * Version is the newer version, when there is one.
+     */
+    "version": string;
+
+    /**
+     * Percent is how much of the download has come, 0 to 100.
+     */
+    "percent": number;
+
+    /**
+     * Current is the version that is running.
+     */
+    "current": string;
+
+    /**
+     * Failure says, in plain words, why the last update did not install.
+     */
+    "failure": string;
+}

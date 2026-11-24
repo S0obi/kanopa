@@ -29,13 +29,14 @@ type wailsUpdates struct {
 	progress func(written, total int64)
 }
 
-// newUpdateProvider reads releases from GitHub. Only stable releases are offered (no pre-releases, no
-// drafts), each download is checked against the SHA256SUMS file of its release, and the file picked is
+// newUpdateProvider reads releases from GitHub. Only stable releases are offered (no drafts, and no
+// pre-releases unless this is itself a release candidate, so a dry run of a release can update a dry run), each download is checked against the SHA256SUMS file of its release, and the file picked is
 // the one the app can swap in: the portable zip on Windows. macOS only learns that a new version exists.
-func newUpdateProvider(baseURL string) (updater.Provider, error) {
+func newUpdateProvider(baseURL string, prerelease bool) (updater.Provider, error) {
 	gh, err := github.New(github.Config{
 		Repository:    releasesRepo,
 		BaseURL:       baseURL,
+		Prerelease:    prerelease,
 		ChecksumAsset: "SHA256SUMS",
 		AssetMatcher:  pickAsset,
 	})

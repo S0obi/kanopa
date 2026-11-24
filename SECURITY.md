@@ -24,7 +24,11 @@ Only the latest release gets fixes. Please check that the problem is still there
 - Ways to make Kanopa read or write files, or run code, outside what it is meant to.
 - Mistakes in how a connection is secured (TLS or StartTLS), such as a check that is skipped without being asked to.
 
-Kanopa keeps passwords in the Windows Credential Manager or the macOS Keychain, never in its settings file. It sends nothing anywhere except to the directories you connect to, and it has no telemetry. The Windows installer and the macOS app are not code-signed yet, so your system will warn you on first launch.
+Kanopa keeps passwords in the Windows Credential Manager or the macOS Keychain, never in its settings file. It sends nothing anywhere except to the directories you connect to, and it has no telemetry. The one exception is the update check, which is off until you turn it on: it asks `api.github.com` for the latest release and sends nothing else. The Windows installer and the macOS app are not code-signed yet, so your system will warn you on first launch.
+
+### How updates are checked
+
+When you let Kanopa update itself (Windows only for now), it downloads the portable build from the project's GitHub release and checks it against the `SHA256SUMS` file published in the same release. That catches a damaged download. It does not stop someone who can change the release itself, because they could change the file and its checksum together, and Kanopa has no signing key to tell them apart. What protects the release is the security of the GitHub account and tags (two-factor sign-in, protected tags). A release without a checksum is refused. If you would rather not trust this, leave automatic checks off and install new versions yourself.
 
 ## Out of scope
 

@@ -136,7 +136,7 @@ func run() error {
 		},
 	})
 	setupMenu(app)
-	if provider, err := newUpdateProvider(""); err != nil {
+	if provider, err := newUpdateProvider("", strings.Contains(version, "-rc")); err != nil {
 		logger.Warn("updates unavailable", "err", err)
 	} else if err := engine.attach(app, version, provider); err != nil {
 		logger.Warn("updates unavailable", "err", err)
