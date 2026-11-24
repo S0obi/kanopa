@@ -8,7 +8,7 @@
 #
 # Actions are pinned to the commit SHA of a release at least two weeks old (the version is in the comment).
 # Releases are made with the `gh` CLI that every runner has, so no third-party release action is needed.
-# Code signing is not done yet: the Windows installer is unsigned and the macOS app is ad hoc signed.
+# Code signing is not done: the Windows installer is unsigned and the macOS app is ad hoc signed. A SHA256SUMS file is attached last, for the updater.
 name: Release
 
 on:
@@ -164,3 +164,24 @@ jobs:
           target="bin/Kanopa-${GITHUB_REF_NAME#v}-macos-universal.dmg"
           mv "$dmg" "$target"
           gh release upload "$GITHUB_REF_NAME" "$target" --clobber
+
+  # The updater checks every download against this list. It sits in the same release as the files, so it
+  # catches a damaged download, not a release that someone with write access changed.
+  checksums:
+    name: SHA256SUMS
+    needs: [windows, macos]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Hash the release files and attach the list
+        run: |
+          mkdir sums && cd sums
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'Kanopa-*' --clobber
+          sha256sum Kanopa-* > SHA256SUMS
+          cat SHA256SUMS
+          [ "$(wc -l < SHA256SUMS)" -ge 3 ] || { echo "Expected the setup, the zip and the dmg." >&2; exit 1; }
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" SHA256SUMS --clobber
