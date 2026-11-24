@@ -36,12 +36,13 @@ import type {
   TestResult,
   TreeNode,
   TreeResult,
+  UpdateStatus,
 } from "../../bindings/github.com/S0obi/kanopa/services/models";
 
 export type {
   About, Layout, AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, ExportOptions, ExportStatus, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
   AccountStatus, GIDResult, POSIXResult, PolicyResult, PosixGroup, QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection, UIDMatch, UIDResult,
-  SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult,
+  SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult, UpdateStatus,
 };
 
 /** Why a connection attempt stopped (services.Reason*). */
@@ -135,6 +136,16 @@ export interface Backend {
   openRepo(): Promise<void>;
   /** Writes an error the interface caught to the log, with its stack. */
   logClientError(message: string, stack: string): Promise<void>;
+  /** How updating stands: the choice made, and whether a newer version is checking, downloading or ready. */
+  updateStatus(): Promise<UpdateStatus>;
+  /** Records the answer to "keep Kanopa up to date?". Yes also checks at once. */
+  setAutoUpdate(on: boolean): Promise<UpdateStatus>;
+  /** Checks now, whether or not automatic checks are on. Returns at once; poll updateStatus for the result. */
+  checkForUpdates(): Promise<UpdateStatus>;
+  /** Replaces Kanopa with the downloaded version and starts it again. Rejects while changes are pending. */
+  restartToUpdate(): Promise<void>;
+  /** Opens the page that lists the downloads. */
+  openReleasesPage(): Promise<void>;
   /** What the interface remembers between runs: the tree pane's width and the entry view's tab. */
   layout(): Promise<Layout>;
   setLayout(layout: Layout): Promise<void>;

@@ -49,11 +49,19 @@ type Layout struct {
 	Tab          string `json:"tab"`
 }
 
+// Updates is what the person chose about checking for new versions. Asked is false until they
+// have answered the question shown once; Auto is whether Kanopa checks by itself.
+type Updates struct {
+	Asked bool `json:"asked"`
+	Auto  bool `json:"auto"`
+}
+
 type file struct {
-	Version int     `json:"version"`
-	Theme   string  `json:"theme"`
-	Window  *Window `json:"window,omitempty"`
-	Layout  *Layout `json:"layout,omitempty"`
+	Version int      `json:"version"`
+	Theme   string   `json:"theme"`
+	Window  *Window  `json:"window,omitempty"`
+	Layout  *Layout  `json:"layout,omitempty"`
+	Updates *Updates `json:"updates,omitempty"`
 }
 
 // Store is the settings file. Safe for concurrent use.
@@ -63,6 +71,7 @@ type Store struct {
 	theme    string
 	window   *Window
 	layout   Layout
+	updates  Updates
 	notice   string
 	readOnly bool
 }
@@ -107,6 +116,9 @@ func Open(path string) (*Store, error) {
 	}
 	if f.Layout != nil {
 		s.layout = *f.Layout
+	}
+	if f.Updates != nil {
+		s.updates = *f.Updates
 	}
 	return s, nil
 }
@@ -181,12 +193,27 @@ func (s *Store) SetLayout(l Layout) error {
 	return s.save()
 }
 
+// Updates is the choice about checking for new versions; its zero value (not asked, off) is the default.
+func (s *Store) Updates() Updates {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.updates
+}
+
+// SetUpdates keeps and saves the choice about checking for new versions.
+func (s *Store) SetUpdates(u Updates) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.updates = u
+	return s.save()
+}
+
 // save writes the file (temp file + rename, so a crash never leaves half a file).
 func (s *Store) save() error {
 	if s.readOnly {
 		return errors.New("Your settings were saved by a newer Kanopa, so this one can't change them. Update Kanopa to keep the theme between runs.")
 	}
-	data, err := json.MarshalIndent(file{Version: Version, Theme: s.theme, Window: s.window, Layout: &s.layout}, "", "  ")
+	data, err := json.MarshalIndent(file{Version: Version, Theme: s.theme, Window: s.window, Layout: &s.layout, Updates: &s.updates}, "", "  ")
 	if err != nil {
 		return err
 	}

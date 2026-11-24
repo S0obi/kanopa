@@ -53,7 +53,7 @@ Releases are cut from `main`. Put the changes under a new version in `CHANGELOG.
 git tag v0.1.0-rc.1 && git push origin v0.1.0-rc.1
 ```
 
-The Release workflow builds the Windows installer and portable zip and the universal macOS `.dmg`, and attaches them to a draft release whose notes are the tag's CHANGELOG section. A tag with a suffix (`-rc.1`) is a dry run and is marked as a pre-release. Check the draft's files on each system, then push the plain tag (`v0.1.0`) and publish the draft.
+The Release workflow builds the Windows installer and portable zip and the universal macOS `.dmg`, and attaches them to a draft release whose notes are the tag's CHANGELOG section, then adds a `SHA256SUMS` file that the in-app updater checks downloads against. A release without it is never offered as an update. A tag with a suffix (`-rc.1`) is a dry run and is marked as a pre-release. Check the draft's files on each system, then push the plain tag (`v0.1.0`) and publish the draft.
 
 ## README images
 

@@ -78,6 +78,13 @@ export function OpenRepo(): $CancellablePromise<void> {
 }
 
 /**
+ * PendingChanges is how many entries have unapplied changes.
+ */
+export function PendingChanges(): $CancellablePromise<number> {
+    return $Call.ByID(4232293611);
+}
+
+/**
  * SetPendingChanges tells Go how many entries have unapplied changes.
  */
 export function SetPendingChanges(n: number): $CancellablePromise<void> {

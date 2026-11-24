@@ -1,4 +1,4 @@
-import type { Backend, ConnectionParams, ConnectResult, ExportStatus, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName } from "./backend";
+import type { Backend, ConnectionParams, ConnectResult, ExportStatus, Failure, SavedConnection, SaveRequest, TestResult, ThemeChoice, ThemeName, UpdateStatus } from "./backend";
 import { BASE, SUBSCHEMA, fakeApply, fakeChildren, fakeClasses, fakeEntry, fakeFind, fakeGidCheck, fakeMemberOf, fakeAccountStatus, fakePolicyRequiresChange, fakePosixInfo, fakeNode, fakePreview, fakeReferrers, fakeResolveUids } from "./fakeDirectory";
 import { fakeQuick } from "./fakeQuick";
 
@@ -59,6 +59,13 @@ export const FAKE = {
     /** Entries the fake writes per progress poll. */
     perPoll: 2,
   },
+  /**
+   * Updating, as the Go side reports it. A fake build is not a supported one by default, so no screen
+   * asks about updates; a test sets supported. A check finds `next` (""= nothing newer) and, when this install
+   * can replace itself, a download takes `downloadPolls` polls before the update is ready.
+   */
+  update: { supported: false, asked: false, auto: false, selfUpdate: true, state: "idle", version: "", percent: 0, current: "0.2.0", failure: "" } as UpdateStatus,
+  updating: { next: "0.3.0", downloadPolls: 2, failDownload: false, failCheck: false, restarts: 0, releasesOpened: 0, polls: 0, refuseRestart: "" },
   clientErrors: [] as Array<{ message: string; stack: string }>,
 };
 
@@ -470,6 +477,47 @@ export function createFakeBackend(opts: FakeOptions = {}): Backend & { passwords
     },
     async logClientError(message, stack) {
       FAKE.clientErrors.push({ message, stack });
+    },
+    async updateStatus() {
+      const u = FAKE.update;
+      // A download advances by one step every time the page asks.
+      if (u.state === "downloading") {
+        FAKE.updating.polls++;
+        u.percent = Math.min(100, Math.round((FAKE.updating.polls * 100) / FAKE.updating.downloadPolls));
+        if (FAKE.updating.polls >= FAKE.updating.downloadPolls) {
+          if (FAKE.updating.failDownload) {
+            Object.assign(u, { state: "failed", failure: `Kanopa ${u.version} didn't install, and Kanopa is unchanged (${u.current}). It will try again at the next check.` });
+          } else Object.assign(u, { state: "ready", percent: 100 });
+        }
+      } else if (u.state === "checking") {
+        const next = FAKE.updating.next;
+        if (FAKE.updating.failCheck) {
+          Object.assign(u, { state: "failed", failure: "Kanopa couldn't reach GitHub to look for a new version." });
+        } else if (!next) Object.assign(u, { state: "uptodate" });
+        else if (!u.selfUpdate) Object.assign(u, { state: "available", version: next });
+        else {
+          FAKE.updating.polls = 0;
+          Object.assign(u, { state: "downloading", version: next, percent: 0 });
+        }
+      }
+      return { ...u };
+    },
+    async setAutoUpdate(on) {
+      Object.assign(FAKE.update, { asked: true, auto: on });
+      if (on && FAKE.update.supported) FAKE.update.state = "checking";
+      return { ...FAKE.update };
+    },
+    async checkForUpdates() {
+      if (FAKE.update.supported && !["downloading", "ready"].includes(FAKE.update.state)) Object.assign(FAKE.update, { state: "checking", failure: "" });
+      return { ...FAKE.update };
+    },
+    async restartToUpdate() {
+      if (FAKE.window.pending > 0) throw new Error("Apply or discard your pending changes first, then restart to update.");
+      if (FAKE.updating.refuseRestart) throw new Error(FAKE.updating.refuseRestart);
+      FAKE.updating.restarts++;
+    },
+    async openReleasesPage() {
+      FAKE.updating.releasesOpened++;
     },
     async layout() {
       return { ...FAKE.layout };

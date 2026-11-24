@@ -70,6 +70,13 @@ func (a *AppService) SetPendingChanges(n int) {
 	a.pending = max(n, 0)
 }
 
+// PendingChanges is how many entries have unapplied changes.
+func (a *AppService) PendingChanges() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.pending
+}
+
 // ShouldBlockClose reports whether a close must wait for the person's answer.
 func (a *AppService) ShouldBlockClose() bool {
 	a.mu.Lock()

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"github.com/wailsapp/wails/v3/pkg/updater"
 
 	"github.com/S0obi/kanopa/internal/applog"
 	"github.com/S0obi/kanopa/internal/connections"
@@ -29,6 +31,8 @@ var assets embed.FS
 var version = "0.1.0-dev"
 
 func main() {
+	// When Kanopa was started by an update to finish the swap, this does it and never returns.
+	updater.HandleHelperMode()
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
@@ -78,6 +82,18 @@ func run() error {
 		Log: logger,
 	})
 
+	engine := &wailsUpdates{}
+	updateSvc := services.NewUpdateService(services.UpdateConfig{
+		Store:       prefs,
+		Engine:      engine,
+		Version:     version,
+		SelfUpdate:  canReplaceItself(),
+		ReleasesURL: releasesURL,
+		Pending:     func() int { return appSvc.PendingChanges() },
+		OpenURL:     func(url string) error { return app.Browser.OpenURL(url) },
+		Log:         logger,
+	})
+
 	app = application.New(application.Options{
 		Name:        "Kanopa",
 		Description: "A calm, exact LDAP client",
@@ -87,6 +103,7 @@ func run() error {
 			application.NewService(changeSvc),
 			application.NewService(appSvc),
 			application.NewService(settingsSvc),
+			application.NewService(updateSvc),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -119,6 +136,15 @@ func run() error {
 		},
 	})
 	setupMenu(app)
+	if provider, err := newUpdateProvider("", strings.Contains(version, "-rc")); err != nil {
+		logger.Warn("updates unavailable", "err", err)
+	} else if err := engine.attach(app, version, provider); err != nil {
+		logger.Warn("updates unavailable", "err", err)
+	} else {
+		ctx, stop := context.WithCancel(context.Background())
+		defer stop()
+		updateSvc.Start(ctx)
+	}
 
 	// The window opens once the screens are known (Wails reads them when it starts), so a saved place can be checked.
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {

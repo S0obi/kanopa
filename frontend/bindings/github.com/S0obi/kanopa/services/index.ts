@@ -6,12 +6,14 @@ import * as ChangeService from "./changeservice.js";
 import * as ConnectionService from "./connectionservice.js";
 import * as DirectoryService from "./directoryservice.js";
 import * as SettingsService from "./settingsservice.js";
+import * as UpdateService from "./updateservice.js";
 export {
     AppService,
     ChangeService,
     ConnectionService,
     DirectoryService,
-    SettingsService
+    SettingsService,
+    UpdateService
 };
 
 export type {
@@ -52,5 +54,6 @@ export type {
     TreeNode,
     TreeResult,
     UIDMatch,
-    UIDResult
+    UIDResult,
+    UpdateStatus
 } from "./models.js";
