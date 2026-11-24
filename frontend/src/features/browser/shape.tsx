@@ -688,7 +688,7 @@ const KINDS: Array<{ id: EntryKind; label: string; oc: string; type: string }> =
 const slugUid = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9.]+/g, ".").replace(/^\.+|\.+$/g, "");
 
 /** The uid a new person starts with: the first letter of the first name, then the last name ("Ada Lovelace" is "alovelace"). */
-export const loginOf = (given: string, sn: string) => slugUid(given).charAt(0) + slugUid(sn).replace(/\./g, "");
+const loginOf = (given: string, sn: string) => slugUid(given).charAt(0) + slugUid(sn).replace(/\./g, "");
 
 interface Field {
   name: string;

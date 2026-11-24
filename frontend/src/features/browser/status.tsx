@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useBackend, type AccountStatus, type EntryView, type SessionInfo } from "@/api/backend";
+import { useBackend, type EntryView, type SessionInfo } from "@/api/backend";
 import { formatDay, formatMoment } from "@/lib/time";
 import { Banner, Button } from "@/ui";
 import { pendingOf, useChanges } from "./changes";
@@ -77,4 +77,3 @@ export function AccountStatusBanner({ id, entry, session, canWrite, onReset }: {
   return null;
 }
 
-export type { AccountStatus };

@@ -101,7 +101,9 @@ func TestDeletedWhileConnectingKeepsNoSession(t *testing.T) {
 	if res.OK || res.Title != "Connection not found." {
 		t.Fatalf("unexpected %+v", res)
 	}
-	n := s.live.len()
+	s.live.mu.Lock()
+	n := len(s.live.m)
+	s.live.mu.Unlock()
 	if n != 0 {
 		t.Fatal("no session should be kept for a deleted connection")
 	}

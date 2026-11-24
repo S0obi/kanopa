@@ -117,12 +117,6 @@ func (r *registry) drop(id string, only *liveSession) bool {
 	return true
 }
 
-func (r *registry) len() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return len(r.m)
-}
-
 func (r *registry) closeAll() {
 	r.mu.Lock()
 	all := r.m

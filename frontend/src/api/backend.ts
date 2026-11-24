@@ -21,7 +21,6 @@ import type {
   AccountStatus,
   Layout,
   POSIXResult,
-  PosixGroup,
   ListResult,
   PreviewResult,
   QuickHit,
@@ -40,9 +39,9 @@ import type {
 } from "../../bindings/github.com/S0obi/kanopa/services/models";
 
 export type {
-  About, Layout, AllowedAttribute, ApplyResult, ClassInfo, ClassesResult, ConnectionParams, CountResult, ConnectResult, EntryAttribute, EntryChange, EntryView, ExportOptions, ExportStatus, Failure, FilterCheck, FindResult, ListResult, PreviewResult,
-  AccountStatus, GIDResult, POSIXResult, PolicyResult, PosixGroup, QuickHit, QuickResult, RelatedEntry, RelatedResult, SavedConnection, UIDMatch, UIDResult,
-  SaveRequest, SessionInfo, TestResult, TreeNode, TreeResult, UpdateStatus,
+  Layout, AllowedAttribute, ClassInfo, ConnectionParams, ConnectResult, EntryAttribute, EntryChange, EntryView, ExportStatus, Failure, FilterCheck, FindResult, 
+  AccountStatus, GIDResult, POSIXResult, QuickHit, QuickResult, RelatedEntry, SavedConnection, UIDMatch, 
+  SaveRequest, SessionInfo, TestResult, TreeNode, UpdateStatus,
 };
 
 /** Why a connection attempt stopped (services.Reason*). */

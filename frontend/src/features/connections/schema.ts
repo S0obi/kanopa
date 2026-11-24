@@ -8,7 +8,7 @@ import type { ConnectionParams, SavedConnection, SaveRequest } from "@/api/backe
  * What a simple bind accepts as a name: a DN, or the two forms Active Directory adds:
  * DOMAIN\user (the NetBIOS name) and user@example.org (the user principal name).
  */
-export function isBindName(v: string): boolean {
+function isBindName(v: string): boolean {
   const s = v.trim();
   return isDnSyntax(s) || /^[A-Za-z0-9._-]+\\[^\\/[\]:;|=,+*?<>"@]+$/.test(s) || /^[^@\s,=\\]+@[A-Za-z0-9.-]+$/.test(s);
 }
