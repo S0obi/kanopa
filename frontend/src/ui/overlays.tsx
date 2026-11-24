@@ -40,7 +40,7 @@ export function Modal({ onClose, labelledBy, describedBy, role = "dialog", class
       panel?.querySelector<HTMLElement>(FOCUSABLE);
     if (!focused) first?.focus();
     return () => before?.focus?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps, react/exhaustive-effect-dependencies
   }, []);
 
   function onKeyDown(e: KeyboardEvent) {
@@ -417,7 +417,7 @@ function Toast({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) 
   useEffect(() => {
     const t = setTimeout(onDismiss, 4000);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps, react/exhaustive-effect-dependencies
   }, []);
   return (
     <div className={cx("kn-toast", `kn-toast--${tone}`)} role={tone === "danger" ? "alert" : "status"}>
