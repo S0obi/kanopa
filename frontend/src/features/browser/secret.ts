@@ -3,7 +3,7 @@ import { useBackend } from "@/api/backend";
 import { useToasts } from "@/ui";
 
 /** How long a copied password stays on the clipboard. Go clears it; the page only counts down. */
-export const CLIPBOARD_SECONDS = 60;
+const CLIPBOARD_SECONDS = 60;
 
 /**
  * Copies a password that clears itself from the clipboard, and counts the seconds left for the
